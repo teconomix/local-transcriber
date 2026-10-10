@@ -11,15 +11,15 @@ enum RecordingTitle {
     /// Datum/Uhrzeit aus dem Standardnamen, sonst nil (Datei wurde schon benannt oder stammt nicht aus der App).
     static func defaultStamp(_ url: URL) -> String? {
         let name = url.deletingPathExtension().lastPathComponent
-        guard let m = name.wholeMatch(of: #/Aufnahme (\d{4}-\d{2}-\d{2} \d{2}-\d{2})/#) else { return nil }
+        guard let m = name.wholeMatch(of: #/(?:Aufnahme|Recording) (\d{4}-\d{2}-\d{2} \d{2}-\d{2})/#) else { return nil }
         return String(m.1)
     }
 
     static let instructions = """
-    You name audio recordings. Read the German transcript excerpt and output a short German title of 2 to 6 words that \
-    names the main topic. If a client or organization is mentioned by name, include that name.
+    You name audio recordings. Read the transcript excerpt and output a short title of 2 to 6 words in the language of \
+    the transcript that names the main topic. If a client or organization is mentioned by name, include that name.
     No date, no quotes, no punctuation at the end. Avoid generic words like Besprechung, Meeting, Gespräch, Aufnahme, \
-    Telefonat unless nothing else fits. Output only the title, nothing else.
+    Telefonat, Call, Discussion, Recording unless nothing else fits. Output only the title, nothing else.
     """
 
     /// Auszug: ganzes Transkript, wenn kurz; sonst vier Fenster über die Länge verteilt (Kontext 8192 Tokens).

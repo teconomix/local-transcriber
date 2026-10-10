@@ -23,8 +23,10 @@ def transcribe(wav, terms=None, language="de"):
     ersten Fenster WER 9,9 → 10,8 %, in jedem Fenster 15,5 % plus ausgelassene Halbsätze. Deshalb Standard aus;
     das Glossar wirkt über feste Ersetzungen (glossary.apply)."""
     import mlx_whisper
+    from .i18n import t
     if language not in LANGUAGES:
-        raise ValueError(f"Sprache {language!r} nicht unterstützt, erlaubt: {' '.join(LANGUAGES)}")
+        raise ValueError(t(f"Sprache {language!r} nicht unterstützt, erlaubt: ", f"language {language!r} not supported, allowed: ")
+                         + " ".join(LANGUAGES))
     r = mlx_whisper.transcribe(str(wav), path_or_hf_repo=REPO, language=language, verbose=None,
                                condition_on_previous_text=False, word_timestamps=True,
                                initial_prompt=_prompt(terms, language))

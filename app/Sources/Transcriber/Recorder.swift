@@ -57,11 +57,11 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
 
     func start(deviceID: String?, systemAudio: Bool, voiceProcessing: Bool, folder: URL) async throws {
         guard await AVCaptureDevice.requestAccess(for: .audio) else {
-            throw NSError(domain: "Recorder", code: 1, userInfo: [NSLocalizedDescriptionKey: "Kein Mikrofonzugriff (Systemeinstellungen › Datenschutz › Mikrofon)"])
+            throw NSError(domain: "Recorder", code: 1, userInfo: [NSLocalizedDescriptionKey: String(localized: "Kein Mikrofonzugriff (Systemeinstellungen › Datenschutz › Mikrofon)")])
         }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH-mm"
-        let name = "Aufnahme \(f.string(from: Date()))"
+        let name = String(localized: "Aufnahme \(f.string(from: Date()))")   // RecordingTitle.defaultStamp erkennt de und en
         finalURL = folder.appendingPathComponent("\(name).m4a")
         tmpURL = folder.appendingPathComponent(".\(name).m4a")
         try? FileManager.default.removeItem(at: tmpURL!)
@@ -80,7 +80,7 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
                 if !tapped { try await startSystemCapture() }
                 withSystem = true
             }
-            catch { await MainActor.run { self.warning = "Systemton nicht verfügbar (Bildschirmaufnahme-Freigabe?): \(error.localizedDescription)" } }
+            catch { await MainActor.run { self.warning = String(localized: "Systemton nicht verfügbar (Bildschirmaufnahme-Freigabe?): \(error.localizedDescription)") } }
         }
 
         // Mikrofon: mit Apple-Sprachverarbeitung über AVAudioEngine, sonst roh über AVCaptureSession.
@@ -123,9 +123,9 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
     private func startSessionMic(deviceID: String?) throws {
         let cs = AVCaptureSession()
         let dev = Self.microphones().first { $0.uniqueID == deviceID } ?? AVCaptureDevice.default(for: .audio)
-        guard let dev else { throw NSError(domain: "Recorder", code: 2, userInfo: [NSLocalizedDescriptionKey: "Kein Mikrofon gefunden"]) }
+        guard let dev else { throw NSError(domain: "Recorder", code: 2, userInfo: [NSLocalizedDescriptionKey: String(localized: "Kein Mikrofon gefunden")]) }
         let input = try AVCaptureDeviceInput(device: dev)
-        guard cs.canAddInput(input) else { throw NSError(domain: "Recorder", code: 3, userInfo: [NSLocalizedDescriptionKey: "Mikrofon nicht nutzbar"]) }
+        guard cs.canAddInput(input) else { throw NSError(domain: "Recorder", code: 3, userInfo: [NSLocalizedDescriptionKey: String(localized: "Mikrofon nicht nutzbar")]) }
         cs.addInput(input)
         let out = AVCaptureAudioDataOutput()
         out.audioSettings = [AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: 48000, AVNumberOfChannelsKey: 1,
@@ -155,7 +155,7 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
         // Mixer/Ausgang NICHT anfassen: eine Mixer→Ausgang-Verbindung nach dem Einschalten scheitert mit -10875
         // beim Initialisieren des Ausgangs (VP-Selbsttest 2026-10-09, Variante D).
         let fmt = inNode.outputFormat(forBus: 0)
-        guard fmt.sampleRate > 0 else { throw NSError(domain: "Recorder", code: 5, userInfo: [NSLocalizedDescriptionKey: "kein Eingangsformat"]) }
+        guard fmt.sampleRate > 0 else { throw NSError(domain: "Recorder", code: 5, userInfo: [NSLocalizedDescriptionKey: String(localized: "kein Eingangsformat")]) }
         inNode.installTap(onBus: 0, bufferSize: 4096, format: fmt) { [weak self] buf, when in
             guard let self, let sb = Self.monoSampleBuffer(buf, hostTime: when.hostTime) else { return }
             self.queue.async { self.append(sb, to: self.micInput); self.updateLevel(sb) }
@@ -234,7 +234,7 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
         mic?.markAsFinished(); sys?.markAsFinished()
         await w.finishWriting()
         guard w.status == .completed, let tmp = tmpURL, let fin = finalURL else {
-            let msg = "Aufnahme fehlgeschlagen: \(w.error?.localizedDescription ?? "unbekannt")"
+            let msg = String(localized: "Aufnahme fehlgeschlagen: \(w.error?.localizedDescription ?? String(localized: "unbekannt"))")
             await MainActor.run { self.warning = msg }
             return nil
         }
@@ -263,7 +263,7 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
     }
 
     func stream(_ stream: SCStream, didStopWithError error: Error) {
-        DispatchQueue.main.async { self.warning = "Systemton abgebrochen: \(error.localizedDescription)" }
+        DispatchQueue.main.async { self.warning = String(localized: "Systemton abgebrochen: \(error.localizedDescription)") }
     }
 
     private func updateLevel(_ sb: CMSampleBuffer) {

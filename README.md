@@ -1,51 +1,53 @@
 # Local Transcriber
 
-**Meetings, Calls und Diktate – transkribiert auf deinem Mac. Ohne Cloud.**
+**Meetings, calls and dictation – transcribed on your Mac. No cloud.**
 
-Local Transcriber (in der Menüleiste kurz „Transcriber“) ist ein kleines Menüleisten-Werkzeug für macOS: Es nimmt Gespräche auf, schreibt sie mit, erkennt,
-wer gesprochen hat, und lässt dich überall per Tastendruck diktieren. Alles läuft lokal auf dem Mac – kein Konto,
-kein Abo, kein Lizenzserver, kein Audio, das den Rechner verlässt.
+Deutsch: [docs/de/README.md](docs/de/README.md)
+
+Local Transcriber (“Transcriber” for short in the menu bar) is a small menu bar tool for macOS: it records
+conversations, transcribes them, recognizes who spoke, and lets you dictate anywhere at the press of a key. Everything
+runs locally on the Mac – no account, no subscription, no license server, no audio leaving the computer.
 
 ```bash
 curl -fsSL https://transcriber.teconomix.net/install.sh | bash
 ```
 
-## Was es kann
+## What it does
 
-- **Meetings aufnehmen** – ein Klick; Mikrofon und Systemton (die anderen im Call) als getrennte Spuren.
-- **Transkribieren** – Whisper large-v3-turbo auf der Apple-Silicon-GPU (MLX): eine Stunde Audio samt Sprechererkennung in rund drei bis vier Minuten.
-- **Sprecher erkennen** – pyannote mit lernender Stimmdatenbank; einmal benannt, beim nächsten Mal erkannt.
-- **Videokonferenzen** – erkennt Teams, Zoom, Meet & Co., bietet die Aufnahme an und beendet sie mit dem Call.
-- **Kalender** – Termintitel als Dateiname, Teilnehmer als Vorschläge beim Benennen.
-- **Diktat überall** – Taste halten, sprechen, loslassen: Text steht an der Schreibmarke jeder App.
-- **Lokale KI** (macOS 26) – Diktat aufräumen, sprechende Dateinamen – mit Apple Intelligence auf dem Gerät.
-- **Für Profis** – Ordnerwächter, Markdown/JSON/SRT, Glossar, Kommandozeile, MCP-Server für KI-Agenten.
+- **Record meetings** – one click; microphone and system audio (the others in the call) as separate tracks.
+- **Transcribe** – Whisper large-v3-turbo on the Apple Silicon GPU (MLX): one hour of audio including speaker recognition in about three to four minutes.
+- **Recognize speakers** – pyannote with a learning voice database; name someone once, and they are recognized next time.
+- **Video calls** – detects Teams, Zoom, Meet & co., offers to record and stops the recording when the call ends.
+- **Calendar** – event title as file name, attendees as suggestions when naming speakers.
+- **Dictation everywhere** – hold a key, speak, release: the text appears at the cursor in any app.
+- **Local AI** (macOS 26) – dictation cleanup, meaningful file names – with Apple Intelligence on the device.
+- **For power users** – folder watcher, Markdown/JSON/SRT, glossary, command line, MCP server for AI agents.
 
-Ausführlich: [docs/FUNKTIONEN.md](docs/FUNKTIONEN.md) · Bedienung: [docs/ANLEITUNG.md](docs/ANLEITUNG.md) ·
-Installation: [docs/INSTALLATION.md](docs/INSTALLATION.md) · Datenschutz: [docs/DATENSCHUTZ.md](docs/DATENSCHUTZ.md)
+In detail: [docs/FEATURES.md](docs/FEATURES.md) · Usage: [docs/USER_GUIDE.md](docs/USER_GUIDE.md) ·
+Installation: [docs/INSTALLATION.md](docs/INSTALLATION.md) · Privacy: [docs/PRIVACY.md](docs/PRIVACY.md)
 
-## Voraussetzungen
+## Requirements
 
-Mac mit Apple Silicon (M1 oder neuer), macOS 14 Sonoma oder neuer (KI-Funktionen: macOS 26 mit Apple Intelligence),
-ca. 8 GB freier Speicher, 16 GB Arbeitsspeicher empfohlen. Internet nur für die Installation.
+Mac with Apple Silicon (M1 or newer), macOS 14 Sonoma or newer (AI features: macOS 26 with Apple Intelligence),
+about 8 GB of free disk space, 16 GB of memory recommended. Internet only for installation.
 
-## Aufbau
+## Structure
 
-| Teil | Ort | Technik |
+| Part | Location | Technology |
 |---|---|---|
-| Menüleisten-App | `app/` | Swift/SwiftUI, AVFoundation, Core-Audio-Process-Tap, EventKit, Foundation Models, Vision |
-| Kern | `transcriber/` | Python: mlx-whisper, pyannote.audio, ffmpeg, SQLite (Stimmdatenbank) |
-| Kommandozeile / MCP | `transcriber/cli.py`, `transcriber/mcp_server.py` | `transcriber transcribe …`, MCP-Werkzeuge |
+| Menu bar app | `app/` | Swift/SwiftUI, AVFoundation, Core Audio process tap, EventKit, Foundation Models, Vision |
+| Core | `transcriber/` | Python: mlx-whisper, pyannote.audio, ffmpeg, SQLite (voice database) |
+| Command line / MCP | `transcriber/cli.py`, `transcriber/mcp_server.py` | `transcriber transcribe …`, MCP tools |
 | Installer | `installer/` | `install.sh`, `uninstall.sh` |
-| Release | `scripts/make-release.sh` | baut `dist/<Version>/` |
-| Website | `website/` | statisch |
+| Release | `scripts/make-release.sh` | builds `dist/<version>/` |
+| Website | `website/` | static |
 
-Selbst bauen: siehe [docs/ENTWICKLUNG.md](docs/ENTWICKLUNG.md).
+Building it yourself: see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
-## Rechtliches
+## Legal
 
-Freie Software unter der [MIT-Lizenz](LICENSE) – **ohne jede Gewähr**. Verwendete Modelle und Bibliotheken behalten
-ihre eigenen Lizenzen: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Free software under the [MIT License](LICENSE) – **without any warranty**. The models and libraries used keep their
+own licenses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-**Aufnahmen:** Du bist selbst dafür verantwortlich, die Einwilligung aller Beteiligten einzuholen. Das heimliche
-Aufzeichnen von Gesprächen ist in vielen Ländern verboten.
+**Recordings:** You are responsible for obtaining the consent of everyone involved. Secretly recording conversations is
+illegal in many countries.

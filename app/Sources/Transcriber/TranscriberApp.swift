@@ -148,7 +148,7 @@ struct PanelView: View {
                             .keyboardShortcut(.defaultAction)
                             .tint(recorder.isRecording ? .red : .accentColor)
                             FillMenu(selection: $micID,
-                                     options: [("", "Systemstandard")] + mics.map { ($0.uniqueID, $0.localizedName) })
+                                     options: [("", String(localized: "Systemstandard"))] + mics.map { ($0.uniqueID, $0.localizedName) })
                             .frame(width: 170)
                             .disabled(recorder.isRecording)
                             .onAppear { mics = Recorder.microphones() }
@@ -209,9 +209,9 @@ struct PanelView: View {
     }
 
     private var status: String {
-        if recorder.isRecording { return "Aufnahme " + timeString(recorder.elapsed) }
-        if let p = jobs.overallProgress { return "Transkribiere \(Int(p * 100)) %" }
-        return "Bereit"
+        if recorder.isRecording { return String(localized: "Aufnahme \(timeString(recorder.elapsed))") }
+        if let p = jobs.overallProgress { return String(localized: "Transkribiere \(Int(p * 100)) %") }
+        return String(localized: "Bereit")
     }
 
     /// Diktat im Panel nur als Hinweiszeile: welche Tasten, und rot/orange, wenn etwas fehlt.
@@ -227,8 +227,11 @@ struct PanelView: View {
             } else if let e = dictation.lastError {
                 Text("Diktat: \(e)").foregroundStyle(.red).lineLimit(2).textSelection(.enabled)
             } else {
-                Text("Diktat: \(label(dictationKey))" + (dictationCleanKey == "off" ? "" : " · mit KI: \(label(dictationCleanKey))"))
-                    .foregroundStyle(.secondary)
+                Group {
+                    if dictationCleanKey == "off" { Text("Diktat: \(label(dictationKey))") }
+                    else { Text("Diktat: \(label(dictationKey)) · mit KI: \(label(dictationCleanKey))") }
+                }
+                .foregroundStyle(.secondary)
             }
         }
         .font(.caption)
@@ -352,7 +355,7 @@ struct JobRow: View {
             case .running:
                 ProgressView(value: job.progress) { Text(job.message).font(.caption) }
             case .failed, .aborted:
-                Text(job.error ?? "fehlgeschlagen").font(.caption).foregroundStyle(.red).textSelection(.enabled)
+                Text(job.error ?? String(localized: "fehlgeschlagen")).font(.caption).foregroundStyle(.red).textSelection(.enabled)
             case .done:
                 VStack(alignment: .leading, spacing: 2) { ForEach(job.speakers) { s in speakerRow(s) } }
                 // Ab zwei offenen Zuordnungen; eine einzelne übernimmt das ✓ in ihrer Zeile.
@@ -397,7 +400,7 @@ struct JobRow: View {
                     }
                     .buttonStyle(.link).help("„\(c.0)“ als richtig bestätigen")
                 } else if s.status == "sicher" || s.status == "bestätigt" {
-                    Text(s.status).font(.caption).foregroundStyle(.tertiary)
+                    Text(LocalizedStringKey(s.status)).font(.caption).foregroundStyle(.tertiary)   // Statuscode aus dem Kern
                 }
                 if !open {
                     Button { editing.insert(s.letter) } label: { Image(systemName: "pencil").font(.caption) }

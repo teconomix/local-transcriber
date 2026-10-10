@@ -5,11 +5,13 @@
     var target = document.getElementById(btn.getAttribute("data-copy"));
     if (!target) return;
     var label = btn.querySelector("span");
+    var idle = label.textContent;                               // Beschriftung kommt aus der Seite (de/en)
+    var done = btn.getAttribute("data-copied") || "Kopiert";
     btn.hidden = false;
     btn.addEventListener("click", function () {
       navigator.clipboard.writeText(target.textContent.trim()).then(function () {
-        label.textContent = "Kopiert";
-        setTimeout(function () { label.textContent = "Kopieren"; }, 1800);
+        label.textContent = done;
+        setTimeout(function () { label.textContent = idle; }, 1800);
       });
     });
   });

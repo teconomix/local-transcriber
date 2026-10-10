@@ -46,11 +46,15 @@ struct RecordingSettings: View {
                     Toggle(name, isOn: binding(code))
                 }
             } header: {
-                Text("Sprachen zur Auswahl")
-            } footer: {
-                Text("Diese Sprachen stehen im Fenster zur Auswahl (Aufnahmen, Dateien, Diktat). Whisper erkennt rund 100 Sprachen; "
-                     + "am besten Englisch, Deutsch, Spanisch, Französisch und andere weit verbreitete, seltene deutlich schwächer.")
-                    .font(.caption).foregroundStyle(.secondary)
+                // Erklärung im Kopf statt als Fußzeile: unter ~100 Sprachen sah sie niemand.
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Sprachen zur Auswahl")
+                    Text("""
+                        Diese Sprachen stehen im Fenster zur Auswahl (Aufnahmen, Dateien, Diktat). Whisper erkennt rund 100 Sprachen; \
+                        am besten Englisch, Deutsch, Spanisch, Französisch und andere weit verbreitete, seltene deutlich schwächer.
+                        """)
+                        .font(.caption).fontWeight(.regular).foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)
@@ -136,8 +140,10 @@ struct CalendarSettings: View {
                     }
                 }
             } footer: {
-                Text("Termine, bei denen du Teilnehmer oder Organisator bist, haben Vorrang vor Terminen aus geteilten Kalendern. "
-                     + "In der Kalender-App ausgeblendete Kalender sieht Transcriber trotzdem – hier abwählen.")
+                Text("""
+                    Termine, bei denen du Teilnehmer oder Organisator bist, haben Vorrang vor Terminen aus geteilten Kalendern. \
+                    In der Kalender-App ausgeblendete Kalender sieht Transcriber trotzdem – hier abwählen.
+                    """)
                     .font(.caption).foregroundStyle(.secondary)
             }
             ForEach(groups, id: \.0) { account, cals in

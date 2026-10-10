@@ -31,13 +31,13 @@ enum DictationCleanup {
 
     /// nil = nutzbar, sonst Grund für die Anzeige.
     static var unavailableReason: String? {
-        guard #available(macOS 26, *) else { return "braucht macOS 26" }
+        guard #available(macOS 26, *) else { return String(localized: "braucht macOS 26") }
         switch model.availability {
         case .available: return nil
-        case .unavailable(.appleIntelligenceNotEnabled): return "Apple Intelligence ist ausgeschaltet"
-        case .unavailable(.modelNotReady): return "Apple-Modell wird noch geladen"
-        case .unavailable(.deviceNotEligible): return "Gerät unterstützt Apple Intelligence nicht"
-        case .unavailable: return "Apple-Modell nicht verfügbar"
+        case .unavailable(.appleIntelligenceNotEnabled): return String(localized: "Apple Intelligence ist ausgeschaltet")
+        case .unavailable(.modelNotReady): return String(localized: "Apple-Modell wird noch geladen")
+        case .unavailable(.deviceNotEligible): return String(localized: "Gerät unterstützt Apple Intelligence nicht")
+        case .unavailable: return String(localized: "Apple-Modell nicht verfügbar")
         }
     }
 

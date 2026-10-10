@@ -1,0 +1,3 @@
+"NSMicrophoneUsageDescription" = "Transcriber records conversations to transcribe them locally.";
+"NSCalendarsFullAccessUsageDescription" = "Transcriber uses the title and attendees of the current event to name recordings and suggest speakers.";
+"NSAudioCaptureUsageDescription" = "Transcriber records the system audio (e.g. a video call) as a second track.";

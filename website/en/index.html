@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local Transcriber – meetings, calls and dictation transcribed on your Mac</title>
+  <meta name="description" content="Local Transcriber is a free, open-source tool for the macOS menu bar: meetings, calls and dictation are transcribed locally on your Mac – no cloud, no account, no subscription.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/">
+  <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/">
+  <link rel="alternate" hreflang="x-default" href="https://transcriber.teconomix.net/">
+  <script src="../script.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="../assets/icon.svg" alt="" width="28" height="28">Local Transcriber</a>
+    <nav class="nav" aria-label="Main navigation">
+      <a class="opt" href="#features">Features</a>
+      <a class="opt" href="#faq">FAQ</a>
+      <a href="#installation">Installation</a>
+      <a class="lang" href="../de/" hreflang="de" lang="de">Deutsch</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+
+  <!-- ===================== Hero ===================== -->
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="eyebrow">Free · Open source · for macOS</span>
+        <h1 id="hero-title">Local Transcriber</h1>
+        <p class="lead"><strong>Meetings, calls and dictation – transcribed on your Mac. No cloud.</strong> A small, helpful tool in the menu bar that listens, takes notes and knows who said what.</p>
+
+        <div class="install-box">
+          <span class="install-label" id="install-label">Install – paste into Terminal:</span>
+          <div class="cmd">
+            <pre id="install-cmd" aria-labelledby="install-label">curl -fsSL https://transcriber.teconomix.net/install.sh | bash</pre>
+            <button class="copy-btn" type="button" data-copied="Copied" data-copy="install-cmd" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>
+              <span aria-live="polite">Copy</span>
+            </button>
+          </div>
+          <p class="install-version">Version <span data-version>0.5.0</span> · October 10, 2026 · macOS 14 or later</p>
+        </div>
+
+        <div class="hero-links">
+          <a class="btn primary" href="#installation">Instructions</a>
+          <a class="btn" href="https://github.com/teconomix/local-transcriber">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14"/></svg>
+            Source code on GitHub
+          </a>
+        </div>
+
+        <ul class="facts">
+          <li>Mac with Apple silicon</li>
+          <li>Around 100 languages</li>
+          <li>No account, no subscription</li>
+        </ul>
+      </div>
+
+      <!-- Replica of the menu bar window with sample names -->
+      <div class="panel-stage">
+        <div class="panel" role="img" aria-label="The Transcriber window in the menu bar: buttons for recording and transcribing, below them two transcriptions with recognized speakers.">
+          <div class="p-head">
+            <span class="p-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 10v4M7 7v10M11 4v16M15 8v8M19 10v4"/></svg>
+              Transcriber
+            </span>
+            <span class="p-state">Ready</span>
+          </div>
+          <div class="p-box">
+            <div class="p-row">
+              <span class="p-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor"/></svg>Start recording</span>
+              <span class="p-sel">System default <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 9l4-4 4 4M8 15l4 4 4-4"/></svg></span>
+            </div>
+            <div class="p-row">
+              <span class="p-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg>Transcribe file…</span>
+              <span class="p-sel">English <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 9l4-4 4 4M8 15l4 4 4-4"/></svg></span>
+            </div>
+            <div class="p-hint">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>
+              Dictation: right ⌘ · with AI: right ⌥
+            </div>
+          </div>
+          <div class="p-sub"><span>Transcriptions</span><span>Hide finished</span></div>
+          <div class="p-card">
+            <h4>2026-10-10 14-03 Q4 budget planning</h4>
+            <span class="p-x" aria-hidden="true">✕</span>
+            <div class="p-meta">42:18 min · <span class="l">Open</span> · <span class="l">Show in Finder</span></div>
+            <div class="p-spk"><span class="k">A</span><b>Alex Example</b><span class="m">12.4 min</span><span class="ok">confident</span><span class="pen">✎</span></div>
+            <div class="p-spk"><span class="k">B</span><b>Sam Sample (?)</b><span class="m">3.1 min</span><span class="l">✓ accept</span><span class="pen">✎</span></div>
+          </div>
+          <div class="p-card">
+            <h4>2026-10-10 11-30 Client call website relaunch</h4>
+            <span class="p-x" aria-hidden="true">✕</span>
+            <div class="p-meta">27:05 min · <span class="l">Open</span> · <span class="l">Show in Finder</span></div>
+            <div class="p-spk"><span class="k">A</span><b>Kim Instance</b><span class="m">9.8 min</span><span class="ok">confirmed</span><span class="pen">✎</span></div>
+            <div class="p-spk"><span class="k">B</span><b>Speaker B</b><span class="m">7.2 min</span><span class="pen">✎</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Features ===================== -->
+  <section id="features" aria-labelledby="features-title">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="features-title">What Local Transcriber does</h2>
+        <p>Record, transcribe, identify speakers, dictate – all on your Mac, nothing in someone else’s data center.</p>
+      </div>
+
+      <div class="features">
+        <article class="card highlight">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3M12 15v2"/></svg></div>
+          <h3>Fully local &amp; private</h3>
+          <p>Recording, speech recognition and speaker recognition run entirely on your Mac. No cloud, no account, no subscription, no license server. Audio never leaves your computer.</p>
+        </article>
+
+        <article class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5" fill="currentColor"/></svg></div>
+          <h3>Record meetings</h3>
+          <p>One click in the menu bar. Microphone and system audio – that is, the other people on the call – are recorded as separate tracks.</p>
+          <p>Transcription uses Whisper large-v3-turbo on the Apple silicon GPU: one hour of audio, including speaker recognition, in about three to four minutes.</p>
+        </article>
+
+        <article class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.1a4.5 4.5 0 0 1 5 4.4"/></svg></div>
+          <h3>Who said what</h3>
+          <p>Speaker recognition (pyannote) with a voice database that learns: name a voice once, and it is recognized next time. Uncertain matches are marked with “(?)”.</p>
+        </article>
+
+        <article class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2.5"/><path d="M16 10.5l5-3v9l-5-3"/></svg></div>
+          <h3>Video calls</h3>
+          <p>Detects Teams, Zoom, Google Meet &amp; co. and asks: “Record?” The recording stops automatically when the call ends. Your voice and the others’ are kept apart via separate tracks – in testing, even with speaker echo.</p>
+        </article>
+
+        <article class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></div>
+          <h3>Calendar</h3>
+          <p>The current event becomes the file name, and its attendees are suggested when you name the voices.</p>
+        </article>
+
+        <article class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></div>
+          <h3>Dictation everywhere</h3>
+          <p>Hold the right <kbd>⌘</kbd>, speak, release: the text appears at the cursor – in Mail, Slack, your browser or Terminal. 10 seconds of dictation in about 0.2 s.</p>
+          <p>With the right <kbd>⌥</kbd>, Apple Intelligence (on-device) cleans up filler words and punctuation.</p>
+        </article>
+
+        <article class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h4"/></svg></div>
+          <h3>Meaningful file names</h3>
+          <p>From your calendar or via on-device AI:</p>
+          <span class="example">2026-10-10 14-03 Q4 budget planning<br><s>Recording 14-03</s></span>
+        </article>
+
+        <article class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M7 10l3 2.5L7 15M12.5 15H17"/></svg></div>
+          <h3>For power users</h3>
+          <p>Folder watcher (optional): files in <code>~/Transkription</code> are transcribed automatically. Output as Markdown, JSON and SRT, a glossary for names and technical terms, a command line and an MCP server for AI agents such as Claude.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== How it works ===================== -->
+  <section class="section-alt" aria-labelledby="how-title">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="how-title">How it works</h2>
+        <p>Three steps from installation to your first transcript.</p>
+      </div>
+      <ol class="steps">
+        <li>
+          <h3>Install</h3>
+          <p>One command in Terminal – the installer takes care of the rest.</p>
+        </li>
+        <li>
+          <h3>Grant permissions</h3>
+          <p>Microphone and system audio. Optional: Accessibility for dictation and access to your calendar.</p>
+        </li>
+        <li>
+          <h3>Record or dictate</h3>
+          <p>Click in the menu bar or hold the right <kbd>⌘</kbd>. Shortly afterwards, the transcript is saved next to the recording.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ===================== Settings ===================== -->
+  <section aria-labelledby="settings-title">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="settings-title">Clear, simple settings</h2>
+        <p>A few understandable switches – just what you would expect from a Mac app.</p>
+      </div>
+      <div class="gallery">
+        <figure>
+          <img src="../assets/en/ui-aufnahme.png" width="520" height="472" loading="lazy" decoding="async"
+               alt="Recording settings: record system audio, voice processing for the microphone, transcribe and give a descriptive name after recording, detect calls and offer to record.">
+          <figcaption>Recording</figcaption>
+        </figure>
+        <figure>
+          <img src="../assets/en/ui-diktat.png" width="520" height="472" loading="lazy" decoding="async"
+               alt="Dictation settings: keys for verbatim dictation (right Command key) and AI cleanup (right Option key), text of the active window as context, feedback via sound and icon.">
+          <figcaption>Dictation</figcaption>
+        </figure>
+        <figure>
+          <img src="../assets/en/ui-kalender.png" width="520" height="472" loading="lazy" decoding="async"
+               alt="Calendar settings: use the event for the recording (title, attendees) and choose which calendars to include.">
+          <figcaption>Calendar</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Installation ===================== -->
+  <section id="installation" class="section-alt" aria-labelledby="installation-title">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="installation-title">Installation</h2>
+        <p>One command, about ten minutes of patience – after that, everything runs offline.</p>
+      </div>
+      <div class="install-grid">
+        <div class="card">
+          <h3>Requirements</h3>
+          <ul class="req">
+            <li><strong>Mac with Apple silicon</strong> (M1 or later)</li>
+            <li><strong>macOS 14 Sonoma</strong> or later – for AI features such as cleanup and file names: macOS 26 with Apple Intelligence</li>
+            <li><strong>about 8 GB of free disk space</strong> (the speech recognition model alone ~3 GB)</li>
+            <li><strong>16 GB of memory</strong> recommended</li>
+            <li><strong>Internet</strong> only for installation</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Step by step</h3>
+          <ol class="install-steps">
+            <li>Open Terminal (Applications › Utilities) and paste this command:
+              <div class="cmd">
+                <pre id="install-cmd-2">curl -fsSL https://transcriber.teconomix.net/install.sh | bash</pre>
+                <button class="copy-btn" type="button" data-copied="Copied" data-copy="install-cmd-2" hidden>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>
+                  <span aria-live="polite">Copy</span>
+                </button>
+              </div>
+            </li>
+            <li>The installer downloads the Python environment, the models and the app – this takes about ten minutes.</li>
+            <li>Transcriber starts in the menu bar. The first time you record, macOS asks for access to the microphone and system audio.</li>
+          </ol>
+          <div class="note">
+            <p><strong>About Gatekeeper:</strong> The app is not (yet) notarized by Apple. The installer sets it up so that it starts anyway.</p>
+            <p><strong>Uninstall:</strong> <code>bash ~/.local/share/transcriber/uninstall.sh</code></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== FAQ ===================== -->
+  <section id="faq" aria-labelledby="faq-title">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="faq-title">Frequently asked questions</h2>
+      </div>
+      <div class="faq">
+        <details>
+          <summary>Does it cost anything?</summary>
+          <p>No. Transcriber is open source under the MIT license and free of charge – no account, no subscription, no ads.</p>
+        </details>
+        <details>
+          <summary>Does it need an internet connection?</summary>
+          <p>Only for installation. After that, everything works offline; recordings and transcripts stay on your Mac.</p>
+        </details>
+        <details>
+          <summary>Which languages are supported?</summary>
+          <p>Around 100 – all the languages the Whisper speech recognition model knows. German, English, Spanish and French are preselected; you can add more in the settings. Widely spoken languages work best, rare ones considerably less well.</p>
+        </details>
+        <details>
+          <summary>Am I allowed to record conversations?</summary>
+          <p>That is your responsibility: get the consent of everyone involved before you record – depending on the country, this is required by law.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Local Transcriber <span data-version>0.5.0</span> · Open source (MIT) · no warranty</span>
+    <nav aria-label="Legal and links">
+      <a href="legal-notice.html">Legal notice</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="https://github.com/teconomix/local-transcriber#readme">Documentation</a>
+      <a href="https://github.com/teconomix/local-transcriber">GitHub</a>
+      <span>A small tool by Björn Rabethge</span>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

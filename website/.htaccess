@@ -8,11 +8,26 @@ AddType "text/plain; charset=utf-8" .sh
 AddType "image/svg+xml" .svg
 AddDefaultCharset utf-8
 
+# Sprachen: /de/ und /en/. Nur die Wurzel „/“ leitet nach Accept-Language weiter (erste Sprache Deutsch → /de/,
+# sonst /en/); /de/ und /en/ selbst leiten nie weiter → keine Schleife, kein Cookie.
+# Diese Datei liegt in ~/html/transcriber/; ~/html/.htaccess schreibt /x intern auf /transcriber/x um. Die Muster
+# hier sind relativ zu diesem Verzeichnis („^$“ = Wurzel), die Ziele absolute URL-Pfade der Domain → kein RewriteBase.
+RewriteEngine On
+RewriteCond %{HTTP:Accept-Language} ^\s*de([-_,;\s]|$) [NC]
+RewriteRule ^(index\.html)?$ /de/ [R=302,L,E=LANG_NEGOTIATED:1]
+RewriteRule ^(index\.html)?$ /en/ [R=302,L,E=LANG_NEGOTIATED:1]
+# /de und /en ohne Schrägstrich: sonst ergänzt mod_dir ihn und verrät dabei das Unterverzeichnis (/transcriber/de/)
+RewriteRule ^(de|en)$ /$1/ [R=301,L]
+# Alte Adressen der Rechtstexte (bis 0.4.0 an der Wurzel)
+RewriteRule ^(impressum|datenschutz)\.html$ /de/$1.html [R=301,L]
+
 <IfModule mod_headers.c>
   Header always set Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-ancestors 'none'"
   Header always set X-Content-Type-Options "nosniff"
   Header always set Referrer-Policy "no-referrer"
   Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+  # Sprachweiterleitung der Wurzel hängt an Accept-Language (Caches dürfen sie nicht für alle wiederverwenden)
+  Header always merge Vary "Accept-Language" env=LANG_NEGOTIATED
 
   # Installations-/Deinstallationsskripte nie cachen, damit immer die aktuelle Version kommt
   <FilesMatch "\.sh$">

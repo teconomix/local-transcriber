@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 
 from . import config
+from .i18n import t
 
 
 def tool(name):
@@ -26,7 +27,7 @@ def prepare(src, dst):
     Normalisierung gemischt und danach per loudnorm angeglichen – die Spuren haben sehr verschiedene Pegel."""
     tracks, dur = probe(src)
     if not tracks:
-        raise ValueError(f"keine Tonspur in {src}")
+        raise ValueError(t("keine Tonspur in", "no audio track in") + f" {src}")
     if len(tracks) > 1:
         ins = "".join(f"[0:a:{i}]" for i in range(len(tracks)))
         af = ["-filter_complex", f"{ins}amix=inputs={len(tracks)}:normalize=0,loudnorm=I=-18"]

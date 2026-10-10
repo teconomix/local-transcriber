@@ -9,6 +9,7 @@ APP=~/Applications/Transcriber.app
 rm -rf "$APP"; mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$SCRATCH/release/Transcriber" "$APP/Contents/MacOS/"
 cp Resources/Info.plist "$APP/Contents/"
+cp -R Resources/*.lproj "$APP/Contents/Resources/"     # Englisch; Deutsch = Quelltext (CFBundleDevelopmentRegion)
 # Feste Signatur (selbst signiertes Zertifikat, eigener Schlüsselbund): macOS merkt sich die Freigaben (Mikrofon,
 # Bildschirmaufnahme, Bedienungshilfen) über Neubauten hinweg. Ad hoc signiert fragte es nach jedem Bau neu.
 # Schlüsselbund-Passwort liegt im Anmelde-Schlüsselbund (Eintrag „transcriber-signing-keychain“), nicht in Dateien.

@@ -8,6 +8,7 @@ import traceback
 from pathlib import Path
 
 from . import config
+from .i18n import t
 
 EXT = {".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg", ".opus", ".mp4", ".mov", ".m4v", ".mkv", ".webm", ".caf", ".aiff", ".aif"}
 
@@ -32,7 +33,7 @@ def run(dir_=None, interval=5, settle=10):
     cfg = config.load()
     d = Path(dir_ or cfg["watch_dir"]).expanduser()
     d.mkdir(parents=True, exist_ok=True)
-    print(f"überwache {d}", flush=True)
+    print(t("überwache", "watching") + f" {d}", flush=True)
     seen = {}
     while True:
         for f in _pending(d):
@@ -45,10 +46,10 @@ def run(dir_=None, interval=5, settle=10):
             print(f"{time.strftime('%H:%M:%S')} → {f.name}", flush=True)
             try:
                 doc, paths = pipeline.run(f, cfg=cfg)
-                print(f"   fertig: {paths.get('md', paths['json']).name}  "
+                print("   " + t("fertig", "done") + f": {paths.get('md', paths['json']).name}  "
                       + ", ".join(f"{c['display']}" for c in doc["speakers"]), flush=True)
             except Exception:
                 f.with_name(f.stem + ".error.txt").write_text(traceback.format_exc())
-                print(f"   FEHLER, siehe {f.stem}.error.txt", flush=True)
+                print("   " + t("FEHLER, siehe", "ERROR, see") + f" {f.stem}.error.txt", flush=True)
             seen.pop(f, None)
         time.sleep(interval)

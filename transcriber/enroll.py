@@ -9,6 +9,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from . import audio, config, speakers
+from .i18n import t
 
 ROW = re.compile(r"\*\*\[(\d\d):(\d\d):(\d\d)\] ([^:*]+):\*\*")
 
@@ -56,8 +57,9 @@ def from_named_transcript(src, md, dry=False, cfg=None, share_min=0.6):
         stored = speakers.enroll(db, jid, c["label"], name, origin="enrolled") if ok and not dry else False
         summary.append({"label": c["label"], "speech_s": c["speech_s"], "name": name, "share": round(share, 2),
                         "unsure": uns, "stored": stored})
-        print(f"  {c['label']}  {c['speech_s'] / 60:5.1f} min  → {name:10s} Anteil {share:4.0%}"
-              + ("  (vermutlich, nicht gelernt)" if uns else "") + ("  gespeichert" if stored else ""))
+        print(f"  {c['label']}  {c['speech_s'] / 60:5.1f} min  → {name:10s} " + t("Anteil", "share") + f" {share:4.0%}"
+              + (t("  (vermutlich, nicht gelernt)", "  (probably, not learned)") if uns else "")
+              + (t("  gespeichert", "  stored") if stored else ""))
     out = config.DATA / "enroll" / f"{jid}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({"job_id": jid, "source": str(src), "named": str(md), "clusters": summary}, ensure_ascii=False, indent=1))

@@ -18,6 +18,7 @@ cp "$SCRATCH/release/Transcriber" "$APP/Contents/MacOS/"
 sed -e "s#<key>CFBundleShortVersionString</key><string>[^<]*</string>#<key>CFBundleShortVersionString</key><string>$V</string>#" \
     -e "s#<key>CFBundleVersion</key><string>[^<]*</string>#<key>CFBundleVersion</key><string>${V//./}</string>#" \
     app/Resources/Info.plist > "$APP/Contents/Info.plist"
+cp -R app/Resources/*.lproj "$APP/Contents/Resources/"   # de (leer, Quelltext) + en
 # Signatur wie build-app.sh: festes, selbst signiertes Zertifikat → Freigaben bleiben über Updates erhalten.
 KC=~/.local/share/transcriber/signing/transcriber-signing.keychain-db
 if [[ -f $KC ]]; then
@@ -38,9 +39,9 @@ SNAP=$(ls -d ~/.cache/huggingface/hub/models--pyannote--speaker-diarization-comm
 T=$(mktemp -d); mkdir -p "$T/speaker-diarization-community-1"
 cp -RL "$SNAP"/. "$T/speaker-diarization-community-1/"
 cat > "$T/speaker-diarization-community-1/LICENSE-NOTICE.txt" <<'TXT'
-pyannote/speaker-diarization-community-1 – © pyannoteAI, lizenziert unter CC BY 4.0
-(https://creativecommons.org/licenses/by/4.0/). Quelle: https://huggingface.co/pyannote/speaker-diarization-community-1
-Unverändert weitergegeben als Teil von Transcriber.
+pyannote/speaker-diarization-community-1 – © pyannoteAI, licensed under CC BY 4.0
+(https://creativecommons.org/licenses/by/4.0/). Source: https://huggingface.co/pyannote/speaker-diarization-community-1
+Redistributed unmodified as part of Transcriber.
 TXT
 tar -czf "$OUT/pyannote-community-1.tar.gz" -C "$T" speaker-diarization-community-1; rm -rf "$T"
 

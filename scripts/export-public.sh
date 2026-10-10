@@ -10,7 +10,7 @@ DEST="${1:-../transcriber-public}"
 
 # Was hinein darf (alles andere bleibt draußen: CLAUDE.md, .mcp.json, bench/, dist/, …)
 KEEP=(README.md LICENSE THIRD_PARTY_NOTICES.md VERSION pyproject.toml .gitignore
-      transcriber app/Package.swift app/build-app.sh app/Resources app/Sources
+      transcriber app/Package.swift app/build-app.sh app/l10n-check.sh app/Resources app/Sources
       installer scripts/make-release.sh scripts/install-watch.sh scripts/net.teconomix.transcriber.watch.plist
       scripts/export-public.sh docs website)
 
@@ -40,5 +40,5 @@ if grep -r -n -i -E "$BAD" "$DEST" --exclude=LICENSE --exclude=export-public.sh;
 fi
 grep -rn --exclude=export-public.sh "\[GITHUB-NUTZER\]" "$DEST" >/dev/null && echo "! Platzhalter [GITHUB-NUTZER] in website/ noch ersetzen."
 
-(cd "$DEST" && git init -q -b main && git add -A && git commit -q -m "Transcriber $(cat VERSION) – erste öffentliche Fassung")
+(cd "$DEST" && git init -q -b main && git add -A && git commit -q -m "Transcriber $(cat VERSION) – first public version")
 echo "✓ $DEST: $(cd "$DEST" && git ls-files | wc -l | tr -d ' ') Dateien, ein Commit."

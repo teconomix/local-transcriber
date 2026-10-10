@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 from . import asr, audio, config, glossary, render, speakers
+from .i18n import t as tr
 
 # Erfahrungswerte (Vielfaches der Echtzeit auf MacLion) für die Fortschrittsanzeige
 RTFX = {"asr": 50, "diarize": 28}
@@ -67,11 +68,11 @@ class Progress:
     def done(self, paths):
         self._stop.set()
         self.status["result"] = {k: str(v) for k, v in paths.items()}
-        self.status["state"] = "done"; self.stage = "done"; self._emit(1.0, "fertig")
+        self.status["state"] = "done"; self.stage = "done"; self._emit(1.0, tr("fertig", "done"))
 
     def failed(self, err):
         self._stop.set()
-        self.status["state"] = "failed"; self.status["error"] = err; self._emit(self.status["progress"], "fehlgeschlagen")
+        self.status["state"] = "failed"; self.status["error"] = err; self._emit(self.status["progress"], tr("fehlgeschlagen", "failed"))
 
 
 @contextlib.contextmanager
@@ -82,7 +83,7 @@ def exclusive(P):
         try:
             fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            P.start("prepare", msg="wartet auf laufende Transkription")
+            P.start("prepare", msg=tr("wartet auf laufende Transkription", "waiting for running transcription"))
             fcntl.flock(f, fcntl.LOCK_EX)
         yield
 
@@ -100,14 +101,14 @@ def _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, du
     from . import diarize
     x = [sf.read(str(w), dtype="float32")[0] for w in tracks]
 
-    P.start("asr", dur / RTFX["asr"], "Spracherkennung")
+    P.start("asr", dur / RTFX["asr"], tr("Spracherkennung", "Speech recognition"))
     t0 = time.time(); r = asr.transcribe(wav, terms=terms if cfg["glossary_prompt"] else None, language=language)
     t["asr"] = time.time() - t0
     replaced = glossary.apply(r["words"], rules)
 
     per = []
     for i, w in enumerate(tracks, 1):
-        P.start("diarize", dur / RTFX["diarize"], f"Sprechertrennung Spur {i}/2")
+        P.start("diarize", dur / RTFX["diarize"], tr("Sprechertrennung Spur", "Speaker separation track") + f" {i}/2")
         t0 = time.time()
         # Je Spur kann auch nur eine Person sprechen (Mikrofon: man selbst); Sprecherzahl-Vorgabe gilt für den Call.
         others = cfg.get("_others") or []         # Kalender: Call-Spur höchstens die anderen Teilnehmer + 1
@@ -273,7 +274,7 @@ def display_names(clusters, words):
         elif c.get("name"):
             c["display"] = f"{c['name']} (?)"
         else:
-            c["display"] = f"Sprecher {c['letter']}"
+            c["display"] = tr("Sprecher", "Speaker") + f" {c['letter']}"
     return clusters
 
 
@@ -302,7 +303,7 @@ def run(src, out_dir=None, formats=None, num_speakers=None, progress=None, cfg=N
 
 def _run(src, language, out_dir, formats, num_speakers, cfg, terms, rules, P, t):
 
-    P.start("prepare", msg="Audio vorbereiten")
+    P.start("prepare", msg=tr("Audio vorbereiten", "Preparing audio"))
     event, others = load_event(src)
     if others:   # Kalender: höchstens die Eingeladenen (+1 für Ungeladene) – grenzt die Sprechertrennung ein
         cfg = dict(cfg, max_speakers=min(cfg["max_speakers"], len(others) + 2))
@@ -323,18 +324,18 @@ def _run(src, language, out_dir, formats, num_speakers, cfg, terms, rules, P, t)
         cfg = dict(cfg, _others=others)
         words, segs, clusters, replaced = _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, dur)
     else:
-        P.start("asr", dur / RTFX["asr"], "Spracherkennung")
+        P.start("asr", dur / RTFX["asr"], tr("Spracherkennung", "Speech recognition"))
         t0 = time.time(); r = asr.transcribe(wav, terms=terms if cfg["glossary_prompt"] else None, language=language); t["asr"] = time.time() - t0
         replaced = glossary.apply(r["words"], rules)
 
-        P.start("diarize", dur / RTFX["diarize"], "Sprechertrennung")
+        P.start("diarize", dur / RTFX["diarize"], tr("Sprechertrennung", "Speaker separation"))
         from . import diarize
         t0 = time.time()
         segs, clusters = diarize.diarize(wav, cfg["min_speakers"], cfg["max_speakers"], num_speakers)
         t["diarize"] = time.time() - t0
         words = assign_words(r["words"], segs)
 
-    P.start("finish", msg="Stimmen abgleichen")
+    P.start("finish", msg=tr("Stimmen abgleichen", "Matching voices"))
     db = speakers.connect()
     speakers.identify(db, clusters, cfg)
     display_names(clusters, words)
@@ -373,11 +374,12 @@ def load_doc(path):
 
 def find_cluster(doc, who):
     """Sprecher über Buchstabe (B), pyannote-Label (SPEAKER_01), Anzeigenamen oder Namen finden."""
-    w = speakers.norm_name(who).lower().removeprefix("sprecher ").strip()
+    w = speakers.norm_name(who).lower()
+    w = w.removeprefix("sprecher ").removeprefix("speaker ").strip()   # alte (de) und neue (en) Anzeigenamen
     for c in doc["speakers"]:
         if w in (c["letter"].lower(), c["label"].lower(), c["display"].lower(), (c.get("name") or "").lower()):
             return c
-    raise KeyError(f"Sprecher {who!r} nicht gefunden; vorhanden: " + ", ".join(f"{c['letter']}={c['display']}" for c in doc["speakers"]))
+    raise KeyError(tr("Sprecher", "Speaker") + f" {who!r} " + tr("nicht gefunden; vorhanden: ", "not found; available: ") + ", ".join(f"{c['letter']}={c['display']}" for c in doc["speakers"]))
 
 
 def rerender(doc, json_path, formats=None):
@@ -418,13 +420,13 @@ def rename(path, new_stem):
     old_src = Path(doc["source"])
     stem = clean_stem(new_stem)
     if not stem:
-        raise ValueError("leerer Name")
+        raise ValueError(tr("leerer Name", "empty name"))
     folder = old_src.parent if old_src.exists() else jp.parent
     old_stem = jp.name.removesuffix(".transcript.json")
     if stem == old_stem:
         return {"json": jp, "source": old_src}
     if (jp.parent / (old_stem + ".lock")).exists() or old_src.with_name(old_src.stem + ".lock").exists():
-        raise RuntimeError("Transkription dieser Datei läuft noch")
+        raise RuntimeError(tr("Transkription dieser Datei läuft noch", "transcription of this file is still running"))
     base, n = stem, 2
     while (folder / (stem + old_src.suffix)).exists() or (jp.parent / (stem + ".transcript.json")).exists():
         stem = f"{base} {n}"; n += 1
@@ -433,6 +435,7 @@ def rename(path, new_stem):
     # schon daneben (er wartet ohnehin 10 s, bevor er eine Datei anfasst).
     formats = [f for f, ext in (("md", ".md"), ("srt", ".srt")) if (jp.parent / (old_stem + ext)).exists()]
     doc["source"] = str(new_src)
+    display_names(doc["speakers"], doc["words"])   # „Sprecher A“/„Speaker A“ in der aktuellen Ausgabesprache
     new_json = jp.parent / (stem + ".transcript.json")
     paths = render.write(doc, jp.parent / stem, formats)
     for ext in SIDECARS + (".transcript.json",):

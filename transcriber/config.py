@@ -11,6 +11,7 @@ JOBS = DATA / "jobs"               # Statusdateien laufender/fertiger Aufträge 
 
 DEFAULTS = {
     "language": "de",              # Whisper-Sprachcode: de, en, es, fr, …
+    "ui_language": None,           # Ausgabesprache de|en; None = macOS-Sprache (i18n.py), App setzt TRANSCRIBER_UI_LANG
     "watch_dir": "~/Transkription",
     "formats": ["md", "json"],     # zusätzlich möglich: "srt"
     "min_speakers": 2,

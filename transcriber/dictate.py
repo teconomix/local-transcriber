@@ -20,6 +20,7 @@ import time
 import numpy as np
 
 from . import asr, config, glossary
+from .i18n import t
 
 
 SOCK = config.DATA / "dictate.sock"
@@ -73,7 +74,7 @@ def _read_exact(f, n):
     while len(buf) < n:
         chunk = f.read(n - len(buf))
         if not chunk:
-            raise EOFError("Verbindung vor Ende der Audiodaten geschlossen")
+            raise EOFError(t("Verbindung vor Ende der Audiodaten geschlossen", "connection closed before end of audio data"))
         buf += chunk
     return bytes(buf)
 
@@ -85,10 +86,10 @@ class Handler(socketserver.StreamRequestHandler):
             n = int(head["samples"])
             samples = np.frombuffer(_read_exact(self.rfile, n * 4), dtype="<f4")
             res = transcribe(samples, head.get("language", "de"))
-            print(f"diktat {res['audio_s']:.1f} s → {res['ms']} ms, {len(res['text'])} Zeichen", file=sys.stderr, flush=True)
+            print(t("diktat", "dictation") + f" {res['audio_s']:.1f} s → {res['ms']} ms, {len(res['text'])} " + t("Zeichen", "characters"), file=sys.stderr, flush=True)
         except Exception as e:  # Fehler an die App melden statt den Dienst zu beenden
             res = {"error": f"{type(e).__name__}: {e}"}
-            print(f"diktat FEHLER {res['error']}", file=sys.stderr, flush=True)
+            print(t("diktat FEHLER", "dictation ERROR") + f" {res['error']}", file=sys.stderr, flush=True)
         self.wfile.write((json.dumps(res, ensure_ascii=False) + "\n").encode())
 
 
@@ -105,14 +106,14 @@ def serve():
     config.offline_env()
     if SOCK.exists():
         if _alive():
-            print("Diktat-Dienst läuft bereits", file=sys.stderr)
+            print(t("Diktat-Dienst läuft bereits", "Dictation service already running"), file=sys.stderr)
             return 0
         SOCK.unlink()
     # Modell laden und einmal durchrechnen, damit das erste echte Diktat nicht den Kaltstart bezahlt.
     t0 = time.monotonic()
     import mlx_whisper
     mlx_whisper.transcribe(np.zeros(RATE, dtype=np.float32), path_or_hf_repo=asr.REPO, language="de", verbose=None)
-    print(f"Diktat-Dienst bereit ({time.monotonic() - t0:.1f} s), {SOCK}", file=sys.stderr, flush=True)
+    print(t("Diktat-Dienst bereit", "Dictation service ready") + f" ({time.monotonic() - t0:.1f} s), {SOCK}", file=sys.stderr, flush=True)
     old = os.umask(0o077)                     # Socket nur für diesen Benutzer
     try:
         srv = socketserver.UnixStreamServer(str(SOCK), Handler)

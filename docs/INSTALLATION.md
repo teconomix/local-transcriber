@@ -1,64 +1,64 @@
 # Installation
 
-## Voraussetzungen
+## Requirements
 
-- Mac mit **Apple Silicon** (M1 oder neuer) – Intel-Macs werden nicht unterstützt (MLX).
-- **macOS 14 Sonoma** oder neuer. KI-Funktionen (Diktat aufräumen, sprechende Dateinamen per KI) brauchen
-  **macOS 26 mit eingeschalteter Apple Intelligence**.
-- ca. **8 GB** freier Speicher (Spracherkennungsmodell ~3 GB, Python-Umgebung ~2 GB).
-- 16 GB Arbeitsspeicher empfohlen.
-- Internet nur während der Installation. Keine Administratorrechte nötig.
+- Mac with **Apple Silicon** (M1 or newer) – Intel Macs are not supported (MLX).
+- **macOS 14 Sonoma** or newer. AI features (dictation cleanup, AI-generated file names) require
+  **macOS 26 with Apple Intelligence turned on**.
+- About **8 GB** of free disk space (speech recognition model ~3 GB, Python environment ~2 GB).
+- 16 GB of memory recommended.
+- Internet only during installation. No administrator rights needed.
 
-## Installieren
+## Install
 
-Terminal öffnen (Programme › Dienstprogramme › Terminal) und einfügen:
+Open Terminal (Applications › Utilities › Terminal) and paste:
 
 ```bash
 curl -fsSL https://transcriber.teconomix.net/install.sh | bash
 ```
 
-Der Installer (dauert je nach Leitung 5–15 Minuten):
+The installer (takes 5–15 minutes depending on your connection):
 
-1. prüft Mac, macOS-Version und Speicherplatz,
-2. lädt die Release-Dateien und prüft ihre Prüfsummen,
-3. richtet eine eigene Python-Umgebung ein (uv, Python 3.12, Pakete aus PyPI),
-4. nutzt ein vorhandenes ffmpeg oder lädt einen statischen Build,
-5. installiert das Sprechererkennungsmodell (mitgeliefert) und lädt das Whisper-Modell von Hugging Face,
-6. legt die App nach `~/Applications/Transcriber.app` und die Kommandozeile nach `~/.local/bin/transcriber`,
-7. bietet den Ordnerwächter für `~/Transkription` an,
-8. startet Transcriber.
+1. checks the Mac, the macOS version and the free disk space,
+2. downloads the release files and verifies their checksums,
+3. sets up its own Python environment (uv, Python 3.12, packages from PyPI),
+4. uses an existing ffmpeg or downloads a static build,
+5. installs the speaker recognition model (included) and downloads the Whisper model from Hugging Face,
+6. puts the app in `~/Applications/Transcriber.app` and the command line tool in `~/.local/bin/transcriber`,
+7. offers the folder watcher for `~/Transkription`,
+8. starts Transcriber.
 
-Erneut ausführen = aktualisieren. Stimmdatenbank, Einstellungen und Transkripte bleiben erhalten.
+Run it again to update. The voice database, settings and transcripts are kept.
 
-Optionen (hinter `bash -s --` anhängen, z. B. `curl -fsSL …/install.sh | bash -s -- --no-watch`):
-`--no-launch` (App nicht starten), `--no-watch` (keinen Ordnerwächter anbieten), `--yes` (keine Rückfragen).
+Options (append after `bash -s --`, e.g. `curl -fsSL …/install.sh | bash -s -- --no-watch`):
+`--no-launch` (do not start the app), `--no-watch` (do not offer the folder watcher), `--yes` (no prompts).
 
-## Erste Schritte
+## First steps
 
-Beim ersten Aufnehmen fragt macOS nach **Mikrofon** und **Systemaudio**. Fürs Diktat in den Einstellungen das Diktat
-einschalten und **Bedienungshilfen** erlauben. Übersicht aller Freigaben: [ANLEITUNG.md](ANLEITUNG.md#freigaben-im-überblick).
+The first time you record, macOS asks for **Microphone** and **System Audio Recording** access. For dictation, turn
+dictation on in Settings and allow **Accessibility**. Overview of all permissions: [USER_GUIDE.md](USER_GUIDE.md#permissions-at-a-glance).
 
-## Was wo liegt
+## Where things are
 
-| Pfad | Inhalt |
+| Path | Contents |
 |---|---|
 | `~/Applications/Transcriber.app` | App |
-| `~/.local/share/transcriber/` | Python-Umgebung, ffmpeg, Sprechererkennungsmodell, **Stimmdatenbank** (`speakers.db`), Protokolle |
-| `~/.cache/huggingface/hub/` | Whisper-Modell |
-| `~/Transkription/` | Aufnahmen und Transkripte (deine Daten) |
-| `~/Library/LaunchAgents/net.teconomix.transcriber.watch.plist` | Ordnerwächter (optional) |
+| `~/.local/share/transcriber/` | Python environment, ffmpeg, speaker recognition model, **voice database** (`speakers.db`), logs |
+| `~/.cache/huggingface/hub/` | Whisper model |
+| `~/Transkription/` | Recordings and transcripts (your data) |
+| `~/Library/LaunchAgents/net.teconomix.transcriber.watch.plist` | Folder watcher (optional) |
 
-## Deinstallieren
+## Uninstall
 
 ```bash
 bash ~/.local/share/transcriber/uninstall.sh
 ```
 
-Entfernt App, Programmdaten und Ordnerwächter. Fragt, ob Stimmdatenbank und Whisper-Modell gelöscht werden sollen.
-**Aufnahmen und Transkripte unter `~/Transkription` bleiben immer erhalten.**
+Removes the app, program data and the folder watcher. Asks whether the voice database and the Whisper model should be
+deleted. **Recordings and transcripts in `~/Transkription` are always kept.**
 
-## Hinweis zur Signatur
+## About code signing
 
-Die App ist (noch) nicht von Apple notarisiert. Weil der Installer sie per `curl` lädt, prüft macOS sie nicht über
-Gatekeeper, und sie startet ohne Warnung. Wer die App-Datei stattdessen im Browser herunterlädt, muss sie beim ersten
-Start mit Rechtsklick › Öffnen bestätigen.
+The app is not (yet) notarized by Apple. Because the installer downloads it with `curl`, macOS does not check it via
+Gatekeeper, and it starts without a warning. If you download the app file in a browser instead, you have to confirm it
+on first launch with right-click › Open.

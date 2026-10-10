@@ -16,13 +16,16 @@ enum Core {
     static let data = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/share/transcriber")
     static let exe = data.appendingPathComponent("venvs/app/bin/transcriber")
     static let jobsDir = data.appendingPathComponent("jobs")
-    /// Alle Sprachen, die Whisper kennt (wie transcriber/asr.py), mit deutschen Namen von macOS, alphabetisch.
+    /// Sprache der Oberfläche („de“ oder „en“, folgt macOS bzw. der Einstellung je App); geht als TRANSCRIBER_UI_LANG
+    /// an den Kern, damit Transkript-Kopf, Fortschritt und Meldungen dieselbe Sprache sprechen.
+    static let uiLanguage = Bundle.main.preferredLocalizations.first == "en" ? "en" : "de"
+    /// Alle Sprachen, die Whisper kennt (wie transcriber/asr.py), mit Namen von macOS in der Oberflächensprache, alphabetisch.
     static let allLanguages: [(String, String)] = ("en zh de es ru ko fr ja pt tr pl ca nl ar sv it id hi fi vi he uk el ms cs ro da hu ta no th ur hr bg lt "
         + "la mi ml cy sk te fa lv bn sr az sl kn et mk br eu is hy ne mn bs kk sq sw gl mr pa si km sn yo so af "
         + "oc ka be tg sd gu am yi lo uz fo ht ps tk nn mt sa lb my bo tl mg as tt haw ln ha ba jw su yue")
         .split(separator: " ").map { c in
             let code = String(c)
-            return (code, Locale(identifier: "de").localizedString(forLanguageCode: code == "jw" ? "jv" : code) ?? code)
+            return (code, Locale(identifier: uiLanguage).localizedString(forLanguageCode: code == "jw" ? "jv" : code) ?? code)
         }
         .sorted { $0.1.localizedStandardCompare($1.1) == .orderedAscending }
     /// Welche davon im Panel zur Auswahl stehen (UserDefaults „languages“, Codes mit Komma).
@@ -39,6 +42,7 @@ enum Core {
         var env = ProcessInfo.processInfo.environment
         // ffmpeg: vom Installer unter DATA/bin, sonst Homebrew; ein Finder-Start hat beides nicht im PATH
         env["PATH"] = data.appendingPathComponent("bin").path + ":/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+        env["TRANSCRIBER_UI_LANG"] = uiLanguage
         p.environment = env
         return p
     }
@@ -139,7 +143,7 @@ final class JobManager: ObservableObject {
         let p = Core.process(["transcribe", url.path, "--language", language, "--progress", "json"])
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
-        do { try p.run() } catch { launchError = "Kern nicht startbar: \(error.localizedDescription) (\(Core.exe.path))"; appLog(launchError!) }
+        do { try p.run() } catch { launchError = String(localized: "Kern nicht startbar: \(error.localizedDescription) (\(Core.exe.path))"); appLog(launchError!) }
     }
 
     /// Einzelnen Eintrag ausblenden (nur aus der Liste – Dateien bleiben).
@@ -183,11 +187,11 @@ final class JobManager: ObservableObject {
                     job.loadSpeakers()
                 }
                 if state == .failed { job.error = s["error"] as? String }
-                if state == .aborted { job.error = "abgebrochen (Prozess beendet)" }
+                if state == .aborted { job.error = String(localized: "abgebrochen (Prozess beendet)") }
                 if wasRunning && !firstScan {
                     // Fertige App-Aufnahme mit Standardnamen: erst sprechend benennen, dann melden (Mitteilung mit neuem Namen).
                     if state == .done, let j = job.jsonURL, RecordingTitle.defaultStamp(job.source) != nil {
-                        job.message = "Benenne …"
+                        job.message = String(localized: "Benenne …")
                         Task {
                             if let p = await RecordingTitle.apply(source: job.source, json: j) {
                                 if let s = p["source"] { job.source = URL(fileURLWithPath: s) }
@@ -217,9 +221,9 @@ final class JobManager: ObservableObject {
 
     private func notify(_ job: Job) {
         let c = UNMutableNotificationContent()
-        c.title = job.state == .done ? "Transkript fertig" : "Transkription fehlgeschlagen"
+        c.title = job.state == .done ? String(localized: "Transkript fertig") : String(localized: "Transkription fehlgeschlagen")
         let open = job.speakers.filter(\.needsName).count
-        c.body = job.source.lastPathComponent + (job.state == .done && open > 0 ? " · \(open) Stimme(n) zum Benennen" : "")
+        c.body = job.source.lastPathComponent + (job.state == .done && open > 0 ? " · " + String(localized: "\(open) Stimme(n) zum Benennen") : "")
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: job.id, content: c, trigger: nil))
     }
 

@@ -1,5 +1,10 @@
 # Anleitung
 
+## Sprache
+
+Transcriber folgt der Sprache von macOS und gibt es auf Deutsch und Englisch (andere macOS-Sprachen bekommen Englisch). Soll nur Transcriber eine andere
+Sprache nutzen: **Systemeinstellungen › Allgemein › Sprache & Region › Apps**.
+
 ## Das Panel
 
 Klick auf das Wellen-Symbol in der Menüleiste öffnet das Panel:

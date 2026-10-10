@@ -19,9 +19,9 @@ final class Dictation: ObservableObject {
 
     /// Taste zum Halten. Nur Modifikatortasten: sie tippen nichts, solange sie allein gedrückt sind.
     static let keys: [(id: String, label: String, code: UInt16, flag: NSEvent.ModifierFlags)] = [
-        ("rcmd", "rechte ⌘", 54, .command),
-        ("ropt", "rechte ⌥", 61, .option),
-        ("rctrl", "rechte ⌃", 62, .control),
+        ("rcmd", String(localized: "rechte ⌘"), 54, .command),
+        ("ropt", String(localized: "rechte ⌥"), 61, .option),
+        ("rctrl", String(localized: "rechte ⌃"), 62, .control),
         ("fn", "fn / 🌐", 63, .function),
     ]
     nonisolated static let socket = Core.data.appendingPathComponent("dictate.sock").path
@@ -133,7 +133,7 @@ final class Dictation: ObservableObject {
 
     private func keyDown(_ code: UInt16, clean: Bool) {
         guard pressedAt == nil, state == .idle else { return }
-        guard !micBusy() else { NSSound.beep(); lastError = "Mikrofon belegt (Meeting-Aufnahme läuft)"; return }
+        guard !micBusy() else { NSSound.beep(); lastError = String(localized: "Mikrofon belegt (Meeting-Aufnahme läuft)"); return }
         pressedAt = Date(); cancelled = false; lastError = nil; activeKey = code; cleaning = clean
         // Bildschirmtext jetzt lesen (parallel zur Aufnahme), solange noch das Fenster vorn ist, in das diktiert wird.
         screenTask = clean && screenContext && DictationCleanup.unavailableReason == nil ? Task { await ScreenContext.capture() } : nil
@@ -203,7 +203,7 @@ final class Dictation: ObservableObject {
         let log = Core.data.appendingPathComponent("dictate.log")
         if !FileManager.default.fileExists(atPath: log.path) { FileManager.default.createFile(atPath: log.path, contents: nil) }
         if let h = try? FileHandle(forWritingTo: log) { h.seekToEndOfFile(); p.standardError = h; p.standardOutput = h }
-        do { try p.run(); server = p } catch { lastError = "Diktat-Dienst startet nicht: \(error.localizedDescription)" }
+        do { try p.run(); server = p } catch { lastError = String(localized: "Diktat-Dienst startet nicht: \(error.localizedDescription)") }
     }
 
     struct Result { let text: String; let ms: Int; let audioS: Double }
@@ -217,7 +217,7 @@ final class Dictation: ObservableObject {
                 try? await Task.sleep(nanoseconds: 500_000_000)
             } catch { return .failure(error) }
         }
-        return .failure(SocketError(msg: "Diktat-Dienst nicht erreichbar (Protokoll: ~/.local/share/transcriber/dictate.log)", connect: true))
+        return .failure(SocketError(msg: String(localized: "Diktat-Dienst nicht erreichbar (Protokoll: ~/.local/share/transcriber/dictate.log)"), connect: true))
     }
 
     struct SocketError: LocalizedError { let msg: String; let connect: Bool; var errorDescription: String? { msg } }
@@ -234,7 +234,7 @@ final class Dictation: ObservableObject {
         let ok = withUnsafePointer(to: &addr) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
         }
-        guard ok == 0 else { close(fd); throw SocketError(msg: "Diktat-Dienst nicht erreichbar", connect: true) }
+        guard ok == 0 else { close(fd); throw SocketError(msg: String(localized: "Diktat-Dienst nicht erreichbar"), connect: true) }
         var on: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
         return fd
@@ -245,7 +245,7 @@ final class Dictation: ObservableObject {
             var off = 0
             while off < raw.count {
                 let n = write(fd, raw.baseAddress! + off, raw.count - off)
-                guard n > 0 else { throw err("Senden an den Diktat-Dienst fehlgeschlagen") }
+                guard n > 0 else { throw err(String(localized: "Senden an den Diktat-Dienst fehlgeschlagen")) }
                 off += n
             }
         }
@@ -254,8 +254,8 @@ final class Dictation: ObservableObject {
     nonisolated static func floats(_ s: [Float]) -> Data { s.withUnsafeBufferPointer { Data(buffer: $0) } }
 
     nonisolated static func parseFinal(_ line: Data) throws -> Result {
-        guard let obj = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { throw err("keine Antwort vom Diktat-Dienst") }
-        if let e = obj["error"] as? String { throw err("Diktat-Dienst: \(e)") }
+        guard let obj = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { throw err(String(localized: "keine Antwort vom Diktat-Dienst")) }
+        if let e = obj["error"] as? String { throw err(String(localized: "Diktat-Dienst: \(e)")) }
         return Result(text: obj["text"] as? String ?? "", ms: obj["ms"] as? Int ?? 0, audioS: obj["audio_s"] as? Double ?? 0)
     }
 
@@ -355,7 +355,7 @@ final class DictationCapture: @unchecked Sendable {
         let fmt = inNode.outputFormat(forBus: 0)
         guard fmt.sampleRate > 0,
               let m = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: fmt.sampleRate, channels: 1, interleaved: false)
-        else { throw NSError(domain: "Dictation", code: 1, userInfo: [NSLocalizedDescriptionKey: "kein Eingangsformat"]) }
+        else { throw NSError(domain: "Dictation", code: 1, userInfo: [NSLocalizedDescriptionKey: String(localized: "kein Eingangsformat")]) }
         inNode.installTap(onBus: 0, bufferSize: 1024, format: fmt) { [weak self] buf, _ in self?.handle(buf, mono: m) }
         e.prepare()
         // Gerätewechsel (Headset an/ab, Standardgerät geändert): beim nächsten Start neu aufbauen.
@@ -382,12 +382,12 @@ final class DictationCapture: @unchecked Sendable {
                     onFirst = onFirstBuffer; active = true
                     lock.unlock()
                     try engine?.start()
-                } catch { return onError("Aufnahme nicht möglich: \(error.localizedDescription)") }
+                } catch { return onError(String(localized: "Aufnahme nicht möglich: \(error.localizedDescription)")) }
                 for _ in 0..<20 { if hasBuffer() { return }; Thread.sleep(forTimeInterval: 0.05) }
                 guard isActive() else { return }               // inzwischen losgelassen
                 appLog("Diktat: nach 1 s kein Audiopuffer" + (attempt == 0 ? ", baue Mikrofon neu auf" : ""))
             }
-            onError("Mikrofon liefert keinen Ton")
+            onError(String(localized: "Mikrofon liefert keinen Ton"))
         }
     }
 

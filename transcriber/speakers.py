@@ -9,6 +9,7 @@ import unicodedata
 import numpy as np
 
 from . import config
+from .i18n import t
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS persons(id INTEGER PRIMARY KEY, name TEXT UNIQUE NOT NULL, created REAL);
@@ -61,7 +62,7 @@ def person_id(db, name, create=True):
     if r:
         return r["id"]
     if not create:
-        raise KeyError(f"unbekannte Person {name!r}")
+        raise KeyError(t("unbekannte Person", "unknown person") + f" {name!r}")
     return db.execute("INSERT INTO persons(name, created) VALUES(?,?)", (name, time.time())).lastrowid
 
 
@@ -130,7 +131,7 @@ def enroll(db, job_id, label, name, origin="named", cfg=None):
     cfg = cfg or config.load()
     c = db.execute("SELECT * FROM clusters WHERE job_id=? AND label=?", (job_id, label)).fetchone()
     if not c:
-        raise KeyError(f"Cluster {label} in Auftrag {job_id} nicht gefunden")
+        raise KeyError(t(f"Cluster {label} in Auftrag {job_id} nicht gefunden", f"cluster {label} not found in job {job_id}"))
     pid = person_id(db, name)
     db.execute("UPDATE clusters SET person_id=?, status='bestätigt' WHERE job_id=? AND label=?", (pid, job_id, label))
     src = db.execute("SELECT source FROM jobs WHERE id=?", (job_id,)).fetchone()
@@ -171,7 +172,7 @@ def drop_ref(db, ref_id):
     n = db.execute("DELETE FROM embeddings WHERE id=?", (int(ref_id),)).rowcount
     db.commit()
     if not n:
-        raise KeyError(f"Referenz #{ref_id} nicht gefunden")
+        raise KeyError(t(f"Referenz #{ref_id} nicht gefunden", f"reference #{ref_id} not found"))
 
 
 def rename(db, old, new):

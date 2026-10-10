@@ -109,6 +109,12 @@ kbd {
 .nav a { color: var(--muted); text-decoration: none; }
 .nav a:hover { color: var(--text); }
 @media (max-width: 600px) { .nav .opt { display: none; } }
+.nav .lang { border: 1px solid var(--border); border-radius: 999px; padding: 1px 10px; }
+/* Sprachumschalter: Kopfzeile bleibt einzeilig; auf sehr schmalen Schirmen rutscht die Navigation darunter */
+.site-header .wrap { flex-wrap: wrap; row-gap: 10px; }
+.brand, .nav a { white-space: nowrap; }
+@media (max-width: 600px) { .nav { gap: 14px; } }
+.nav .lang:hover { border-color: var(--muted); }
 
 /* ---------- Hero ---------- */
 .hero {

@@ -21,6 +21,16 @@ Modelle: `hf download mlx-community/whisper-large-v3-turbo`; pyannote community-
 (`~/.local/share/transcriber/signing/`), falls vorhanden – dann bleiben die macOS-Freigaben über Neubauten erhalten.
 Sonst ad hoc (Freigaben werden nach jedem Bau neu abgefragt).
 
+## Sprachen
+
+Deutsch ist die Quellsprache: Jeder Oberflächentext im Swift-Code ist der deutsche Schlüssel; die englische Übersetzung
+steht in `app/Resources/en.lproj/Localizable.strings` (`de.lproj` bleibt leer, Entwicklungsregion ist `en`, damit jede
+andere macOS-Sprache Englisch bekommt). Nach Textänderungen zeigt `app/l10n-check.sh` fehlende oder überzählige
+Schlüssel (der Compiler zieht sie heraus, kein Xcode nötig). Statuscodes aus dem Kern (`sicher`, `bestätigt`, …)
+übersetzt die App erst bei der Anzeige; in den Dateien bleiben sie deutsch. Der Python-Kern nimmt seine Sprache aus
+`TRANSCRIBER_UI_LANG` (setzt die App), sonst `ui_language` in `config.json`, sonst die macOS-Sprache (`transcriber/i18n.py`).
+App in einer Sprache testen: `open -n ~/Applications/Transcriber.app --args --ui-test -AppleLanguages '(en)'`.
+
 ## Selbsttests der App
 
 `open -n ~/Applications/Transcriber.app --args <test>` – Ergebnis in `~/.local/share/transcriber/app.log`:

@@ -26,9 +26,14 @@ say()  { printf '\033[1m▸ %s\033[0m\n' "$*"; }
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 warn() { printf '  \033[33m!\033[0m %s\n' "$*"; }
 die()  { printf '\n\033[31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+# Meldungen auf Deutsch, wenn die erste bevorzugte macOS-Sprache Deutsch ist (sonst $LANG), ansonsten Englisch.
+DE=0
+_lang=$(defaults read -g AppleLanguages 2>/dev/null | awk 'NR==2' | tr -d ' ",') || _lang=""
+if [[ "${_lang:-${LANG:-}}" == de* ]]; then DE=1; fi
+t()    { if [[ "$DE" == 1 ]]; then printf '%s' "$1"; else printf '%s' "$2"; fi; }   # t "deutsch" "english"
 ask()  {  # ask "Frage" → 0 bei ja; ohne Terminal (curl | bash) wird über /dev/tty gefragt
     [[ "$YES" == 1 ]] && return 0
-    local a; read -r -p "  $1 [j/N] " a </dev/tty 2>/dev/null || return 1
+    local a; read -r -p "  $1 $(t '[j/N]' '[y/N]') " a </dev/tty 2>/dev/null || return 1
     [[ "$a" =~ ^[jJyY] ]]
 }
 
@@ -36,54 +41,54 @@ main() {
     LAUNCH=1; WATCH=1; YES=0
     for a in "$@"; do case "$a" in
         --no-launch) LAUNCH=0 ;; --no-watch) WATCH=0 ;; --yes) YES=1 ;;
-        *) die "unbekannte Option: $a" ;; esac; done
+        *) die "$(t "unbekannte Option: $a" "unknown option: $a")" ;; esac; done
 
     printf '\n\033[1mTranscriber %s – Installation\033[0m\n\n' "$VERSION"
 
     # 1. Voraussetzungen ------------------------------------------------------------------------
-    say "Voraussetzungen prüfen"
-    [[ "$(uname -s)" == Darwin ]] || die "Nur für macOS."
-    [[ "$(uname -m)" == arm64 ]] || die "Nur für Macs mit Apple Silicon (M1 oder neuer) – die Spracherkennung nutzt MLX."
-    [[ $EUID -ne 0 ]] || die "Bitte nicht mit sudo ausführen – installiert wird ins eigene Benutzerkonto."
+    say "$(t "Voraussetzungen prüfen" "Checking requirements")"
+    [[ "$(uname -s)" == Darwin ]] || die "$(t "Nur für macOS." "macOS only.")"
+    [[ "$(uname -m)" == arm64 ]] || die "$(t "Nur für Macs mit Apple Silicon (M1 oder neuer) – die Spracherkennung nutzt MLX." "Apple Silicon Macs only (M1 or newer) – speech recognition uses MLX.")"
+    [[ $EUID -ne 0 ]] || die "$(t "Bitte nicht mit sudo ausführen – installiert wird ins eigene Benutzerkonto." "Please do not run with sudo – it installs into your own user account.")"
     local mac; mac=$(sw_vers -productVersion)
-    [[ "${mac%%.*}" -ge 14 ]] || die "macOS 14 Sonoma oder neuer nötig (gefunden: $mac)."
-    [[ "${mac%%.*}" -ge 26 ]] || warn "macOS $mac: KI-Funktionen (Diktat aufräumen, Dateinamen) brauchen macOS 26 mit Apple Intelligence."
+    [[ "${mac%%.*}" -ge 14 ]] || die "$(t "macOS 14 Sonoma oder neuer nötig (gefunden: $mac)." "macOS 14 Sonoma or newer required (found: $mac).")"
+    [[ "${mac%%.*}" -ge 26 ]] || warn "$(t "macOS $mac: KI-Funktionen (Diktat aufräumen, Dateinamen) brauchen macOS 26 mit Apple Intelligence." "macOS $mac: AI features (dictation cleanup, file names) require macOS 26 with Apple Intelligence.")"
     local free; free=$(df -g "$HOME" | awk 'NR==2 {print $4}')
-    [[ "$free" -ge 8 ]] || die "Zu wenig Speicherplatz: $free GB frei, nötig sind etwa 8 GB."
-    ok "macOS $mac, Apple Silicon, $free GB frei"
+    [[ "$free" -ge 8 ]] || die "$(t "Zu wenig Speicherplatz: $free GB frei, nötig sind etwa 8 GB." "Not enough disk space: $free GB free, about 8 GB needed.")"
+    ok "$(t "macOS $mac, Apple Silicon, $free GB frei" "macOS $mac, Apple Silicon, $free GB free")"
 
     local tmp; tmp=$(mktemp -d); trap "rm -rf '$tmp'" EXIT   # Wert jetzt einsetzen: der Hook läuft nach dem Ende von main
     mkdir -p "$DATA/bin" "$DATA/models" "$APPS" "$HOME/.local/bin" "$HOME/Transkription"
 
     # 2. Release-Dateien ------------------------------------------------------------------------
-    say "Transcriber $VERSION laden"
+    say "$(t "Transcriber $VERSION laden" "Downloading Transcriber $VERSION")"
     local rel="$BASE/download/$VERSION"
     for f in SHA256SUMS "Transcriber-$VERSION.zip" "transcriber-$VERSION.tar.gz" "pyannote-community-1.tar.gz" uninstall.sh; do
-        curl -fsSL --retry 3 -o "$tmp/$f" "$rel/$f" || die "Download fehlgeschlagen: $rel/$f"
+        curl -fsSL --retry 3 -o "$tmp/$f" "$rel/$f" || die "$(t "Download fehlgeschlagen: $rel/$f" "Download failed: $rel/$f")"
     done
-    (cd "$tmp" && shasum -a 256 -c SHA256SUMS --quiet) || die "Prüfsumme stimmt nicht – Download beschädigt oder manipuliert."
-    ok "Prüfsummen stimmen"
+    (cd "$tmp" && shasum -a 256 -c SHA256SUMS --quiet) || die "$(t "Prüfsumme stimmt nicht – Download beschädigt oder manipuliert." "Checksum mismatch – download corrupted or tampered with.")"
+    ok "$(t "Prüfsummen stimmen" "Checksums verified")"
 
     # 3. Python-Umgebung --------------------------------------------------------------------------
-    say "Python-Umgebung einrichten (uv, Python 3.12, Pakete – dauert ein paar Minuten)"
+    say "$(t "Python-Umgebung einrichten (uv, Python 3.12, Pakete – dauert ein paar Minuten)" "Setting up Python environment (uv, Python 3.12, packages – takes a few minutes)")"
     local uv="$DATA/bin/uv"
     if [[ ! -x "$uv" ]]; then
         curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$DATA/bin" UV_NO_MODIFY_PATH=1 sh >/dev/null \
-            || die "uv konnte nicht installiert werden."
+            || die "$(t "uv konnte nicht installiert werden." "Could not install uv.")"
     fi
-    "$uv" venv --quiet --allow-existing --python 3.12 "$DATA/venvs/app" || die "Python-Umgebung konnte nicht angelegt werden."
+    "$uv" venv --quiet --allow-existing --python 3.12 "$DATA/venvs/app" || die "$(t "Python-Umgebung konnte nicht angelegt werden." "Could not create the Python environment.")"
     "$uv" pip install --quiet --python "$DATA/venvs/app/bin/python" "$tmp/transcriber-$VERSION.tar.gz" \
-        || die "Python-Pakete konnten nicht installiert werden."
+        || die "$(t "Python-Pakete konnten nicht installiert werden." "Could not install the Python packages.")"
     # uv endet bei Netzfehlern gelegentlich mit Status 0 und unvollständiger Umgebung – deshalb Importe prüfen.
     "$DATA/venvs/app/bin/python" -c "import mlx_whisper, pyannote.audio, transcriber.pipeline" 2>/dev/null \
-        || die "Python-Pakete unvollständig – bitte den Installer erneut ausführen."
+        || die "$(t "Python-Pakete unvollständig – bitte den Installer erneut ausführen." "Python packages incomplete – please run the installer again.")"
     ln -sf "$DATA/venvs/app/bin/transcriber" "$HOME/.local/bin/transcriber"
-    ok "Python-Umgebung bereit"
+    ok "$(t "Python-Umgebung bereit" "Python environment ready")"
 
     # 4. ffmpeg -----------------------------------------------------------------------------------
     say "ffmpeg"
     if [[ -x "$DATA/bin/ffmpeg" && -x "$DATA/bin/ffprobe" ]] || { command -v ffmpeg && command -v ffprobe; } >/dev/null 2>&1; then
-        ok "vorhanden"
+        ok "$(t "vorhanden" "already present")"
     else
         for t in ffmpeg ffprobe; do
             # Statischer Apple-Silicon-Build; Prüfsumme liegt neben der Datei (Redirect auf die aktuelle Version).
@@ -94,30 +99,30 @@ main() {
                     "https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/release/$t.zip" 2>/dev/null) && break
                 url=""; sleep 3
             done
-            [[ -n "$url" ]] || die "ffmpeg: Download-Adresse nicht erreichbar (ffmpeg.martin-riedl.de). Alternativ: brew install ffmpeg"
+            [[ -n "$url" ]] || die "$(t "ffmpeg: Download-Adresse nicht erreichbar (ffmpeg.martin-riedl.de). Alternativ: brew install ffmpeg" "ffmpeg: download address not reachable (ffmpeg.martin-riedl.de). Alternatively: brew install ffmpeg")"
             curl -fsSL --retry 3 -o "$tmp/$t.zip" "$url" && curl -fsSL -o "$tmp/$t.zip.sha256" "$url.sha256" \
-                || die "ffmpeg: Download fehlgeschlagen."
+                || die "$(t "ffmpeg: Download fehlgeschlagen." "ffmpeg: download failed.")"
             [[ "$(shasum -a 256 "$tmp/$t.zip" | cut -d' ' -f1)" == "$(cut -d' ' -f1 "$tmp/$t.zip.sha256")" ]] \
-                || die "ffmpeg: Prüfsumme stimmt nicht."
+                || die "$(t "ffmpeg: Prüfsumme stimmt nicht." "ffmpeg: checksum mismatch.")"
             unzip -oq "$tmp/$t.zip" -d "$DATA/bin" && chmod +x "$DATA/bin/$t"
-            "$DATA/bin/$t" -version >/dev/null 2>&1 || die "$t lässt sich nicht starten."
+            "$DATA/bin/$t" -version >/dev/null 2>&1 || die "$(t "$t lässt sich nicht starten." "$t cannot be started.")"
         done
-        ok "ffmpeg installiert (statischer Build)"
+        ok "$(t "ffmpeg installiert (statischer Build)" "ffmpeg installed (static build)")"
     fi
 
     # 5. Modelle ----------------------------------------------------------------------------------
-    say "Modelle"
+    say "$(t "Modelle" "Models")"
     rm -rf "$DATA/models/speaker-diarization-community-1"
     tar -xzf "$tmp/pyannote-community-1.tar.gz" -C "$DATA/models"
-    ok "Sprechererkennung (pyannote community-1, CC-BY-4.0)"
-    say "Spracherkennungsmodell laden (Whisper large-v3-turbo, ~3 GB – kann dauern)"
+    ok "$(t "Sprechererkennung" "Speaker recognition") (pyannote community-1, CC-BY-4.0)"
+    say "$(t "Spracherkennungsmodell laden (Whisper large-v3-turbo, ~3 GB – kann dauern)" "Downloading speech recognition model (Whisper large-v3-turbo, ~3 GB – may take a while)")"
     # Über Python statt `hf download`: ohne Werbe-Hinweis der CLI und ohne Token-Warnung des Servers, Balken bleibt
     "$DATA/venvs/app/bin/python" -c "import sys; from huggingface_hub import snapshot_download, logging as l
-l.set_verbosity_error(); snapshot_download(sys.argv[1])" "$WHISPER" >/dev/null || die "Whisper-Modell konnte nicht geladen werden (Hugging Face erreichbar?)."
+l.set_verbosity_error(); snapshot_download(sys.argv[1])" "$WHISPER" >/dev/null || die "$(t "Whisper-Modell konnte nicht geladen werden (Hugging Face erreichbar?)." "Could not download the Whisper model (is Hugging Face reachable?).")"
     ok "Whisper large-v3-turbo"
 
     # 6. App ----------------------------------------------------------------------------------------
-    say "App installieren"
+    say "$(t "App installieren" "Installing the app")"
     osascript -e 'quit app "Transcriber"' >/dev/null 2>&1 || true
     sleep 1
     rm -rf "$APPS/Transcriber.app"
@@ -130,8 +135,8 @@ l.set_verbosity_error(); snapshot_download(sys.argv[1])" "$WHISPER" >/dev/null |
     local plist="$HOME/Library/LaunchAgents/net.teconomix.transcriber.watch.plist"
     if [[ -f "$plist" ]]; then
         launchctl bootout "gui/$(id -u)" "$plist" 2>/dev/null || true
-        launchctl bootstrap "gui/$(id -u)" "$plist" && ok "Ordnerwächter neu gestartet"
-    elif [[ "$WATCH" == 1 ]] && ask "Ordner ~/Transkription überwachen (abgelegte Audiodateien automatisch transkribieren)?"; then
+        launchctl bootstrap "gui/$(id -u)" "$plist" && ok "$(t "Ordnerwächter neu gestartet" "Folder watcher restarted")"
+    elif [[ "$WATCH" == 1 ]] && ask "$(t "Ordner ~/Transkription überwachen (abgelegte Audiodateien automatisch transkribieren)?" "Watch the folder ~/Transkription (automatically transcribe audio files dropped there)?")"; then
         mkdir -p "$HOME/Library/LaunchAgents"
         cat >"$plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -146,10 +151,11 @@ l.set_verbosity_error(); snapshot_download(sys.argv[1])" "$WHISPER" >/dev/null |
   <key>StandardOutPath</key><string>$DATA/watch.log</string><key>StandardErrorPath</key><string>$DATA/watch.log</string>
 </dict></plist>
 PLIST
-        launchctl bootstrap "gui/$(id -u)" "$plist" && ok "Ordnerwächter läuft"
+        launchctl bootstrap "gui/$(id -u)" "$plist" && ok "$(t "Ordnerwächter läuft" "Folder watcher running")"
     fi
 
     # 8. Fertig -------------------------------------------------------------------------------------
+    if [[ "$DE" == 1 ]]; then
     printf '\n\033[1;32mFertig.\033[0m Transcriber %s ist installiert.\n\n' "$VERSION"
     cat <<'TXT'
   Beim ersten Aufnehmen fragt macOS nach Mikrofon und Systemaudio – bitte erlauben.
@@ -159,6 +165,17 @@ PLIST
   Kommandozeile: ~/.local/bin/transcriber  (ggf. ~/.local/bin zum PATH hinzufügen)
   Deinstallieren: bash ~/.local/share/transcriber/uninstall.sh
 TXT
+    else
+    printf '\n\033[1;32mDone.\033[0m Transcriber %s is installed.\n\n' "$VERSION"
+    cat <<'TXT'
+  The first time you record, macOS asks for Microphone and System Audio Recording access – please allow.
+  Dictation (hold a key, speak, release): turn it on in Settings; it needs the
+  "Accessibility" permission. Calendar events as file names: "Calendars" permission.
+
+  Command line: ~/.local/bin/transcriber  (add ~/.local/bin to your PATH if needed)
+  Uninstall: bash ~/.local/share/transcriber/uninstall.sh
+TXT
+    fi
     [[ "$LAUNCH" == 1 ]] && open "$APPS/Transcriber.app"
     return 0
 }

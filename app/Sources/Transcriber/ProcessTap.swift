@@ -36,14 +36,14 @@ final class ProcessTap {
         desc.name = "Transcriber"
         desc.isPrivate = true
         desc.muteBehavior = muted ? .muted : .unmuted
-        try check(AudioHardwareCreateProcessTap(desc, &tapID), "Tap anlegen (Freigabe „Systemaudio“?)")
+        try check(AudioHardwareCreateProcessTap(desc, &tapID), String(localized: "Tap anlegen (Freigabe „Systemaudio“?)"))
 
         var asbd = AudioStreamBasicDescription()
         var size = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
         var a = AudioObjectPropertyAddress(mSelector: kAudioTapPropertyFormat, mScope: kAudioObjectPropertyScopeGlobal,
                                            mElement: kAudioObjectPropertyElementMain)
-        try check(AudioObjectGetPropertyData(tapID, &a, 0, nil, &size, &asbd), "Tap-Format lesen")
-        guard let fmt = AVAudioFormat(streamDescription: &asbd) else { throw Failure(msg: "Tap-Format unbrauchbar") }
+        try check(AudioObjectGetPropertyData(tapID, &a, 0, nil, &size, &asbd), String(localized: "Tap-Format lesen"))
+        guard let fmt = AVAudioFormat(streamDescription: &asbd) else { throw Failure(msg: String(localized: "Tap-Format unbrauchbar")) }
         format = fmt
 
         let agg: [String: Any] = [
@@ -54,12 +54,12 @@ final class ProcessTap {
             kAudioAggregateDeviceTapAutoStartKey: true,
             kAudioAggregateDeviceTapListKey: [[kAudioSubTapUIDKey: desc.uuid.uuidString, kAudioSubTapDriftCompensationKey: true]],
         ]
-        try check(AudioHardwareCreateAggregateDevice(agg as CFDictionary, &aggID), "Aggregatgerät anlegen")
+        try check(AudioHardwareCreateAggregateDevice(agg as CFDictionary, &aggID), String(localized: "Aggregatgerät anlegen"))
         try check(AudioDeviceCreateIOProcIDWithBlock(&procID, aggID, queue) { _, input, inTime, _, _ in
             guard let buf = AVAudioPCMBuffer(pcmFormat: fmt, bufferListNoCopy: input, deallocator: nil) else { return }
             onBuffer(buf, inTime.pointee.mHostTime)
-        }, "IOProc anlegen")
-        try check(AudioDeviceStart(aggID, procID), "Abgriff starten")
+        }, String(localized: "IOProc anlegen"))
+        try check(AudioDeviceStart(aggID, procID), String(localized: "Abgriff starten"))
     }
 
     func stop() {
@@ -74,7 +74,7 @@ final class ProcessTap {
     deinit { stop() }
 
     private func check(_ st: OSStatus, _ what: String) throws {
-        guard st == noErr else { stop(); throw Failure(msg: "\(what) fehlgeschlagen (\(st))") }
+        guard st == noErr else { stop(); throw Failure(msg: String(localized: "\(what) fehlgeschlagen (\(st))")) }
     }
 
     /// Präfixe (z. B. „com.google.Chrome“) → alle passenden Bundle-IDs laufender Audio-Prozesse (Hilfsprozesse der

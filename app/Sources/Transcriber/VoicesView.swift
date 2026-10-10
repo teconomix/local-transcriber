@@ -24,7 +24,7 @@ final class VoicesModel: ObservableObject {
         let (ok, out) = await Core.run(["speakers", "check", "--json"])
         guard ok, let line = out.split(separator: "\n").last(where: { $0.hasPrefix("{") }),
               let d = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: [[String: Any]]] else {
-            error = ok ? "Antwort nicht lesbar" : out; return
+            error = ok ? String(localized: "Antwort nicht lesbar") : out; return
         }
         error = nil
         persons = d.keys.sorted().map { name in
@@ -58,7 +58,7 @@ struct VoicesView: View {
     @State private var dropRef: VoiceRef?
     @State private var forgetName: String?
 
-    private static let originText = ["enrolled": "eingelernt", "confirmed": "bestätigt", "named": "benannt"]
+    private static let originText = ["enrolled": String(localized: "eingelernt"), "confirmed": String(localized: "bestätigt"), "named": String(localized: "benannt")]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -91,7 +91,7 @@ struct VoicesView: View {
         .confirmationDialog("Referenz entfernen?", isPresented: Binding(get: { dropRef != nil }, set: { if !$0 { dropRef = nil } })) {
             Button("Entfernen", role: .destructive) { if let r = dropRef { Task { await model.drop(r) } } }
         } message: {
-            Text(dropRef.map { "\($0.file) (\($0.label)) wird nicht mehr zur Erkennung genutzt. Transkripte bleiben unverändert." } ?? "")
+            Text(dropRef.map { String(localized: "\($0.file) (\($0.label)) wird nicht mehr zur Erkennung genutzt. Transkripte bleiben unverändert.") } ?? "")
         }
         .confirmationDialog("Person löschen?", isPresented: Binding(get: { forgetName != nil }, set: { if !$0 { forgetName = nil } })) {
             Button("\(forgetName ?? "") samt allen Referenzen löschen", role: .destructive) {

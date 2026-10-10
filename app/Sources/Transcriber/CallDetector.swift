@@ -37,7 +37,7 @@ final class CallDetector: NSObject, ObservableObject, UNUserNotificationCenterDe
         let c = UNUserNotificationCenter.current()
         c.delegate = self
         c.setNotificationCategories([UNNotificationCategory(
-            identifier: "CALL", actions: [UNNotificationAction(identifier: "RECORD", title: "Aufnehmen", options: [])],
+            identifier: "CALL", actions: [UNNotificationAction(identifier: "RECORD", title: String(localized: "Aufnehmen"), options: [])],
             intentIdentifiers: [], options: [])])
         let t = Timer(timeInterval: 2, repeats: true) { [weak self] _ in Task { @MainActor in self?.poll() } }
         RunLoop.main.add(t, forMode: .common)
@@ -52,13 +52,13 @@ final class CallDetector: NSObject, ObservableObject, UNUserNotificationCenterDe
             if since == nil { since = now }
             if !asked, !isRecording(), now.timeIntervalSince(since!) >= Self.askAfter {
                 asked = true
-                notify("Call in \(app) erkannt", "Aufnehmen? Mikrofon und Call-Ton werden getrennt aufgenommen.", category: "CALL")
+                notify(String(localized: "Call in \(app) erkannt"), String(localized: "Aufnehmen? Mikrofon und Call-Ton werden getrennt aufgenommen."), category: "CALL")
                 appLog("Call erkannt: \(app)")
             }
         } else if let l = lastSeen, now.timeIntervalSince(l) >= Self.endAfter {
             if startedByCall && isRecording() {
                 stopRecording()
-                notify("Call beendet", "Aufnahme gestoppt, Transkription läuft.", category: nil)
+                notify(String(localized: "Call beendet"), String(localized: "Aufnahme gestoppt, Transkription läuft."), category: nil)
                 appLog("Call beendet: Aufnahme gestoppt")
             }
             current = nil; since = nil; lastSeen = nil; asked = false; startedByCall = false
