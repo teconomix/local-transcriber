@@ -31,10 +31,29 @@ DE=0
 _lang=$(defaults read -g AppleLanguages 2>/dev/null | awk 'NR==2' | tr -d ' ",') || _lang=""
 if [[ "${_lang:-${LANG:-}}" == de* ]]; then DE=1; fi
 t()    { if [[ "$DE" == 1 ]]; then printf '%s' "$1"; else printf '%s' "$2"; fi; }   # t "deutsch" "english"
-ask()  {  # ask "Frage" → 0 bei ja; ohne Terminal (curl | bash) wird über /dev/tty gefragt
-    [[ "$YES" == 1 ]] && return 0
-    local a; read -r -p "  $1 $(t '[j/N]' '[y/N]') " a </dev/tty 2>/dev/null || return 1
+ask()  {  # ask "Frage" → 0 bei ja. Bei curl | bash ist stdin die Pipe: Frage und Antwort laufen über /dev/tty.
+    [[ "$YES" == 1 ]] && return 0      # (read -p schrieb die Frage auf stderr → mit 2>/dev/null unsichtbar, 0.5.0)
+    local a=""
+    { printf '  %s %s ' "$1" "$(t '[j/N]' '[y/N]')" >/dev/tty && read -r a </dev/tty; } 2>/dev/null || return 1
     [[ "$a" =~ ^[jJyY] ]]
+}
+busy() {  # busy "Text" befehl …: Ausgabe ins Protokoll; solange er läuft, Drehrad + Laufzeit. Bei Fehler: Protokollende.
+    local msg=$1; shift
+    local log; log=$(mktemp)
+    "$@" >"$log" 2>&1 &
+    local pid=$! i=0 t0=$SECONDS rc=0 s
+    local frames=('|' '/' '-' '\')
+    if [[ -t 1 ]]; then
+        while kill -0 "$pid" 2>/dev/null; do
+            s=$((SECONDS - t0))
+            printf '\r  %s %s  %d:%02d ' "${frames[i]}" "$msg" $((s / 60)) $((s % 60))
+            i=$(((i + 1) % 4)); sleep 0.2
+        done
+        printf '\r\033[K'
+    fi
+    wait "$pid" || rc=$?
+    if [[ $rc -ne 0 ]]; then tail -15 "$log" >&2; fi
+    rm -f "$log"; return $rc
 }
 
 main() {
@@ -58,7 +77,7 @@ main() {
     ok "$(t "macOS $mac, Apple Silicon, $free GB frei" "macOS $mac, Apple Silicon, $free GB free")"
 
     local tmp; tmp=$(mktemp -d); trap "rm -rf '$tmp'" EXIT   # Wert jetzt einsetzen: der Hook läuft nach dem Ende von main
-    mkdir -p "$DATA/bin" "$DATA/models" "$APPS" "$HOME/.local/bin" "$HOME/Transkription"
+    mkdir -p "$DATA/bin" "$DATA/models" "$APPS" "$HOME/.local/bin"
 
     # 2. Release-Dateien ------------------------------------------------------------------------
     say "$(t "Transcriber $VERSION laden" "Downloading Transcriber $VERSION")"
@@ -73,11 +92,14 @@ main() {
     say "$(t "Python-Umgebung einrichten (uv, Python 3.12, Pakete – dauert ein paar Minuten)" "Setting up Python environment (uv, Python 3.12, packages – takes a few minutes)")"
     local uv="$DATA/bin/uv"
     if [[ ! -x "$uv" ]]; then
-        curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$DATA/bin" UV_NO_MODIFY_PATH=1 sh >/dev/null \
+        # Ausgabe ins Protokoll: der uv-Installer warnt sonst rot, wenn ein anderes uv im PATH liegt (Homebrew) – hier egal,
+        # weil immer $DATA/bin/uv aufgerufen wird.
+        busy "$(t "uv laden" "Downloading uv")" sh -c 'curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$1" UV_NO_MODIFY_PATH=1 sh' _ "$DATA/bin" \
             || die "$(t "uv konnte nicht installiert werden." "Could not install uv.")"
     fi
-    "$uv" venv --quiet --allow-existing --python 3.12 "$DATA/venvs/app" || die "$(t "Python-Umgebung konnte nicht angelegt werden." "Could not create the Python environment.")"
-    "$uv" pip install --quiet --python "$DATA/venvs/app/bin/python" "$tmp/transcriber-$VERSION.tar.gz" \
+    busy "$(t "Python 3.12" "Python 3.12")" "$uv" venv --allow-existing --python 3.12 "$DATA/venvs/app" || die "$(t "Python-Umgebung konnte nicht angelegt werden." "Could not create the Python environment.")"
+    busy "$(t "Pakete laden und installieren (rund 1 GB)" "Downloading and installing packages (about 1 GB)")" \
+        "$uv" pip install --python "$DATA/venvs/app/bin/python" "$tmp/transcriber-$VERSION.tar.gz" \
         || die "$(t "Python-Pakete konnten nicht installiert werden." "Could not install the Python packages.")"
     # uv endet bei Netzfehlern gelegentlich mit Status 0 und unvollständiger Umgebung – deshalb Importe prüfen.
     "$DATA/venvs/app/bin/python" -c "import mlx_whisper, pyannote.audio, transcriber.pipeline" 2>/dev/null \
@@ -128,6 +150,27 @@ l.set_verbosity_error(); snapshot_download(sys.argv[1])" "$WHISPER" >/dev/null |
     rm -rf "$APPS/Transcriber.app"
     ditto -x -k "$tmp/Transcriber-$VERSION.zip" "$APPS"
     xattr -dr com.apple.quarantine "$APPS/Transcriber.app" 2>/dev/null || true
+    # Bis 0.5 hieß der Datenordner ~/Transkription → einmalig umbenennen (gleiches Laufwerk, nichts wird kopiert).
+    # App ist beendet; der Wächter wird angehalten und in Schritt 7 neu gestartet. Pfade in der Stimmdatenbank mitziehen.
+    if [[ -d "$HOME/Transkription" && ! -e "$HOME/Transcriber" ]]; then
+        launchctl bootout "gui/$(id -u)" "$HOME/Library/LaunchAgents/net.teconomix.transcriber.watch.plist" 2>/dev/null || true
+        mv "$HOME/Transkription" "$HOME/Transcriber" || die "$(t "~/Transkription konnte nicht in ~/Transcriber umbenannt werden." "Could not rename ~/Transkription to ~/Transcriber.")"
+        if [[ -f "$DATA/speakers.db" ]]; then "$DATA/venvs/app/bin/python" -c "import sqlite3, sys
+db = sqlite3.connect(sys.argv[1]); old, new = sys.argv[2] + '/', sys.argv[3] + '/'
+for tab, cols in (('embeddings', ('source',)), ('jobs', ('source', 'transcript'))):
+    for c in cols:
+        db.execute(f'UPDATE {tab} SET {c} = ? || substr({c}, ?) WHERE substr({c}, 1, ?) = ?', (new, len(old) + 1, len(old), old))
+db.commit()" "$DATA/speakers.db" "$HOME/Transkription" "$HOME/Transcriber" || warn "$(t "Pfade in der Stimmdatenbank nicht angepasst (unkritisch)." "Paths in the voice database not updated (harmless).")"; fi
+        # Statusdateien (Liste „Transkriptionen“ im Panel) zeigen sonst ins Leere
+        "$DATA/venvs/app/bin/python" -c "import json, pathlib, sys
+old, new = sys.argv[2] + '/', sys.argv[3] + '/'
+fix = lambda v: new + v[len(old):] if isinstance(v, str) and v.startswith(old) else {k: fix(x) for k, x in v.items()} if isinstance(v, dict) else v
+for f in pathlib.Path(sys.argv[1]).glob('*.json'):
+    try: f.write_text(json.dumps(fix(json.loads(f.read_text())), ensure_ascii=False))
+    except Exception: pass" "$DATA/jobs" "$HOME/Transkription" "$HOME/Transcriber" || true
+        ok "$(t "Ordner ~/Transkription heißt jetzt ~/Transcriber" "Folder ~/Transkription is now ~/Transcriber")"
+    fi
+    mkdir -p "$HOME/Transcriber"
     cp "$tmp/uninstall.sh" "$DATA/uninstall.sh"; chmod +x "$DATA/uninstall.sh"
     ok "$APPS/Transcriber.app"
 
@@ -136,7 +179,7 @@ l.set_verbosity_error(); snapshot_download(sys.argv[1])" "$WHISPER" >/dev/null |
     if [[ -f "$plist" ]]; then
         launchctl bootout "gui/$(id -u)" "$plist" 2>/dev/null || true
         launchctl bootstrap "gui/$(id -u)" "$plist" && ok "$(t "Ordnerwächter neu gestartet" "Folder watcher restarted")"
-    elif [[ "$WATCH" == 1 ]] && ask "$(t "Ordner ~/Transkription überwachen (abgelegte Audiodateien automatisch transkribieren)?" "Watch the folder ~/Transkription (automatically transcribe audio files dropped there)?")"; then
+    elif [[ "$WATCH" == 1 ]] && ask "$(t "Ordner ~/Transcriber überwachen (abgelegte Audiodateien automatisch transkribieren)?" "Watch the folder ~/Transcriber (automatically transcribe audio files dropped there)?")"; then
         mkdir -p "$HOME/Library/LaunchAgents"
         cat >"$plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

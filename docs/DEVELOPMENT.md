@@ -31,6 +31,18 @@ app at display time and stay German in the files. The Python core picks its lang
 (set by the app), then `ui_language` in `config.json`, then the macOS language (`transcriber/i18n.py`).
 Test the app in a language: `open -n ~/Applications/Transcriber.app --args --ui-test -AppleLanguages '(en)'`.
 
+## Checks
+
+`scripts/check.sh` runs the fast checks (about a minute, mostly `swift build`): core tests (`tests/test_core.py`,
+standard-library `unittest`, no models), script syntax, the installer's `~/Transkription` → `~/Transcriber` rename
+(`tests/installer_migration.sh`), translation completeness, the update version comparison and the public export's
+privacy check. `scripts/check.sh --full` adds a real transcription of a sentence spoken by macOS text-to-speech and a 7-second
+recording that checks microphone and system audio stay in sync when system audio starts late (`tests/recording_gap.sh`;
+it rebuilds and installs the app and plays a quiet sound).
+Everything runs in throw-away directories (`TRANSCRIBER_DATA`); the real voice database is never touched.
+`scripts/make-release.sh` runs `--full` first and stops on failure. If the transcript output changes on purpose:
+`UPDATE_GOLDEN=1 scripts/check.sh` and review the diff of `tests/fixtures/*.md`.
+
 ## App self-tests
 
 `open -n ~/Applications/Transcriber.app --args <test>` – result in `~/.local/share/transcriber/app.log`:

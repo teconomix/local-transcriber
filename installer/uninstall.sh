@@ -1,5 +1,5 @@
 #!/bin/bash
-# Transcriber deinstallieren. Aufnahmen und Transkripte unter ~/Transkription bleiben IMMER erhalten.
+# Transcriber deinstallieren. Aufnahmen und Transkripte unter ~/Transcriber bleiben IMMER erhalten.
 # Die Stimmdatenbank (biometrische Daten) und das Whisper-Modell werden nur nach Rückfrage gelöscht.
 set -uo pipefail
 
@@ -9,7 +9,11 @@ DE=0
 _lang=$(defaults read -g AppleLanguages 2>/dev/null | awk 'NR==2' | tr -d ' ",') || _lang=""
 if [[ "${_lang:-${LANG:-}}" == de* ]]; then DE=1; fi
 t() { if [[ "$DE" == 1 ]]; then printf '%s' "$1"; else printf '%s' "$2"; fi; }   # t "deutsch" "english"
-ask() { local a; read -r -p "  $1 $(t '[j/N]' '[y/N]') " a </dev/tty 2>/dev/null || return 1; [[ "$a" =~ ^[jJyY] ]]; }
+ask() {  # Frage über /dev/tty (read -p schrieb sie auf stderr → mit 2>/dev/null unsichtbar, bis 0.5.0)
+    local a=""
+    { printf '  %s %s ' "$1" "$(t '[j/N]' '[y/N]')" >/dev/tty && read -r a </dev/tty; } 2>/dev/null || return 1
+    [[ "$a" =~ ^[jJyY] ]]
+}
 
 echo "$(t "Transcriber deinstallieren" "Uninstalling Transcriber")"
 osascript -e 'quit app "Transcriber"' >/dev/null 2>&1 || true
@@ -30,5 +34,5 @@ W="$HOME/.cache/huggingface/hub/models--mlx-community--whisper-large-v3-turbo"
 if [[ -d "$W" ]] && ask "$(t "Whisper-Modell (~3 GB, evtl. auch von anderen Programmen genutzt) löschen?" "Delete the Whisper model (~3 GB, possibly also used by other programs)?")"; then
     rm -rf "$W" && echo "  ✓ $(t "Whisper-Modell gelöscht" "Whisper model deleted")"
 fi
-echo "$(t "Fertig. Deine Aufnahmen und Transkripte unter ~/Transkription sind unverändert." "Done. Your recordings and transcripts in ~/Transkription are unchanged.")"
+echo "$(t "Fertig. Deine Aufnahmen und Transkripte unter ~/Transcriber sind unverändert." "Done. Your recordings and transcripts in ~/Transcriber are unchanged.")"
 echo "$(t "Freigaben in Systemeinstellungen › Datenschutz & Sicherheit kannst du dort selbst entfernen." "You can remove permissions yourself in System Settings › Privacy & Security.")"

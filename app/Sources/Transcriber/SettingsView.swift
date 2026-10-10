@@ -1,15 +1,54 @@
 import EventKit
 import SwiftUI
 
-/// Einstellungen (eigenes Fenster): Aufnahme · Diktat · Kalender. Das Panel enthält nur, was man im Alltag braucht.
+/// Einstellungen (eigenes Fenster): Allgemein · Aufnahme · Diktat · Kalender. Das Panel enthält nur, was man im Alltag braucht.
 struct SettingsView: View {
     var body: some View {
         TabView {
+            GeneralSettings().tabItem { Label("Allgemein", systemImage: "gearshape") }
             RecordingSettings().tabItem { Label("Aufnahme", systemImage: "record.circle") }
             DictationSettings().tabItem { Label("Diktat", systemImage: "mic") }
             CalendarSettings().tabItem { Label("Kalender", systemImage: "calendar") }
         }
         .frame(width: 520, height: 440)
+    }
+}
+
+struct GeneralSettings: View {
+    @EnvironmentObject var updates: UpdateCheck
+
+    var body: some View {
+        Form {
+            Section {
+                LabeledContent("Version", value: UpdateCheck.current)
+                LabeledContent("Ordner", value: "~/" + watchDir.lastPathComponent)
+            }
+            Section {
+                Toggle("Einmal täglich nach neuen Versionen suchen", isOn: Binding(get: { updates.enabled == true }, set: { updates.set($0) }))
+                HStack {
+                    if let v = updates.available {
+                        Text("Version \(v) verfügbar").foregroundStyle(.tint)
+                        Button("Aktualisieren …") { UpdateCheck.openInstructions() }
+                    } else if let e = updates.lastError {
+                        Text("Prüfung fehlgeschlagen: \(e)").foregroundStyle(.orange)
+                    } else if let t = updates.lastChecked, updates.enabled == true {
+                        Text("Aktuell – zuletzt geprüft \(t.formatted(date: .abbreviated, time: .shortened))").foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if updates.checking { ProgressView().controlSize(.small) }
+                    Button("Jetzt prüfen") { Task { await updates.check() } }.disabled(updates.enabled != true || updates.checking)
+                }
+            } header: {
+                Text("Updates")
+            } footer: {
+                Text("""
+                    Fragt nur die aktuelle Versionsnummer bei transcriber.teconomix.net ab – nichts über dich oder deine \
+                    Aufnahmen. Aktualisiert wird mit dem Installationsbefehl; der Knopf öffnet die Anleitung.
+                    """)
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 
@@ -84,8 +123,8 @@ struct DictationSettings: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Diktat: Taste halten, sprechen, loslassen → Text an der Schreibmarke", isOn: $dictationOn)
-                    .onChange(of: dictationOn) { _, on in on ? dictation.activate() : dictation.deactivate() }
+                Toggle("Diktat: Taste halten, sprechen, loslassen → Text an der Schreibmarke",
+                       isOn: Binding(get: { dictationOn }, set: { dictation.setEnabled($0) }))
                 if dictationOn && !dictation.trusted {
                     HStack {
                         Text("Freigabe „Bedienungshilfen“ fehlt").foregroundStyle(.orange)

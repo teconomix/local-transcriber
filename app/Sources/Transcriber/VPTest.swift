@@ -162,17 +162,38 @@ enum VPTest {
         appLog("Kalender-Test: fertig")
     }
 
+    /// Spurversatz: `open -n ~/Applications/Transcriber.app --args --gap-test ORDNER [--vp] [--gap SEKUNDEN]` – Aufnahme
+    /// mit Systemton, die ersten SEKUNDEN (2,5) Systemton verworfen, danach spielt afplay leise einen Ton, 4 s später Stopp. Danach muss der Ton in der Systemton-Spur bei ~3 s liegen, nicht
+    /// bei 0 s (Tap liefert erst, wenn etwas abspielt; Lücken füllt Recorder.append mit Stille).
+    @MainActor
+    static func gap(_ folder: URL, voiceProcessing: Bool = false, gap: Double = 2.5) async {
+        let r = Recorder()
+        r.testDropSystemUntil = Date().addingTimeInterval(gap)      // wie im frischen Konto: Tap liefert erst später
+        do { try await r.start(deviceID: nil, systemAudio: true, voiceProcessing: voiceProcessing, folder: folder) }
+        catch { appLog("Gap-Test: Start fehlgeschlagen: \(error.localizedDescription)"); return }
+        try? await Task.sleep(nanoseconds: UInt64((gap + 0.5) * 1e9))
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/afplay")
+        p.arguments = ["-v", "0.15", "/System/Library/Sounds/Submarine.aiff"]
+        try? p.run()
+        try? await Task.sleep(nanoseconds: 4_000_000_000)
+        let url = await r.stop()
+        appLog("Gap-Test: fertig → \(url?.path ?? "keine Datei")")
+    }
+
     /// Oberfläche ansehen ohne Mausklick: `open -n ~/Applications/Transcriber.app --args --ui-test`
     /// Zeigt Panel und Einstellungs-Reiter kurz als Fenster, fotografiert sie (ScreenCaptureKit) → DATA/ui-*.png.
     @MainActor
-    static func ui(recorder: Recorder, jobs: JobManager, dictation: Dictation, calls: CallDetector) async {
+    static func ui(recorder: Recorder, jobs: JobManager, dictation: Dictation, calls: CallDetector, updates: UpdateCheck) async {
         let views: [(String, AnyView)] = [
-            ("panel", AnyView(PanelView().environmentObject(recorder).environmentObject(jobs).environmentObject(dictation).environmentObject(calls))),
+            ("panel", AnyView(PanelView().environmentObject(recorder).environmentObject(jobs).environmentObject(dictation).environmentObject(calls)
+                .environmentObject(updates))),
             ("eintrag", AnyView(Group {
                 if let j = jobs.jobs.first(where: { $0.state == .done && $0.speakers.count > 1 }) {
                     JobRow(job: j, editing: [j.speakers[0].letter]).environmentObject(jobs).frame(width: 412).padding(14)
                 }
             })),
+            ("allgemein", AnyView(GeneralSettings().environmentObject(updates).frame(width: 520, height: 440))),
             ("aufnahme", AnyView(RecordingSettings().frame(width: 520, height: 440))),
             ("diktat", AnyView(DictationSettings().environmentObject(dictation).frame(width: 520, height: 440))),
             ("kalender", AnyView(CalendarSettings().frame(width: 520, height: 440))),

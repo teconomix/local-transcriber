@@ -9,16 +9,20 @@ BASE="${1:-https://transcriber.teconomix.net}"
 OUT="dist/download/$V"
 rm -rf "$OUT"; mkdir -p "$OUT"
 
+echo "▸ Prüfungen (scripts/check.sh --full)"
+[[ "${SKIP_CHECK:-}" == 1 ]] || scripts/check.sh --full >/dev/null || { echo "Prüfungen fehlgeschlagen – Details: scripts/check.sh --full"; exit 1; }
+
 echo "▸ App bauen ($V)"
 SCRATCH=~/.local/share/transcriber/build/app
 swift build -c release --package-path app --scratch-path "$SCRATCH" >/dev/null
 APP="$OUT/Transcriber.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$SCRATCH/release/Transcriber" "$APP/Contents/MacOS/"
+BUILD=$(echo "$V" | awk -F. '{print $1 * 10000 + $2 * 100 + $3}')   # 0.6 → 600, 0.6.1 → 601 (immer steigend)
 sed -e "s#<key>CFBundleShortVersionString</key><string>[^<]*</string>#<key>CFBundleShortVersionString</key><string>$V</string>#" \
-    -e "s#<key>CFBundleVersion</key><string>[^<]*</string>#<key>CFBundleVersion</key><string>${V//./}</string>#" \
+    -e "s#<key>CFBundleVersion</key><string>[^<]*</string>#<key>CFBundleVersion</key><string>$BUILD</string>#" \
     app/Resources/Info.plist > "$APP/Contents/Info.plist"
-cp -R app/Resources/*.lproj "$APP/Contents/Resources/"   # de (leer, Quelltext) + en
+cp -R app/Resources/*.lproj app/Resources/AppIcon.icns "$APP/Contents/Resources/"   # de (leer, Quelltext) + en
 # Signatur wie build-app.sh: festes, selbst signiertes Zertifikat → Freigaben bleiben über Updates erhalten.
 KC=~/.local/share/transcriber/signing/transcriber-signing.keychain-db
 if [[ -f $KC ]]; then

@@ -25,10 +25,11 @@ Der Installer (dauert je nach Leitung 5–15 Minuten):
 4. nutzt ein vorhandenes ffmpeg oder lädt einen statischen Build,
 5. installiert das Sprechererkennungsmodell (mitgeliefert) und lädt das Whisper-Modell von Hugging Face,
 6. legt die App nach `~/Applications/Transcriber.app` und die Kommandozeile nach `~/.local/bin/transcriber`,
-7. bietet den Ordnerwächter für `~/Transkription` an,
+7. bietet den Ordnerwächter für `~/Transcriber` an,
 8. startet Transcriber.
 
-Erneut ausführen = aktualisieren. Stimmdatenbank, Einstellungen und Transkripte bleiben erhalten.
+Erneut ausführen = aktualisieren. Stimmdatenbank, Einstellungen und Transkripte bleiben erhalten. Beim Update von 0.5
+oder älter benennt der Installer den Datenordner `~/Transkription` einmalig in `~/Transcriber` um (nichts wird kopiert).
 
 Optionen (hinter `bash -s --` anhängen, z. B. `curl -fsSL …/install.sh | bash -s -- --no-watch`):
 `--no-launch` (App nicht starten), `--no-watch` (keinen Ordnerwächter anbieten), `--yes` (keine Rückfragen).
@@ -45,7 +46,7 @@ einschalten und **Bedienungshilfen** erlauben. Übersicht aller Freigaben: [ANLE
 | `~/Applications/Transcriber.app` | App |
 | `~/.local/share/transcriber/` | Python-Umgebung, ffmpeg, Sprechererkennungsmodell, **Stimmdatenbank** (`speakers.db`), Protokolle |
 | `~/.cache/huggingface/hub/` | Whisper-Modell |
-| `~/Transkription/` | Aufnahmen und Transkripte (deine Daten) |
+| `~/Transcriber/` | Aufnahmen und Transkripte (deine Daten) |
 | `~/Library/LaunchAgents/net.teconomix.transcriber.watch.plist` | Ordnerwächter (optional) |
 
 ## Deinstallieren
@@ -55,7 +56,7 @@ bash ~/.local/share/transcriber/uninstall.sh
 ```
 
 Entfernt App, Programmdaten und Ordnerwächter. Fragt, ob Stimmdatenbank und Whisper-Modell gelöscht werden sollen.
-**Aufnahmen und Transkripte unter `~/Transkription` bleiben immer erhalten.**
+**Aufnahmen und Transkripte unter `~/Transcriber` bleiben immer erhalten.**
 
 ## Hinweis zur Signatur
 

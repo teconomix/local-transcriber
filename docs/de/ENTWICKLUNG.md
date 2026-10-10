@@ -31,6 +31,19 @@ Schlüssel (der Compiler zieht sie heraus, kein Xcode nötig). Statuscodes aus d
 `TRANSCRIBER_UI_LANG` (setzt die App), sonst `ui_language` in `config.json`, sonst die macOS-Sprache (`transcriber/i18n.py`).
 App in einer Sprache testen: `open -n ~/Applications/Transcriber.app --args --ui-test -AppleLanguages '(en)'`.
 
+## Prüfungen
+
+`scripts/check.sh` führt die schnellen Prüfungen aus (rund eine Minute, meist `swift build`): Kern-Tests
+(`tests/test_core.py`, `unittest` aus der Standardbibliothek, ohne Modelle), Syntax der Skripte, die Umbenennung
+`~/Transkription` → `~/Transcriber` im Installer (`tests/installer_migration.sh`), Vollständigkeit der Übersetzung,
+den Versionsvergleich des Update-Hinweises und die Datenschutzprüfung des öffentlichen Exports.
+`scripts/check.sh --full` transkribiert zusätzlich einen Satz aus der macOS-Sprachausgabe und prüft mit einer
+7-s-Aufnahme, dass Mikrofon und Systemton synchron bleiben, wenn der Systemton erst später einsetzt
+(`tests/recording_gap.sh`; baut und installiert die App neu und spielt leise einen Ton). Alles läuft in
+Wegwerf-Verzeichnissen (`TRANSCRIBER_DATA`); die echte Stimmdatenbank wird nie berührt. `scripts/make-release.sh`
+ruft zuerst `--full` auf und bricht bei Fehlern ab. Ändert sich die Transkript-Ausgabe absichtlich:
+`UPDATE_GOLDEN=1 scripts/check.sh` und den Diff von `tests/fixtures/*.md` prüfen.
+
 ## Selbsttests der App
 
 `open -n ~/Applications/Transcriber.app --args <test>` – Ergebnis in `~/.local/share/transcriber/app.log`:

@@ -12,7 +12,7 @@ Installation braucht Transcriber kein Internet. Es gibt kein Konto, kein Abo, ke
 - **Zwei Spuren:** Mikrofon (du und wer mit dir im Raum ist) und Systemton (die anderen im Call). Der Systemton wird
   per Core-Audio-Process-Tap abgegriffen – dafür reicht die Freigabe „Systemaudio“, keine Bildschirmaufnahme.
 - **Apple-Sprachverarbeitung** fürs Mikrofon (Pegel, Rausch- und Echounterdrückung), abschaltbar.
-- Aufnahmen landen unter `~/Transkription/Aufnahmen/` und werden danach automatisch transkribiert.
+- Aufnahmen landen unter `~/Transcriber/Aufnahmen/` (`Recordings` auf einem nicht deutschsprachigen Mac) und werden danach automatisch transkribiert.
 
 ## Transkribieren
 
@@ -24,7 +24,7 @@ Installation braucht Transcriber kein Internet. Es gibt kein Konto, kein Abo, ke
 - **Ausgabe** neben der Audiodatei: `<Name>.md` (lesbar, mit Sprechern und Zeitmarken), `<Name>.transcript.json`
   (vollständig, maschinenlesbar), optional `<Name>.srt` (Untertitel).
 - **Glossar** für Namen und Fachbegriffe: feste Ersetzungen nach der Erkennung (`transcriber vocab 'dG = DG, D.G.'`).
-- **Dateien transkribieren:** im Panel „Datei transkribieren …“ oder einfach in `~/Transkription` legen
+- **Dateien transkribieren:** im Panel „Datei transkribieren …“ oder einfach in `~/Transcriber` legen
   (Ordnerwächter, optional). Video- und Audioformate, die ffmpeg lesen kann.
 
 ## Wer hat was gesagt
@@ -73,5 +73,5 @@ lief, per Apple Intelligence aus dem Inhalt (macOS 26). Transkript und Stimmdate
 - **Kommandozeile:** `transcriber transcribe DATEI`, `who`, `name`, `confirm`, `speakers`, `vocab`, `rename`, `watch`.
 - **MCP-Server** (`transcriber-mcp`): Werkzeuge `transcribe`, `who`, `name_speaker`, `confirm_speakers`,
   `list_speakers` für KI-Agenten wie Claude.
-- **Ordnerwächter** als LaunchAgent: legt Ergebnisse neben jede neue Datei in `~/Transkription`.
+- **Ordnerwächter** als LaunchAgent: legt Ergebnisse neben jede neue Datei in `~/Transcriber`.
 - **Einstellungen** in `~/.local/share/transcriber/config.json` (Schwellen, Formate, Sprecherzahl …).

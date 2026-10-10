@@ -15,14 +15,26 @@ def mmss(x):
 
 
 def _turns(doc):
+    """Redebeiträge in zeitlicher Folge. In Bereichen gleichzeitigen Sprechens (doc["overlaps"], von der
+    Spurauswertung erkannt) je Sprecher ein zusammenhängender Beitrag statt Wort-für-Wort-Wechsel; schneller Dialog
+    nacheinander bleibt so, wie er war (der steht in keinem dieser Bereiche)."""
     names = {c["label"]: c["display"] for c in doc["speakers"]}
-    out = []
+    regions = doc.get("overlaps") or []
+    region = lambda w: next((i for i, (s, e) in enumerate(regions) if s <= (w["start"] + w["end"]) / 2 < e), None)
+    out, current = [], {}                     # current: (Sprecher, Bereich) → laufender Beitrag
     for w in doc["words"]:
         who = names.get(w.get("speaker"), t("Unklar", "Unclear"))
+        r = region(w)
+        if r is not None and (who, r) in current:
+            u = current[(who, r)]
+            u["text"] += " " + w["w"]; u["end"] = w["end"]
+            continue
         if out and out[-1]["who"] == who and w["start"] - out[-1]["end"] < 5:
             out[-1]["text"] += " " + w["w"]; out[-1]["end"] = w["end"]
         else:
             out.append({"who": who, "start": w["start"], "end": w["end"], "text": w["w"]})
+        if r is not None:
+            current[(who, r)] = out[-1]
     return out
 
 

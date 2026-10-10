@@ -7,7 +7,7 @@ screen contents anywhere. There is no telemetry, no analytics, no account.
 
 | Data | Location | Note |
 |---|---|---|
-| Recordings, transcripts | `~/Transkription/` | your files |
+| Recordings, transcripts | `~/Transcriber/` | your files |
 | **Voice database** | `~/.local/share/transcriber/speakers.db` | **biometric data** (voice embeddings) of the people you named; readable only by you (file mode 0600) |
 | Event for a recording | `<recording>.event.json` next to the recording | title and attendees (names, email addresses) |
 | Logs | `~/.local/share/transcriber/*.log` | technical messages, no dictation content |
@@ -22,7 +22,10 @@ screen contents anywhere. There is no telemetry, no analytics, no account.
 
 Only the **installer** downloads files: release files from transcriber.teconomix.net, uv/Python from astral.sh,
 Python packages from PyPI, the Whisper model from Hugging Face and, if needed, ffmpeg from ffmpeg.martin-riedl.de.
-During operation, Transcriber does not access the internet (speech recognition runs with `HF_HUB_OFFLINE=1`).
+During operation, Transcriber does not access the internet (speech recognition runs with `HF_HUB_OFFLINE=1`) – with
+one optional exception: if you agree (the panel asks once; Settings › General), the app reads
+`https://transcriber.teconomix.net/latest.txt` once a day to show a hint when a new version is out. The request
+carries nothing about you or your recordings; the server sees your IP address and does not log it.
 
 ## People you record
 

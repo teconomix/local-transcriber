@@ -1,0 +1,230 @@
+{
+ "source": "/tmp/Beispiel/2026-10-10 14-03 Budget.m4a",
+ "job_id": "testjob0001",
+ "created": "2026-10-10 14:30",
+ "model": "mlx-community/whisper-large-v3-turbo",
+ "language": "de",
+ "duration": 95.0,
+ "tracks": 1,
+ "track_mode": "gemischt",
+ "event": {
+  "title": "Budget Q4",
+  "attendees": [
+   {
+    "name": "Alex Muster",
+    "email": "alex@example.org",
+    "me": true,
+    "status": "zugesagt"
+   },
+   {
+    "name": "Kim Beispiel",
+    "email": "kim@example.org",
+    "me": false,
+    "status": "zugesagt"
+   },
+   {
+    "name": "Sam Probe",
+    "email": "sam@example.org",
+    "me": false,
+    "status": "abgesagt"
+   }
+  ]
+ },
+ "speakers": [
+  {
+   "label": "SPEAKER_00",
+   "letter": "A",
+   "name": "Alex Muster",
+   "status": "bestätigt",
+   "score": 0.88,
+   "speech_s": 72.0,
+   "display": "Alex Muster",
+   "candidates": [
+    [
+     "Alex Muster",
+     0.88
+    ]
+   ]
+  },
+  {
+   "label": "SPEAKER_01",
+   "letter": "B",
+   "name": "Kim Beispiel",
+   "status": "vermutlich",
+   "score": 0.58,
+   "speech_s": 31.0,
+   "display": "Kim Beispiel (?)",
+   "candidates": [
+    [
+     "Kim Beispiel",
+     0.58
+    ],
+    [
+     "Alex Muster",
+     0.21
+    ]
+   ]
+  },
+  {
+   "label": "SPEAKER_02",
+   "letter": "C",
+   "name": null,
+   "status": "unbekannt",
+   "score": null,
+   "speech_s": 8.0,
+   "display": "Sprecher C",
+   "candidates": [
+    [
+     "Kim Beispiel",
+     0.31
+    ]
+   ]
+  }
+ ],
+ "words": [
+  {
+   "w": "Guten",
+   "start": 0.0,
+   "end": 0.4,
+   "speaker": "SPEAKER_00"
+  },
+  {
+   "w": "Morgen,",
+   "start": 0.5,
+   "end": 0.9,
+   "speaker": "SPEAKER_00"
+  },
+  {
+   "w": "wir",
+   "start": 1.0,
+   "end": 1.4,
+   "speaker": "SPEAKER_00"
+  },
+  {
+   "w": "besprechen",
+   "start": 1.5,
+   "end": 1.9,
+   "speaker": "SPEAKER_00"
+  },
+  {
+   "w": "heute",
+   "start": 2.0,
+   "end": 2.4,
+   "speaker": "SPEAKER_00"
+  },
+  {
+   "w": "das",
+   "start": 2.5,
+   "end": 2.9,
+   "speaker": "SPEAKER_00"
+  },
+  {
+   "w": "Budget.",
+   "start": 3.0,
+   "end": 3.4,
+   "speaker": "SPEAKER_00"
+  },
+  {
+   "w": "Gut,",
+   "start": 4.5,
+   "end": 4.9,
+   "speaker": "SPEAKER_01"
+  },
+  {
+   "w": "ich",
+   "start": 5.0,
+   "end": 5.4,
+   "speaker": "SPEAKER_01"
+  },
+  {
+   "w": "habe",
+   "start": 5.5,
+   "end": 5.9,
+   "speaker": "SPEAKER_01"
+  },
+  {
+   "w": "die",
+   "start": 6.0,
+   "end": 6.4,
+   "speaker": "SPEAKER_01"
+  },
+  {
+   "w": "Zahlen",
+   "start": 6.5,
+   "end": 6.9,
+   "speaker": "SPEAKER_01"
+  },
+  {
+   "w": "von",
+   "start": 7.0,
+   "end": 7.4,
+   "speaker": "SPEAKER_01"
+  },
+  {
+   "w": "ACME",
+   "start": 7.5,
+   "end": 7.9,
+   "speaker": "SPEAKER_01"
+  },
+  {
+   "w": "mitgebracht.",
+   "start": 8.0,
+   "end": 8.4,
+   "speaker": "SPEAKER_01"
+  },
+  {
+   "w": "Kurze",
+   "start": 9.5,
+   "end": 9.9,
+   "speaker": "SPEAKER_02"
+  },
+  {
+   "w": "Frage",
+   "start": 10.0,
+   "end": 10.4,
+   "speaker": "SPEAKER_02"
+  },
+  {
+   "w": "dazu.",
+   "start": 10.5,
+   "end": 10.9,
+   "speaker": "SPEAKER_02"
+  },
+  {
+   "w": "Gerne,",
+   "start": 12.0,
+   "end": 12.4,
+   "speaker": "SPEAKER_00"
+  },
+  {
+   "w": "dann",
+   "start": 12.5,
+   "end": 12.9,
+   "speaker": "SPEAKER_00"
+  },
+  {
+   "w": "fangen",
+   "start": 13.0,
+   "end": 13.4,
+   "speaker": "SPEAKER_00"
+  },
+  {
+   "w": "wir",
+   "start": 13.5,
+   "end": 13.9,
+   "speaker": "SPEAKER_00"
+  },
+  {
+   "w": "an.",
+   "start": 14.0,
+   "end": 14.4,
+   "speaker": "SPEAKER_00"
+  },
+  {
+   "w": "ähm",
+   "start": 15.5,
+   "end": 15.8,
+   "speaker": null
+  }
+ ]
+}

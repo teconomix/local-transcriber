@@ -7,7 +7,7 @@ oder Bildschirminhalte irgendwohin. Es gibt keine Telemetrie, keine Analyse, kei
 
 | Daten | Ort | Hinweis |
 |---|---|---|
-| Aufnahmen, Transkripte | `~/Transkription/` | deine Dateien |
+| Aufnahmen, Transkripte | `~/Transcriber/` | deine Dateien |
 | **Stimmdatenbank** | `~/.local/share/transcriber/speakers.db` | **biometrische Daten** (Stimm-Einbettungen) der benannten Personen; nur für dich lesbar (Dateirechte 0600) |
 | Termin zur Aufnahme | `<Aufnahme>.event.json` neben der Aufnahme | Titel und Teilnehmer (Namen, E-Mail-Adressen) |
 | Protokolle | `~/.local/share/transcriber/*.log` | technische Meldungen, keine Inhalte von Diktaten |
@@ -22,7 +22,10 @@ oder Bildschirminhalte irgendwohin. Es gibt keine Telemetrie, keine Analyse, kei
 
 Nur der **Installer** lädt Dateien: Release-Dateien von transcriber.teconomix.net, uv/Python von astral.sh,
 Python-Pakete von PyPI, das Whisper-Modell von Hugging Face und ggf. ffmpeg von ffmpeg.martin-riedl.de. Im Betrieb
-greift Transcriber nicht aufs Internet zu (die Spracherkennung läuft mit `HF_HUB_OFFLINE=1`).
+greift Transcriber nicht aufs Internet zu (die Spracherkennung läuft mit `HF_HUB_OFFLINE=1`) – mit einer optionalen
+Ausnahme: Wenn du zustimmst (das Panel fragt einmal; Einstellungen › Allgemein), liest die App einmal täglich
+`https://transcriber.teconomix.net/latest.txt`, um auf eine neue Version hinzuweisen. Die Anfrage enthält nichts über
+dich oder deine Aufnahmen; der Server sieht deine IP-Adresse und protokolliert sie nicht.
 
 ## Personen, die du aufnimmst
 

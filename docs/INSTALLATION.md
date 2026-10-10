@@ -25,10 +25,11 @@ The installer (takes 5–15 minutes depending on your connection):
 4. uses an existing ffmpeg or downloads a static build,
 5. installs the speaker recognition model (included) and downloads the Whisper model from Hugging Face,
 6. puts the app in `~/Applications/Transcriber.app` and the command line tool in `~/.local/bin/transcriber`,
-7. offers the folder watcher for `~/Transkription`,
+7. offers the folder watcher for `~/Transcriber`,
 8. starts Transcriber.
 
-Run it again to update. The voice database, settings and transcripts are kept.
+Run it again to update. The voice database, settings and transcripts are kept. When updating from 0.5 or older, the
+installer renames the data folder `~/Transkription` to `~/Transcriber` (once, nothing is copied).
 
 Options (append after `bash -s --`, e.g. `curl -fsSL …/install.sh | bash -s -- --no-watch`):
 `--no-launch` (do not start the app), `--no-watch` (do not offer the folder watcher), `--yes` (no prompts).
@@ -45,7 +46,7 @@ dictation on in Settings and allow **Accessibility**. Overview of all permission
 | `~/Applications/Transcriber.app` | App |
 | `~/.local/share/transcriber/` | Python environment, ffmpeg, speaker recognition model, **voice database** (`speakers.db`), logs |
 | `~/.cache/huggingface/hub/` | Whisper model |
-| `~/Transkription/` | Recordings and transcripts (your data) |
+| `~/Transcriber/` | Recordings and transcripts (your data) |
 | `~/Library/LaunchAgents/net.teconomix.transcriber.watch.plist` | Folder watcher (optional) |
 
 ## Uninstall
@@ -55,7 +56,7 @@ bash ~/.local/share/transcriber/uninstall.sh
 ```
 
 Removes the app, program data and the folder watcher. Asks whether the voice database and the Whisper model should be
-deleted. **Recordings and transcripts in `~/Transkription` are always kept.**
+deleted. **Recordings and transcripts in `~/Transcriber` are always kept.**
 
 ## About code signing
 

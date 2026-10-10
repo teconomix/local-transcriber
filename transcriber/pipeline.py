@@ -95,7 +95,9 @@ def _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, du
     je Spur allein sieht es nur eine Gesprächshälfte (Test 2026-10-10, c2_dialog: WER 14 % statt 9,5 %).
     Wer spricht, kommt aus den Spuren: je Wort die lautere Spur, darin die Sprechertrennung dieser Spur (Labels
     T1:/T2:). Echo der Lautsprecher im Mikrofon ist ~13 dB leiser als die Systemspur und verliert so von selbst;
-    Cluster ohne Wörter (z. B. reines Echo) fallen weg."""
+    Cluster ohne Wörter (z. B. reines Echo) fallen weg.
+    Ausnahme gleichzeitiges Sprechen auf beiden Spuren: In der Mischung schreibt Whisper dann nur eine Stimme mit (Test
+    2026-10-10: Video und eigene Sprache 10 s gleichzeitig → Video fehlte). Dort kommt der Text je Spur (_overlaps)."""
     import numpy as np
     import soundfile as sf
     from . import diarize
@@ -105,6 +107,7 @@ def _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, du
     t0 = time.time(); r = asr.transcribe(wav, terms=terms if cfg["glossary_prompt"] else None, language=language)
     t["asr"] = time.time() - t0
     replaced = glossary.apply(r["words"], rules)
+    mixed = r["words"]
 
     per = []
     for i, w in enumerate(tracks, 1):
@@ -121,18 +124,60 @@ def _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, du
             c["label"] = f"T{i}:" + c["label"]; c["track"] = i
         per.append((segs, _merge_similar(clusters, segs, [], cfg.get("merge_sim", 0.6))))
 
+    echo = _echo_clusters(x[0], x[1], per[0][0], per[0][1])
+    t["echo_clusters"] = len(echo)
+    found = _overlaps(per[0][0], per[1][0], echo)
+    regions = [r for r in found if _both_speaking(x[0], x[1], *r)]
+    t["overlap_candidates"] = len(found)
+    extra, spans = {1: [], 2: []}, []      # spans: tatsächlich je Spur transkribierte Überlappungen
+    if regions:
+        P.start("asr", sum(e - s for s, e in regions) * 2 / RTFX["asr"], tr("Gleichzeitiges Sprechen", "Overlapping speech"))
+        t0 = time.time()
+        for s, e in regions:
+            ws = [_transcribe_span(x[k - 1], s, e, tracks[k - 1].parent / f"overlap{k}.wav", language) for k in (1, 2)]
+            # Whisper unsicher (erfundene Wörter aus Restecho/Rauschen, p meist < 0,5): Bereich bleibt bei der Mischung
+            if not all(w and sum(v.get("p") or 0 for v in w) / len(w) >= 0.5 for w in ws):
+                continue
+            spans.append((s, e))
+            for k in (1, 2):
+                replaced += glossary.apply(ws[k - 1], rules)
+                extra[k] += ws[k - 1]
+        inside = lambda w: any(s <= (w["start"] + w["end"]) / 2 < e for s, e in spans)
+        mixed = [w for w in mixed if not inside(w)]
+        for k in (1, 2):                                   # Ränder: Wort schon außerhalb des Bereichs in der Mischung
+            extra[k] = _new_words(extra[k], mixed)
+        t["overlap_s"], t["asr_overlap"] = round(sum(e - s for s, e in spans), 1), round(time.time() - t0, 1)
+
+    # Lücken: Spur spricht laut Sprechertrennung, die Mischung hat dort > 2 s kein Wort (Whisper übersprang z. B. den
+    # Anfang eines Videos direkt nach eigener Sprache, Test 2026-10-10) → diese Spur allein nachtranskribieren.
+    t0, filled = time.time(), 0.0
+    have = sorted(mixed + extra[1] + extra[2], key=lambda w: w["start"])
+    for k in (1, 2):
+        segs_k = [s for s in per[k - 1][0] if s["speaker"] not in (echo if k == 1 else ())]
+        for s, e in _holes(have, segs_k, dur):
+            if k == 1 and not _own_voice(x[0], x[1], s, e):
+                continue
+            ws = _new_words(_transcribe_span(x[k - 1], s, e, tracks[k - 1].parent / f"gap{k}.wav", language), have)
+            # ≥ 3 Wörter: in Atempausen erfindet Whisper gern ein einzelnes Wort, auch mit hoher Sicherheit
+            # (c1_monolog: „können.“ p 0,8); echte verschluckte Passagen sind länger
+            if len(ws) >= 3 and sum(v.get("p") or 0 for v in ws) / len(ws) >= 0.5:
+                replaced += glossary.apply(ws, rules)
+                extra[k] += ws; filled += e - s
+    if filled:
+        t["gap_filled_s"], t["asr_gaps"] = round(filled, 1), round(time.time() - t0, 1)
+
     def level(a, w):
         i, j = int(max(w["start"] - 0.05, 0) * 16000), int((w["end"] + 0.05) * 16000)
         return float(np.mean(a[i:j] ** 2)) if j > i else 0.0
-    by = {1: [], 2: []}
-    for w in r["words"]:
+    by = {1: list(extra[1]), 2: list(extra[2])}
+    for w in mixed:
         by[1 if level(x[0], w) >= level(x[1], w) else 2].append(w)
+    for k in (1, 2):
+        by[k].sort(key=lambda w: w["start"])
     words = []
     for i in (1, 2):
         words += assign_words(by[i], per[i - 1][0])
     mic = [w for w in words if (w["speaker"] or "").startswith("T1:")]
-    echo = _echo_clusters(x[0], x[1], per[0][0], per[0][1])
-    t["echo_clusters"] = len(echo)
     _absorb_minor(per[0][1], mic, cfg, echo)
     # Kein Segment dieser Spur in der Nähe (z. B. Whisper-Wort am Rand einer Pause): Segmente der anderen Spur.
     loose = [w for w in words if w["speaker"] is None]
@@ -142,7 +187,97 @@ def _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, du
     used = {w["speaker"] for w in words}
     clusters = [c for _, cl in per for c in cl if c["label"] in used]
     t["words_track1"], t["words_track2"] = len(by[1]), len(by[2])
-    return words, sorted(per[0][0] + per[1][0], key=lambda s: s["start"]), clusters, replaced
+    return words, sorted(per[0][0] + per[1][0], key=lambda s: s["start"]), clusters, replaced, spans
+
+
+def _overlaps(segs1, segs2, echo=(), min_s=1.0, join_s=1.0, pad=0.3):
+    """Zeitbereiche, in denen laut Sprechertrennung auf beiden Spuren gleichzeitig gesprochen wird (Echo-Cluster der
+    Mikrofonspur zählen nicht – das ist dieselbe Stimme). Kurze Einwürfe unter min_s bleiben in der Mischung."""
+    def merged(segs):
+        out = []
+        for sg in sorted(segs, key=lambda s: s["start"]):
+            if out and sg["start"] - out[-1][1] < join_s:
+                out[-1][1] = max(out[-1][1], sg["end"])
+            else:
+                out.append([sg["start"], sg["end"]])
+        return out
+    a = merged([s for s in segs1 if s["speaker"] not in echo])
+    b = merged(segs2)
+    hits = [[max(s1, s2), min(e1, e2)] for s1, e1 in a for s2, e2 in b if min(e1, e2) - max(s1, s2) > 0]
+    regions = []
+    for s, e in sorted(hits):
+        if regions and s - regions[-1][1] < join_s:
+            regions[-1][1] = max(regions[-1][1], e)
+        else:
+            regions.append([s, e])
+    return [(max(s - pad, 0.0), e + pad) for s, e in regions if e - s >= min_s]
+
+
+def _both_speaking(mic, call, s, e, rate=16000, max_db=15.0, floor_db=-50.0, max_lag=0.15, thr=0.15):
+    """Sprechen in [s, e) wirklich beide? Nein, wenn eine Spur viel leiser ist (Restecho, Rauschen: im Test 2026-10-10
+    hörte das Mikrofon ein Video mit −44 dB gegenüber −26 dB mit – Whisper erfand daraus deutsche Sätze) oder wenn die
+    Mikrofonspur mit der Call-Spur korreliert (Echo über Lautsprecher, dieselbe Stimme). Gemessen 2026-10-10: Restecho,
+    während sich die Echounterdrückung einstellt, 0,25–0,29; echtes gleichzeitiges Sprechen 0,03–0,06."""
+    import numpy as np
+    i, j = int(s * rate), int(e * rate)
+    a, b = mic[i:j], call[i:j]
+    if len(a) < rate // 2 or len(b) < rate // 2:
+        return False
+    da, db = (10 * np.log10(np.mean(v ** 2) + 1e-12) for v in (a, b))
+    if min(da, db) < floor_db or abs(da - db) > max_db:
+        return False
+    return _corr(mic, call, i, j, int(max_lag * rate)) < thr
+
+
+def _corr(mic, call, i, j, L):
+    """Höchste normierte Korrelation von mic[i:j] mit der Call-Spur bei Versatz bis ±L Samples. Am Rand der Aufnahme
+    mit Stille aufgefüllt – sonst blieb dort nur ein Versatz übrig und verzögertes Echo fiel durch."""
+    import numpy as np
+    a = mic[i:j]
+    lo, hi = i - L, j + L
+    bb = np.pad(call[max(lo, 0):min(hi, len(call))], (max(0, -lo), max(0, hi - len(call))))
+    den = np.sqrt(np.sum(a ** 2)) * np.sqrt(np.max(np.convolve(bb ** 2, np.ones(len(a)), "valid")))
+    return 0.0 if den < 1e-9 else float(np.max(np.abs(np.correlate(bb, a, "valid"))) / den)
+
+
+def _new_words(ws, have, win=2.0):
+    """Nachtranskribierte Wörter ohne Satzzeichen-Wörter („?“ für Lachen) und ohne solche, die innerhalb von win s
+    schon dastehen – die Einzelspur setzt dasselbe Wort oft um bis zu 1 s anders an als die Mischung (Messung
+    bench/tracks_test.py 2026-10-10: sonst c1 +6, c2 Echo +1 Wort)."""
+    key = lambda w: "".join(c for c in w["w"].lower() if c.isalnum())
+    return [w for w in ws if key(w) and not any(key(h) == key(w) and abs(h["start"] - w["start"]) <= win for h in have)]
+
+
+def _holes(words, segs, dur, min_gap=2.0, min_speech=1.5):
+    """Zeitbereiche ohne jedes Wort (> min_gap s), in denen diese Spur laut Sprechertrennung ≥ min_speech s spricht –
+    beschnitten auf die Sprache der Spur."""
+    edges = [0.0] + [v for w in words for v in (w["start"], w["end"])] + [dur]
+    gaps = [(edges[i], edges[i + 1]) for i in range(0, len(edges) - 1, 2) if edges[i + 1] - edges[i] > min_gap]
+    out = []
+    for gs, ge in gaps:
+        sp = [(max(s["start"], gs), min(s["end"], ge)) for s in segs if min(s["end"], ge) > max(s["start"], gs)]
+        if sum(e - s for s, e in sp) >= min_speech:
+            out.append((min(s for s, _ in sp), max(e for _, e in sp)))
+    return out
+
+
+def _own_voice(mic, call, s, e, rate=16000, max_lag=0.15, thr=0.15):
+    """Mikrofonspur in [s, e) ist nicht bloß Echo der Call-Spur (Korrelation < thr, siehe _both_speaking)."""
+    i, j = int(s * rate), int(e * rate)
+    if j - i < rate // 2:
+        return True
+    return _corr(mic, call, i, j, int(max_lag * rate)) < thr
+
+
+def _transcribe_span(x, s, e, tmp, language, rate=16000, ctx=0.5):
+    """Ausschnitt einer Spur transkribieren; Wörter mit Zeiten der ganzen Aufnahme, nur die mit Mitte in [s, e)."""
+    import soundfile as sf
+    a = max(s - ctx, 0.0)
+    sf.write(str(tmp), x[int(a * rate):int((e + ctx) * rate)], rate)
+    ws = asr.transcribe(tmp, language=language)["words"]
+    for w in ws:
+        w["start"] = round(w["start"] + a, 3); w["end"] = round(w["end"] + a, 3)
+    return [w for w in ws if s <= (w["start"] + w["end"]) / 2 < e]
 
 
 def _echo_clusters(mic, call, segs, clusters, max_lag=0.15, rate=16000, thr=0.3):
@@ -320,9 +455,10 @@ def _run(src, language, out_dir, formats, num_speakers, cfg, terms, rules, P, t)
             mode = "getrennt"
         t["prepare"] = time.time() - t0
 
+    overlaps = []                        # Bereiche gleichzeitigen Sprechens (nur getrennte Spuren) – für die Ausgabe
     if mode == "getrennt":
         cfg = dict(cfg, _others=others)
-        words, segs, clusters, replaced = _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, dur)
+        words, segs, clusters, replaced, overlaps = _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, dur)
     else:
         P.start("asr", dur / RTFX["asr"], tr("Spracherkennung", "Speech recognition"))
         t0 = time.time(); r = asr.transcribe(wav, terms=terms if cfg["glossary_prompt"] else None, language=language); t["asr"] = time.time() - t0
@@ -340,12 +476,13 @@ def _run(src, language, out_dir, formats, num_speakers, cfg, terms, rules, P, t)
     speakers.identify(db, clusters, cfg)
     display_names(clusters, words)
     out_dir = Path(out_dir).expanduser().resolve() if out_dir else src.parent
+    out_dir.mkdir(parents=True, exist_ok=True)     # --out mit neuem Ordner brach sonst erst beim Schreiben ab (96 %)
     stem = out_dir / src.stem
     doc = {"version": 1, "job_id": jid, "source": str(src), "created": time.strftime("%Y-%m-%d %H:%M"),
            "model": asr.MODEL, "language": language, "duration": dur, "tracks": info["tracks"], "track_mode": mode, "event": event,
            "track_relation": relation, "timing_s": {k: round(v, 1) for k, v in t.items()},
            "glossary": terms, "glossary_replacements": replaced, "speakers": [{k: v for k, v in c.items() if k != "embedding"} for c in clusters],
-           "words": words, "diarization": segs}
+           "words": words, "diarization": segs, "overlaps": [[round(s, 2), round(e, 2)] for s, e in overlaps]}
     db.execute("DELETE FROM clusters WHERE job_id=?", (jid,))
     speakers.save_job(db, jid, src, f"{stem}.transcript.json", asr.MODEL, clusters)
     paths = render.write(doc, stem, formats)

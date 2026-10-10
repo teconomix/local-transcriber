@@ -11,7 +11,8 @@ Clicking the waveform icon in the menu bar opens the panel:
 
 1. **Start recording** – next to it, the microphone. While recording: elapsed time, level, “Stop recording”.
 2. **Transcribe file…** – next to it, the language (applies to recordings, files and dictation; which languages are offered is set in Settings).
-3. **Dictation line** – shows which keys are assigned; orange/red if a permission is missing.
+3. **Dictation line** – shows which keys are assigned; orange/red if a permission is missing. The switch on the right
+   turns dictation on or off (off frees the keys and the memory of the dictation service).
 4. **Transcriptions** – the most recent jobs with progress, “Open”, “Show in Finder” and the recognized speakers.
 5. At the bottom: Open folder · Voices… · Settings… (⌘,) · Quit.
 
@@ -44,7 +45,7 @@ lets you remove individual references or people. Ideally, give people their **fi
 
 ## Dictation
 
-1. Turn it on in **Settings › Dictation**. macOS asks for **Accessibility** access – allow it (needed to detect the key
+1. Turn it on with the switch in the panel or in **Settings › Dictation**. macOS asks for **Accessibility** access – allow it (needed to detect the key
    and insert the text).
 2. Click into any text field, **hold the right ⌘**, wait for the sound, speak, release.
 3. With the **right ⌥** instead of ⌘, Apple Intelligence cleans up the text (macOS 26).
@@ -55,12 +56,13 @@ ignored; if the short start sound bothers you, choose the right ⌃ in Settings.
 ## Transcribing files
 
 - **Transcribe file…** in the panel, or
-- put the file into `~/Transkription` if the folder watcher is active – the result appears next to it.
+- put the file into `~/Transcriber` if the folder watcher is active – the result appears next to it.
 
 ## Settings
 
 | Tab | Contents |
 |---|---|
+| General | version, data folder, check for updates once a day (optional) |
 | Recording | Record system audio, voice processing, transcribe/name after recording, detect calls, languages to choose from |
 | Dictation | on/off, keys (verbatim / with AI), screen text as context, audio, icon at the cursor, voice processing |
 | Calendar | use calendar events, choice of calendars |

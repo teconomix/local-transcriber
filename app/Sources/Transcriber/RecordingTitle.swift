@@ -11,7 +11,7 @@ enum RecordingTitle {
     /// Datum/Uhrzeit aus dem Standardnamen, sonst nil (Datei wurde schon benannt oder stammt nicht aus der App).
     static func defaultStamp(_ url: URL) -> String? {
         let name = url.deletingPathExtension().lastPathComponent
-        guard let m = name.wholeMatch(of: #/(?:Aufnahme|Recording) (\d{4}-\d{2}-\d{2} \d{2}-\d{2})/#) else { return nil }
+        guard let m = name.wholeMatch(of: #/(?:Aufnahme|Recording) (\d{4}-\d{2}-\d{2} \d{2}-\d{2})(?: \d+)?/#) else { return nil }
         return String(m.1)
     }
 

@@ -13,7 +13,7 @@ installation, Transcriber needs no internet connection. There is no account, no 
   audio is captured via a Core Audio process tap – this only needs the “System Audio Recording” permission, not screen
   recording.
 - **Apple voice processing** for the microphone (level, noise and echo suppression), can be turned off.
-- Recordings are saved to `~/Transkription/Aufnahmen/` and transcribed automatically afterwards.
+- Recordings are saved to `~/Transcriber/Recordings/` (`Aufnahmen` on a Mac set to German) and transcribed automatically afterwards.
 
 ## Transcription
 
@@ -25,7 +25,7 @@ installation, Transcriber needs no internet connection. There is no account, no 
 - **Output** next to the audio file: `<name>.md` (readable, with speakers and timestamps), `<name>.transcript.json`
   (complete, machine-readable), optionally `<name>.srt` (subtitles).
 - **Glossary** for names and technical terms: fixed replacements after recognition (`transcriber vocab 'dG = DG, D.G.'`).
-- **Transcribing files:** “Transcribe file…” in the panel, or simply drop them into `~/Transkription`
+- **Transcribing files:** “Transcribe file…” in the panel, or simply drop them into `~/Transcriber`
   (folder watcher, optional). Video and audio formats that ffmpeg can read.
 
 ## Who said what
@@ -74,5 +74,5 @@ updated accordingly.
 - **Command line:** `transcriber transcribe FILE`, `who`, `name`, `confirm`, `speakers`, `vocab`, `rename`, `watch`.
 - **MCP server** (`transcriber-mcp`): tools `transcribe`, `who`, `name_speaker`, `confirm_speakers`,
   `list_speakers` for AI agents such as Claude.
-- **Folder watcher** as a LaunchAgent: puts results next to every new file in `~/Transkription`.
+- **Folder watcher** as a LaunchAgent: puts results next to every new file in `~/Transcriber`.
 - **Settings** in `~/.local/share/transcriber/config.json` (thresholds, formats, number of speakers …).

@@ -81,6 +81,13 @@ final class Dictation: ObservableObject {
         }
     }
 
+    /// Ein/aus aus Panel oder Einstellungen: speichern und Tasten, Dienst (~1,7 GB) und Mikrofon passend starten/stoppen.
+    func setEnabled(_ on: Bool) {
+        UserDefaults.standard.set(on, forKey: "dictation")
+        objectWillChange.send()
+        on ? activate() : deactivate()
+    }
+
     func deactivate() {
         trustTimer?.invalidate()
         removeMonitors()

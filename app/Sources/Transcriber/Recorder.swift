@@ -7,6 +7,9 @@ import ScreenCaptureKit
 /// Während der Aufnahme heißt die Datei „.<Name>.m4a“ (versteckt → der Ordnerwächter ignoriert sie).
 final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSampleBufferDelegate, SCStreamOutput, SCStreamDelegate {
     @Published var isRecording = false
+    /// Zwischen Klick und laufender Aufnahme (Freigaben, Systemton, Sprachverarbeitung: ~1–2 s). Knopf gesperrt –
+    /// sonst stoppte ein ungeduldiger zweiter Klick die gerade gestartete Aufnahme (Test im frischen Konto, 2026-10-10).
+    @Published var isStarting = false
     @Published var level: Float = 0
     @Published var elapsed: TimeInterval = 0
     @Published var warning: String?
@@ -21,6 +24,10 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
     private var micInput: AVAssetWriterInput?
     private var sysInput: AVAssetWriterInput?
     private var sessionStarted = false
+    private var sessionStart = CMTime.invalid
+    private var nextPTS: [ObjectIdentifier: CMTime] = [:]   // je Spur: wo das nächste Sample liegen müsste
+    /// Nur für den Selbsttest (--gap-test): Systemton bis zu diesem Zeitpunkt verwerfen, als liefe noch nichts.
+    var testDropSystemUntil: Date?
     private var tmpURL: URL?
     private var finalURL: URL?
     private var startDate = Date()
@@ -61,7 +68,9 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
         }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH-mm"
-        let name = String(localized: "Aufnahme \(f.string(from: Date()))")   // RecordingTitle.defaultStamp erkennt de und en
+        let base = String(localized: "Aufnahme \(f.string(from: Date()))")   // RecordingTitle.defaultStamp erkennt de und en
+        var name = base, n = 2        // zweite Aufnahme in derselben Minute: „… 2“ statt die erste zu überschreiben
+        while FileManager.default.fileExists(atPath: folder.appendingPathComponent("\(name).m4a").path) { name = "\(base) \(n)"; n += 1 }
         finalURL = folder.appendingPathComponent("\(name).m4a")
         tmpURL = folder.appendingPathComponent(".\(name).m4a")
         try? FileManager.default.removeItem(at: tmpURL!)
@@ -109,6 +118,7 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
         }
         queue.sync { self.writer = w; self.micInput = mic; self.sysInput = sys; self.sessionStarted = false }
 
+        appLog("Aufnahme gestartet: \(name).m4a (\(withSystem ? "mit" : "ohne") Systemton)")
         await MainActor.run {
             self.startDate = Date(); self.elapsed = 0; self.isRecording = true
             let t = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
@@ -170,6 +180,11 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
 
     /// Erster Kanal eines AVAudioPCMBuffer als Mono-Float-CMSampleBuffer mit Host-Zeitstempel (wie die anderen Quellen).
     static func monoSampleBuffer(_ buf: AVAudioPCMBuffer, hostTime: UInt64) -> CMSampleBuffer? {
+        monoSampleBuffer(buf, pts: CMTimeConvertScale(CMClockMakeHostTimeFromSystemUnits(hostTime),
+                                                      timescale: CMTimeScale(buf.format.sampleRate), method: .roundTowardZero))
+    }
+
+    static func monoSampleBuffer(_ buf: AVAudioPCMBuffer, pts: CMTime) -> CMSampleBuffer? {
         guard let ch = buf.floatChannelData, buf.frameLength > 0 else { return nil }
         let n = Int(buf.frameLength), sr = buf.format.sampleRate
         var asbd = AudioStreamBasicDescription(mSampleRate: sr, mFormatID: kAudioFormatLinearPCM,
@@ -184,7 +199,6 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
                                                  flags: kCMBlockBufferAssureMemoryNowFlag, blockBufferOut: &bb) == noErr, let bb,
               CMBlockBufferReplaceDataBytes(with: ch[0], blockBuffer: bb, offsetIntoDestination: 0, dataLength: n * 4) == noErr
         else { return nil }
-        let pts = CMTimeConvertScale(CMClockMakeHostTimeFromSystemUnits(hostTime), timescale: CMTimeScale(sr), method: .roundTowardZero)
         var sb: CMSampleBuffer?
         CMAudioSampleBufferCreateReadyWithPacketDescriptions(allocator: nil, dataBuffer: bb, formatDescription: fmt, sampleCount: n,
                                                              presentationTimeStamp: pts, packetDescriptions: nil, sampleBufferOut: &sb)
@@ -197,6 +211,7 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
         let t = ProcessTap()
         try t.start { [weak self] buf, host in
             guard let self, let sb = Self.monoSampleBuffer(buf, hostTime: host) else { return }
+            if let d = self.testDropSystemUntil, Date() < d { return }
             self.queue.async { self.append(sb, to: self.sysInput) }
         }
         sysRate = t.format?.sampleRate ?? 48000
@@ -238,19 +253,78 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
             await MainActor.run { self.warning = msg }
             return nil
         }
-        try? FileManager.default.moveItem(at: tmp, to: fin)
+        appLog(String(format: "Aufnahme beendet: %@ (%.0f s)", fin.lastPathComponent, Date().timeIntervalSince(startDate)))
+        do { try FileManager.default.moveItem(at: tmp, to: fin) } catch {
+            appLog("Aufnahme nicht umbenannt (\(error.localizedDescription)), bleibt unter \(tmp.lastPathComponent)")
+            return tmp
+        }
         return fin
     }
 
     // Beide Quellen landen hier, auf `queue`.
+    /// AAC-Spuren sind eine lückenlose Folge von Samples: Zeitlücken in den Zeitstempeln schiebt AVAssetWriter einfach
+    /// zusammen. Der Process-Tap liefert aber nur, solange irgendetwas abspielt – startete ein Video erst nach 35 s, lag
+    /// es in der Datei bei 0 s über der eigenen Sprache (Test im frischen Konto, 2026-10-10). Deshalb jede Lücke
+    /// (Spurbeginn nach Aufnahmebeginn, Pausen) mit Stille füllen: Sekunde x liegt in beiden Spuren an derselben Stelle.
     private func append(_ sb: CMSampleBuffer, to input: AVAssetWriterInput?) {
         guard let w = writer, let input, CMSampleBufferDataIsReady(sb) else { return }
+        let pts = CMSampleBufferGetPresentationTimeStamp(sb)
         if !sessionStarted {
             guard w.startWriting() else { return }
-            w.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(sb))
-            sessionStarted = true
+            w.startSession(atSourceTime: pts)
+            sessionStarted = true; sessionStart = pts; nextPTS = [:]
         }
-        if w.status == .writing && input.isReadyForMoreMediaData { input.append(sb) }
+        guard w.status == .writing else { return }
+        let key = ObjectIdentifier(input)
+        let rate = CMAudioFormatDescriptionGetStreamBasicDescription(CMSampleBufferGetFormatDescription(sb)!)?.pointee.mSampleRate ?? 48000
+        var next = nextPTS[key] ?? sessionStart
+        let gap = CMTimeGetSeconds(CMTimeSubtract(pts, next))
+        if gap > Self.gapTolerance && gap < Self.maxGap {
+            next = fillSilence(input, from: next, to: pts, rate: rate)
+            nextPTS[key] = next          // immer merken, wie weit gefüllt ist – sonst füllt der nächste Puffer alles erneut
+        }
+        // Puffer nicht verwerfen, nur weil der Kodierer gerade beschäftigt ist; fällt er doch weg, entsteht eine Lücke,
+        // die der nächste Puffer mit Stille schließt (nextPTS bleibt dann stehen).
+        guard Self.waitReady(input) else { appLog("Aufnahme: Puffer verworfen (Kodierer ausgelastet)"); return }
+        input.append(sb)
+        let end = CMTimeAdd(pts, CMTime(value: CMTimeValue(CMSampleBufferGetNumSamples(sb)), timescale: CMTimeScale(rate)))
+        nextPTS[key] = CMTimeMaximum(next, end)
+    }
+
+    private static let gapTolerance = 0.05      // kleiner Versatz (Takt, Puffergrenzen) ist normal, nur echte Lücken füllen
+    private static let maxGap = 12.0 * 3600     // Schutz gegen unsinnige Zeitstempel
+
+    /// Kurz warten, bis der Kodierer wieder annimmt (läuft auf `queue`, nicht auf einem Audio-Thread). Ohne das brach
+    /// eine 49-s-Lücke nach einigen Stücken ab und wurde bei jedem folgenden Puffer erneut gefüllt → 1 h Stille (2026-10-10).
+    private static func waitReady(_ input: AVAssetWriterInput, timeout: TimeInterval = 2) -> Bool {
+        let until = Date().addingTimeInterval(timeout)
+        while !input.isReadyForMoreMediaData {
+            if Date() > until { return false }
+            usleep(2000)
+        }
+        return true
+    }
+
+    /// Stille von `from` bis `to` in Stücken von höchstens 1 s; liefert, bis wohin tatsächlich gefüllt wurde.
+    private func fillSilence(_ input: AVAssetWriterInput, from: CMTime, to: CMTime, rate: Double) -> CMTime {
+        guard let fmt = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 1) else { return from }
+        var t = from
+        while CMTimeCompare(t, to) < 0 {
+            let frames = min(Int(rate), Int((CMTimeGetSeconds(CMTimeSubtract(to, t)) * rate).rounded()))
+            guard frames > 0, let buf = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: AVAudioFrameCount(frames)) else { break }
+            buf.frameLength = AVAudioFrameCount(frames)
+            buf.floatChannelData![0].update(repeating: 0, count: frames)
+            let at = CMTimeConvertScale(t, timescale: CMTimeScale(rate), method: .roundHalfAwayFromZero)
+            guard let sil = Self.monoSampleBuffer(buf, pts: at), Self.waitReady(input) else { break }
+            input.append(sil)
+            t = CMTimeAdd(at, CMTime(value: CMTimeValue(frames), timescale: CMTimeScale(rate)))
+        }
+        let want = CMTimeGetSeconds(CMTimeSubtract(to, from)), done = CMTimeGetSeconds(CMTimeSubtract(t, from))
+        if want >= 1 || done + 0.01 < want {
+            appLog(String(format: "Aufnahme: %.1f s Stille in %@ eingefügt", done, input === sysInput ? "Systemton-Spur" : "Mikrofon-Spur")
+                   + (done + 0.01 < want ? String(format: " (von %.1f s)", want) : ""))
+        }
+        return t
     }
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sb: CMSampleBuffer, from connection: AVCaptureConnection) {

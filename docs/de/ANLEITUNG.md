@@ -11,7 +11,8 @@ Klick auf das Wellen-Symbol in der Menüleiste öffnet das Panel:
 
 1. **Aufnahme starten** – daneben das Mikrofon. Während der Aufnahme: Zeit, Pegel, „Aufnahme beenden“.
 2. **Datei transkribieren …** – daneben die Sprache (gilt für Aufnahmen, Dateien und Diktat; welche zur Auswahl stehen, legst du in den Einstellungen fest).
-3. **Diktat-Zeile** – zeigt, welche Tasten belegt sind; orange/rot, wenn eine Freigabe fehlt.
+3. **Diktat-Zeile** – zeigt, welche Tasten belegt sind; orange/rot, wenn eine Freigabe fehlt. Der Schalter rechts
+   schaltet das Diktat ein oder aus (aus = Tasten und der Speicher des Diktat-Dienstes sind wieder frei).
 4. **Transkriptionen** – die letzten Aufträge mit Fortschritt, „Öffnen“, „Im Finder“ und den erkannten Sprechern.
 5. Unten: Ordner öffnen · Stimmen … · Einstellungen … (⌘,) · Beenden.
 
@@ -45,7 +46,7 @@ erlaubt, einzelne Referenzen oder Personen zu entfernen. Gib Personen am besten 
 
 ## Diktieren
 
-1. **Einstellungen › Diktat** einschalten. macOS fragt nach **Bedienungshilfen** – erlauben (nötig, um die Taste zu
+1. Mit dem Schalter im Panel oder unter **Einstellungen › Diktat** einschalten. macOS fragt nach **Bedienungshilfen** – erlauben (nötig, um die Taste zu
    erkennen und den Text einzufügen).
 2. In ein beliebiges Textfeld klicken, **rechte ⌘ halten**, auf den Ton warten, sprechen, loslassen.
 3. Mit **rechter ⌥** statt ⌘ räumt Apple Intelligence den Text auf (macOS 26).
@@ -56,12 +57,13 @@ ignoriert; wer den kurzen Startton dabei stört, wählt in den Einstellungen die
 ## Dateien transkribieren
 
 - **Datei transkribieren …** im Panel, oder
-- Datei in `~/Transkription` legen, wenn der Ordnerwächter aktiv ist – das Ergebnis erscheint daneben.
+- Datei in `~/Transcriber` legen, wenn der Ordnerwächter aktiv ist – das Ergebnis erscheint daneben.
 
 ## Einstellungen
 
 | Reiter | Inhalt |
 |---|---|
+| Allgemein | Version, Datenordner, einmal täglich nach Updates suchen (optional) |
 | Aufnahme | Systemton mitschneiden, Sprachverarbeitung, nach der Aufnahme transkribieren/benennen, Calls erkennen, Sprachen zur Auswahl |
 | Diktat | ein/aus, Tasten (wörtlich / mit KI), Bildschirmtext als Kontext, Ton, Symbol, Sprachverarbeitung |
 | Kalender | Termine nutzen, Auswahl der Kalender |

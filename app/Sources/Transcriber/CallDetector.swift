@@ -75,7 +75,9 @@ final class CallDetector: NSObject, ObservableObject, UNUserNotificationCenterDe
     // Klick auf „Aufnehmen“ oder auf die Mitteilung selbst.
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                             withCompletionHandler done: @escaping () -> Void) {
-        let isCall = response.notification.request.content.categoryIdentifier == "CALL"
+        let category = response.notification.request.content.categoryIdentifier
+        if category == "UPDATE" { Task { @MainActor in UpdateCheck.openInstructions(); done() }; return }
+        let isCall = category == "CALL"
         let start = isCall && ["RECORD", UNNotificationDefaultActionIdentifier].contains(response.actionIdentifier)
         Task { @MainActor in
             if start, !self.isRecording() {

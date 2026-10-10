@@ -12,7 +12,7 @@ DEST="${1:-../transcriber-public}"
 KEEP=(README.md LICENSE THIRD_PARTY_NOTICES.md VERSION pyproject.toml .gitignore
       transcriber app/Package.swift app/build-app.sh app/l10n-check.sh app/Resources app/Sources
       installer scripts/make-release.sh scripts/install-watch.sh scripts/net.teconomix.transcriber.watch.plist
-      scripts/export-public.sh docs website)
+      scripts/export-public.sh scripts/check.sh tests docs website)
 
 mkdir -p "$DEST"
 for p in $KEEP; do
@@ -20,7 +20,7 @@ for p in $KEEP; do
 done
 
 # Nur für den Betreiber: Übergabenotiz, Veröffentlichungs-Checkliste (Uberspace-/Cloudflare-Details), Deploy-Skript
-rm -f "$DEST/docs/STAND.md" "$DEST/docs/VEROEFFENTLICHUNG.md" "$DEST/website/deploy.sh"
+rm -f "$DEST/docs/STAND.md" "$DEST/docs/VEROEFFENTLICHUNG.md" "$DEST/docs/TESTPLAN.md" "$DEST/website/deploy.sh"
 
 # Letzte Kontrolle: keine Namen von Personen aus der lokalen Stimmdatenbank, keine Wörter der lokalen Sperrliste
 # (~/.local/share/transcriber/publish-blocklist.txt, eine Zeile je Begriff – liegt bewusst NICHT im Repo),

@@ -5,10 +5,12 @@ import UniformTypeIdentifiers
 
 @main
 struct TranscriberApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var recorder = Recorder()
     @StateObject private var jobs = JobManager()
     @StateObject private var dictation = Dictation()
     @StateObject private var calls = CallDetector()
+    @StateObject private var updates = UpdateCheck()
     private let uiTest = CommandLine.arguments.contains("--ui-test")
 
     init() {
@@ -17,6 +19,11 @@ struct TranscriberApp: App {
         if CommandLine.arguments.contains("--tap-test") { VPTest.tap(); exit(0) }
         if CommandLine.arguments.contains("--calendar-test") { Task { await VPTest.calendar(); exit(0) } }
         if CommandLine.arguments.contains("--cleanup-test") { Task { await VPTest.cleanup(); exit(0) } }
+        if let i = CommandLine.arguments.firstIndex(of: "--gap-test"), i + 1 < CommandLine.arguments.count {
+            let folder = URL(fileURLWithPath: CommandLine.arguments[i + 1])
+            let gap = CommandLine.arguments.firstIndex(of: "--gap").flatMap { Double(CommandLine.arguments[$0 + 1]) } ?? 2.5
+            Task { await VPTest.gap(folder, voiceProcessing: CommandLine.arguments.contains("--vp"), gap: gap); exit(0) }
+        }
         if let i = CommandLine.arguments.firstIndex(of: "--title-test") {
             let files = CommandLine.arguments[(i + 1)...].map { URL(fileURLWithPath: $0) }
             Task { await VPTest.titles(files); exit(0) }
@@ -26,10 +33,12 @@ struct TranscriberApp: App {
     var body: some Scene {
         MenuBarExtra {
             PanelView().environmentObject(recorder).environmentObject(jobs).environmentObject(dictation).environmentObject(calls)
+                .environmentObject(updates)
         } label: {
             MenuLabel().environmentObject(recorder).environmentObject(jobs).environmentObject(dictation)
                 .onAppear {
                     let r = recorder, j = jobs
+                    appDelegate.recorder = r; appDelegate.jobs = j
                     dictation.micBusy = { r.isRecording }
                     calls.isRecording = { r.isRecording }
                     calls.startRecording = { Task { try? await Control.start(r) } }
@@ -39,18 +48,44 @@ struct TranscriberApp: App {
         .menuBarExtraStyle(.window)
         .onChange(of: uiTest, initial: true) { _, on in
             guard on else { return }
-            Task { await VPTest.ui(recorder: recorder, jobs: jobs, dictation: dictation, calls: calls); exit(0) }
+            Task { await VPTest.ui(recorder: recorder, jobs: jobs, dictation: dictation, calls: calls, updates: updates); exit(0) }
         }
 
         Window("Stimmen", id: "voices") { VoicesView() }
         Window("Einstellungen", id: "settings") {
-            SettingsView().environmentObject(dictation).environmentObject(calls)
+            SettingsView().environmentObject(dictation).environmentObject(calls).environmentObject(updates)
         }
         .windowResizability(.contentSize)
     }
 }
 
-let watchDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Transkription")
+/// Datenordner ~/Transcriber (bis 0.5 ~/Transkription – der Installer benennt ihn einmalig um).
+/// Beenden (Panel, ⌘Q, Abmelden, Update per Installer) schließt eine laufende Aufnahme erst sauber ab – sonst fehlt der
+/// Dateikopf (moov) und die Datei ist unlesbar (passiert 2026-10-10 beim Neustart der App während einer Aufnahme).
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    var recorder: Recorder?
+    var jobs: JobManager?
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let r = recorder, let j = jobs, r.isRecording else { return .terminateNow }
+        appLog("Beenden während der Aufnahme: Aufnahme wird erst abgeschlossen")
+        Task { @MainActor in
+            await Control.stop(r, j)
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
+}
+
+let watchDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Transcriber")
+/// Aufnahmen: „Aufnahmen“ oder „Recordings“ nach der Systemsprache beim ersten Anlegen; ein vorhandener bleibt,
+/// auch wenn die Sprache später wechselt (sonst lägen Aufnahmen in zwei Ordnern).
+var recordingsDir: URL {
+    for n in ["Aufnahmen", "Recordings"] where FileManager.default.fileExists(atPath: watchDir.appendingPathComponent(n).path) {
+        return watchDir.appendingPathComponent(n)
+    }
+    return watchDir.appendingPathComponent(Locale.preferredLanguages.first?.hasPrefix("de") == true ? "Aufnahmen" : "Recordings")
+}
 
 /// Aufnahme starten/stoppen mit den Einstellungen aus dem Panel – vom Knopf und von der Call-Erkennung genutzt.
 @MainActor
@@ -59,6 +94,9 @@ enum Control {
     private static var event: [String: Any]?
 
     static func start(_ recorder: Recorder) async throws {
+        guard !recorder.isRecording, !recorder.isStarting else { return }
+        recorder.isStarting = true
+        defer { recorder.isStarting = false }
         event = nil
         if CalendarContext.enabled {
             Task {
@@ -72,10 +110,11 @@ enum Control {
         recorder.warning = nil
         try await recorder.start(deviceID: mic.isEmpty ? nil : mic, systemAudio: d.object(forKey: "systemAudio") as? Bool ?? true,
                                  voiceProcessing: d.object(forKey: "voiceProcessing") as? Bool ?? true,
-                                 folder: watchDir.appendingPathComponent("Aufnahmen"))
+                                 folder: recordingsDir)
     }
 
     static func stop(_ recorder: Recorder, _ jobs: JobManager) async {
+        guard recorder.isRecording else { return }
         let d = UserDefaults.standard
         let url = await recorder.stop()
         if let url, let e = event { CalendarContext.write(e, next: url) }
@@ -117,6 +156,7 @@ struct PanelView: View {
     @EnvironmentObject var jobs: JobManager
     @EnvironmentObject var dictation: Dictation
     @EnvironmentObject var calls: CallDetector
+    @EnvironmentObject var updates: UpdateCheck
     @AppStorage("dictation") private var dictationOn = false
     @AppStorage("dictationKey") private var dictationKey = "rcmd"
     @AppStorage("dictationCleanKey") private var dictationCleanKey = "ropt"
@@ -141,16 +181,17 @@ struct PanelView: View {
                     Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
                         GridRow {
                             Button { toggleRecording() } label: {
-                                Label(recorder.isRecording ? "Aufnahme beenden" : "Aufnahme starten",
-                                      systemImage: recorder.isRecording ? "stop.circle.fill" : "record.circle")
+                                Label(recorder.isStarting ? "Startet …" : recorder.isRecording ? "Aufnahme beenden" : "Aufnahme starten",
+                                      systemImage: recorder.isStarting ? "hourglass" : recorder.isRecording ? "stop.circle.fill" : "record.circle")
                                     .frame(maxWidth: .infinity)
                             }
                             .keyboardShortcut(.defaultAction)
+                            .disabled(recorder.isStarting)
                             .tint(recorder.isRecording ? .red : .accentColor)
                             FillMenu(selection: $micID,
                                      options: [("", String(localized: "Systemstandard"))] + mics.map { ($0.uniqueID, $0.localizedName) })
                             .frame(width: 170)
-                            .disabled(recorder.isRecording)
+                            .disabled(recorder.isRecording || recorder.isStarting)
                             .onAppear { mics = Recorder.microphones() }
                             .help("Mikrofon")
                         }
@@ -193,6 +234,7 @@ struct PanelView: View {
                 VStack(alignment: .leading, spacing: 10) { ForEach(jobs.jobs.prefix(5)) { JobRow(job: $0) } }
             }
             if let e = error ?? jobs.launchError { Text(e).font(.caption).foregroundStyle(.red) }
+            updateLine
 
             Divider()
             HStack {
@@ -214,7 +256,36 @@ struct PanelView: View {
         return String(localized: "Bereit")
     }
 
-    /// Diktat im Panel nur als Hinweiszeile: welche Tasten, und rot/orange, wenn etwas fehlt.
+    /// Update: beim ersten Öffnen einmal fragen (Website und Datenschutzerklärung versprechen „offline“ – also nur mit
+    /// Zustimmung), danach nur noch eine Zeile, wenn eine neuere Version da ist.
+    @ViewBuilder private var updateLine: some View {
+        if updates.enabled == nil {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Einmal täglich nach neuen Versionen suchen?").font(.callout.weight(.medium))
+                Text("Fragt nur die aktuelle Versionsnummer bei transcriber.teconomix.net ab – nichts über dich oder deine Aufnahmen. Später änderbar in den Einstellungen.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button("Ja, suchen") { updates.set(true) }
+                    Button("Nein") { updates.set(false) }
+                }
+                .controlSize(.small)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.1)))
+        } else if let v = updates.available {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.down.circle").foregroundStyle(.tint)
+                Text("Version \(v) verfügbar")
+                Spacer()
+                Button("Aktualisieren …") { UpdateCheck.openInstructions() }.controlSize(.small)
+            }
+            .font(.caption)
+        }
+    }
+
+    /// Diktat im Panel: Hinweiszeile (welche Tasten, rot/orange, wenn etwas fehlt) mit Schalter – so lassen sich die
+    /// Tasten freigeben, ohne in die Einstellungen zu gehen.
     @ViewBuilder private var dictationLine: some View {
         let label = { (id: String) in Dictation.keys.first { $0.id == id }?.label ?? id }
         HStack(spacing: 6) {
@@ -233,12 +304,17 @@ struct PanelView: View {
                 }
                 .foregroundStyle(.secondary)
             }
+            Spacer(minLength: 4)
+            Toggle("Diktat", isOn: Binding(get: { dictationOn }, set: { dictation.setEnabled($0) }))
+                .toggleStyle(.switch).controlSize(.mini).labelsHidden()
+                .help(dictationOn ? "Diktat ausschalten (Tasten wieder frei)" : "Diktat einschalten")
         }
         .font(.caption)
     }
 
     private func toggleRecording() {
         error = nil
+        guard !recorder.isStarting else { return }
         Task {
             if recorder.isRecording {
                 await Control.stop(recorder, jobs)
