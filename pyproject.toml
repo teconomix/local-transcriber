@@ -1,0 +1,28 @@
+[project]
+name = "transcriber"
+version = "0.4.0"
+description = "Lokale Transkription mit Sprechererkennung (MacLion)"
+requires-python = ">=3.12,<3.14"
+license = "MIT"
+dependencies = [
+  "mlx-whisper",
+  "pyannote.audio==4.0.7",
+  "soundfile",
+  "mcp>=2.3",
+]
+
+[project.optional-dependencies]
+# nur für den Modellvergleich unter bench/ (nicht im Werkzeug)
+bench = ["parakeet-mlx", "mlx-qwen3-asr[aligner]"]
+
+[project.scripts]
+transcriber = "transcriber.cli:main"
+transcriber-mcp = "transcriber.mcp_server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.sdist]
+# Nur der Python-Kern – keine internen Notizen (CLAUDE.md), keine Benchmark-Daten, keine App-Quellen.
+include = ["transcriber", "pyproject.toml", "README.md", "LICENSE", "THIRD_PARTY_NOTICES.md"]

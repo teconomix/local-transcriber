@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Vorlage: install-watch.sh ersetzt __HOME__ durch das Home-Verzeichnis. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>net.teconomix.transcriber.watch</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/.local/share/transcriber/venvs/app/bin/transcriber</string>
+    <string>watch</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>__HOME__/.local/share/transcriber/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key><string>__HOME__</string>
+    <key>PYTHONUNBUFFERED</key><string>1</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ProcessType</key><string>Background</string>
+  <key>StandardOutPath</key><string>__HOME__/.local/share/transcriber/watch.log</string>
+  <key>StandardErrorPath</key><string>__HOME__/.local/share/transcriber/watch.log</string>
+</dict>
+</plist>

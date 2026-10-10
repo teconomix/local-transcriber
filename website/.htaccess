@@ -1,0 +1,33 @@
+# Transcriber – Website (Uberspace / Apache)
+
+Options -Indexes
+DirectoryIndex index.html
+
+# Shell-Skripte als Text ausliefern: funktioniert mit `curl | bash` und ist im Browser lesbar
+AddType "text/plain; charset=utf-8" .sh
+AddType "image/svg+xml" .svg
+AddDefaultCharset utf-8
+
+<IfModule mod_headers.c>
+  Header always set Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-ancestors 'none'"
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "no-referrer"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+
+  # Installations-/Deinstallationsskripte nie cachen, damit immer die aktuelle Version kommt
+  <FilesMatch "\.sh$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/css "access plus 7 days"
+  ExpiresByType application/javascript "access plus 7 days"
+  ExpiresByType text/javascript "access plus 7 days"
+  ExpiresByType image/png "access plus 30 days"
+  ExpiresByType image/svg+xml "access plus 30 days"
+</IfModule>
