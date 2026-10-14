@@ -4,13 +4,17 @@
   transcriber who TRANSKRIPT [SPRECHER]        wer ist wer (mit Ähnlichkeiten)
   transcriber name TRANSKRIPT SPRECHER NAME   Stimme benennen (Datenbank lernt mit)
   transcriber confirm TRANSKRIPT              automatische Zuordnungen bestätigen
+  transcriber recheck TRANSKRIPT              offene Stimmen neu mit der Datenbank abgleichen (ohne neu zu rechnen)
   transcriber speakers [list|check [--json]|rename A B|merge A B|drop REF-ID|forget NAME]
+  transcriber speakers export DATEI [NAME…]   Stimmabdrücke weitergeben (keine Aufnahmen; biometrisch – nur mit Einwilligung)
+  transcriber speakers import DATEI [NAME…] [--list] [--skip-existing]
   transcriber enroll AUDIO BENANNTES.md       Stimmreferenzen aus einem benannten Transkript lernen
   transcriber watch [ORDNER]                  Ordner überwachen
   transcriber vocab [EINTRAG…]                Glossar zeigen oder ergänzen, z. B. 'ACME = Akme'
   transcriber rename TRANSKRIPT NEUER-NAME     Aufnahme samt Transkript umbenennen (Verweise werden mitgezogen)
   transcriber dictate-server                  Diktat-Dienst (startet die App; Modell bleibt geladen)
   transcriber dictate AUDIO [--language en]   Testdiktat über den laufenden Dienst
+  transcriber report ZIP [--description DATEI] [--keep-names]   Fehlerbericht (ohne Aufnahmen/Transkripte)
 TRANSKRIPT = .transcript.json oder die .md daneben. SPRECHER = Buchstabe (B), Anzeigename oder SPEAKER_01."""
 import argparse
 import json
@@ -26,13 +30,17 @@ USAGE_EN = """Command line.
   transcriber who TRANSCRIPT [SPEAKER]         who is who (with similarities)
   transcriber name TRANSCRIPT SPEAKER NAME    name a voice (the database learns it)
   transcriber confirm TRANSCRIPT              confirm automatic matches
+  transcriber recheck TRANSCRIPT              match open voices against the database again (no recomputation)
   transcriber speakers [list|check [--json]|rename A B|merge A B|drop REF-ID|forget NAME]
+  transcriber speakers export FILE [NAME…]    share voice prints (no recordings; biometric – only with consent)
+  transcriber speakers import FILE [NAME…] [--list] [--skip-existing]
   transcriber enroll AUDIO NAMED.md           learn voice references from a named transcript
   transcriber watch [FOLDER]                  watch a folder
   transcriber vocab [ENTRY…]                  show or extend the glossary, e.g. 'ACME = Akme'
   transcriber rename TRANSCRIPT NEW-NAME      rename recording and transcript (references are updated)
   transcriber dictate-server                  dictation service (started by the app; model stays loaded)
   transcriber dictate AUDIO [--language en]   test dictation via the running service
+  transcriber report ZIP [--description FILE] [--keep-names]   bug report (no recordings/transcripts)
 TRANSCRIPT = .transcript.json or the .md next to it. SPEAKER = letter (B), display name or SPEAKER_01."""
 
 
@@ -93,6 +101,21 @@ def cmd_confirm(a):
     print(t("bestätigt: ", "confirmed: ") + (", ".join(done) or t("nichts (keine automatischen Zuordnungen)", "nothing (no automatic matches)")))
 
 
+def cmd_recheck(a):
+    from . import pipeline
+    changed = pipeline.recheck(a.transcript)
+    print(t("neu erkannt: ", "newly recognized: ") + (", ".join(f"{c['letter']}={c['display']}" for c in changed)
+                                                     or t("keine Änderung", "no change")))
+
+
+def cmd_report(a):
+    from . import report
+    desc = Path(a.description).read_text() if a.description else ""
+    info = json.loads(Path(a.app_info).read_text()) if a.app_info else None
+    files = report.build(a.out, desc, info, redact=not a.keep_names)
+    print(json.dumps({"zip": str(Path(a.out).expanduser()), "files": files}, ensure_ascii=False))
+
+
 def cmd_speakers(a):
     from . import speakers
     db = speakers.connect()
@@ -116,6 +139,29 @@ def cmd_speakers(a):
         speakers.drop_ref(db, a.args[0]); print(t(f"Referenz #{a.args[0]} entfernt", f"reference #{a.args[0]} removed"))
     elif a.action == "forget":
         speakers.forget(db, a.args[0]); print(t(f"{a.args[0]} samt Stimmreferenzen entfernt", f"{a.args[0]} removed with all voice references"))
+    elif a.action == "export":
+        if not a.args:
+            print(t("Aufruf: speakers export DATEI [NAME…]", "usage: speakers export FILE [NAME…]"), file=sys.stderr); return 2
+        d = speakers.export_voices(db, a.args[1:])
+        f = Path(a.args[0]).expanduser()
+        f.write_text(json.dumps(d, ensure_ascii=False, indent=1)); f.chmod(0o600)   # biometrisch: nur für mich lesbar
+        print(t(f"{len(d['persons'])} Stimme(n) exportiert: ", f"{len(d['persons'])} voice(s) exported: ")
+              + ", ".join(p["name"] for p in d["persons"]))
+    elif a.action == "import":
+        if not a.args:
+            print(t("Aufruf: speakers import DATEI [NAME…]", "usage: speakers import FILE [NAME…]"), file=sys.stderr); return 2
+        try:
+            d = speakers.read_voices(Path(a.args[0]).expanduser())
+        except ValueError as e:
+            print(t("Fehler", "Error") + f": {e}", file=sys.stderr); return 1
+        if a.list:
+            known = {p["name"] for p in speakers.persons(db)}
+            print(json.dumps([{"name": p["name"], "speech_s": p.get("speech_s"), "exists": speakers.norm_name(p["name"]) in known}
+                              for p in d["persons"]], ensure_ascii=False))
+            return
+        res = speakers.import_voices(db, d, a.args[1:], skip_existing=a.skip_existing, source=Path(a.args[0]).name)
+        for name, how in res:
+            print(f"{name}: " + {"neu": t("neu", "new"), "ergänzt": t("ergänzt", "added"), "übersprungen": t("übersprungen", "skipped")}[how])
 
 
 def cmd_enroll(a):
@@ -169,14 +215,17 @@ def main(argv=None):
     p = sp.add_parser("transcribe", help=t("Datei(en) transkribieren", "transcribe file(s)"))
     p.add_argument("files", nargs="+")
     p.add_argument("--language", choices=asr.LANGUAGES, metavar="CODE", help=t("Sprache, z. B. de, en, es, fr (Standard aus config.json, sonst de)", "language, e.g. de, en, es, fr (default from config.json, else de)"))
-    p.add_argument("--speakers", type=int, help=t("feste Sprecherzahl (sonst 2–6 automatisch)", "fixed number of speakers (else 2–6 automatically)"))
+    p.add_argument("--speakers", type=int, help=t("feste Sprecherzahl (sonst 2–15 automatisch)", "fixed number of speakers (else 2–15 automatically)"))
     p.add_argument("--srt", action="store_true"); p.add_argument("--out", help=t("Ausgabeordner (sonst neben der Datei)", "output folder (else next to the file)"))
     p.add_argument("--progress", choices=["text", "json"], default="text"); p.set_defaults(f=cmd_transcribe)
     p = sp.add_parser("who", help=t("Sprecherzuordnung anzeigen", "show speaker matches")); p.add_argument("transcript"); p.add_argument("speaker", nargs="?"); p.set_defaults(f=cmd_who)
     p = sp.add_parser("name", help=t("Sprecher benennen", "name a speaker")); p.add_argument("transcript"); p.add_argument("speaker"); p.add_argument("name"); p.set_defaults(f=cmd_name)
     p = sp.add_parser("confirm", help=t("Zuordnungen bestätigen", "confirm matches")); p.add_argument("transcript"); p.set_defaults(f=cmd_confirm)
-    p = sp.add_parser("speakers", help=t("Sprecherdatenbank", "speaker database")); p.add_argument("action", nargs="?", default="list", choices=["list", "check", "rename", "merge", "drop", "forget"])
+    p = sp.add_parser("recheck", help=t("Namen neu zuordnen (offene Stimmen gegen die Datenbank)", "match names again (open voices against the database)")); p.add_argument("transcript"); p.set_defaults(f=cmd_recheck)
+    p = sp.add_parser("speakers", help=t("Sprecherdatenbank", "speaker database")); p.add_argument("action", nargs="?", default="list", choices=["list", "check", "rename", "merge", "drop", "forget", "export", "import"])
     p.add_argument("--json", action="store_true", help=t("check: maschinenlesbar", "check: machine-readable"))
+    p.add_argument("--list", action="store_true", help=t("import: nur anzeigen, wer in der Datei ist (JSON)", "import: only show who is in the file (JSON)"))
+    p.add_argument("--skip-existing", action="store_true", help=t("import: vorhandene Personen nicht ergänzen", "import: do not add to existing persons"))
     p.add_argument("args", nargs="*"); p.set_defaults(f=cmd_speakers)
     p = sp.add_parser("enroll", help=t("Stimmen aus benanntem Transkript lernen", "learn voices from a named transcript")); p.add_argument("audio"); p.add_argument("named")
     p.add_argument("--dry-run", action="store_true"); p.set_defaults(f=cmd_enroll)
@@ -184,6 +233,10 @@ def main(argv=None):
     p = sp.add_parser("vocab", help=t("Glossar (Namen/Fachbegriffe, optional mit Ersetzungen)", "glossary (names/terms, optionally with replacements)")); p.add_argument("terms", nargs="*"); p.set_defaults(f=cmd_vocab)
     p = sp.add_parser("rename", help=t("Aufnahme samt Transkript umbenennen", "rename recording and transcript")); p.add_argument("transcript"); p.add_argument("name")
     p.add_argument("--json", action="store_true", help=t("neue Pfade als JSON", "new paths as JSON")); p.set_defaults(f=cmd_rename)
+    p = sp.add_parser("report", help=t("Fehlerbericht als ZIP (ohne Aufnahmen/Transkripte)", "bug report as ZIP (no recordings/transcripts)"))
+    p.add_argument("out"); p.add_argument("--description", metavar=t("DATEI", "FILE")); p.add_argument("--app-info", metavar=t("DATEI", "FILE"))
+    p.add_argument("--keep-names", action="store_true", help=t("Dateinamen/Termintitel nicht unkenntlich machen", "do not redact file names/event titles"))
+    p.set_defaults(f=cmd_report)
     p = sp.add_parser("dictate-server", help=t("Diktat-Dienst", "dictation service")); p.set_defaults(f=cmd_dictate_server)
     p = sp.add_parser("dictate", help=t("Testdiktat über den Dienst", "test dictation via the service")); p.add_argument("audio")
     p.add_argument("--language", choices=asr.LANGUAGES, metavar="CODE", default="de"); p.set_defaults(f=cmd_dictate)

@@ -2,9 +2,12 @@
 
 Je Person beliebig viele Einbettungen (eine je bestätigter Aufnahme). Abgleich: Kosinus-Ähnlichkeit eines
 Clusters zum sprechzeitgewichteten Mittel der Referenzen einer Person."""
+import base64
+import json
 import sqlite3
 import time
 import unicodedata
+from pathlib import Path
 
 import numpy as np
 
@@ -82,7 +85,8 @@ def centroids(db):
 def sure_match(score, speech_s, cfg):
     """Gestuft nach Sprechzeit (bench/short_speech_test.py, 2026-10-10, 553 Stücke, eine Aufnahme ausgelassen):
     falsche Person höchstens 0,69 bei 5 s, 0,67 bei 10 s, 0,62 bei 20 s, 0,48 bei 60 s – nie ≥ 0,75.
-    < 15 s: nie sicher · 15–60 s: ab 0,75 · ab 60 s: ab 0,65."""
+    < 15 s: nie sicher · 15–60 s: ab 0,75 · ab 60 s: ab 0,75 (bis 2026-10-13 0,65 – kein Abstand zu falschen Personen
+    mit bis 0,65 bei inzwischen 11 Personen, bench/SCHWELLEN.md)."""
     if speech_s < cfg["min_sure_s"]:
         return False
     return score >= (cfg["match_sure"] if speech_s >= cfg["min_speech_s"] else cfg["match_sure_short"])
@@ -124,6 +128,40 @@ def save_job(db, job_id, source, transcript, model, clusters):
                    (job_id, c["label"], _unit(c["embedding"]).tobytes(), c["speech_s"], c.get("person_id"),
                     c.get("score"), c.get("status")))
     db.commit()
+
+
+def release_job_refs(db, job_id):
+    """Neuauswertung einer Aufnahme: deren Referenzen herausnehmen, bevor die neuen Cluster abgeglichen werden.
+    Die Labels (SPEAKER_02 …) bedeuten danach etwas anderes – sonst überschriebe ein späteres Benennen per
+    INSERT OR REPLACE die Referenz einer anderen Person (2026-10-12: die Referenz einer Person lag auf dem neuen Label einer anderen).
+    Ohne Commit: save_job schreibt alles zusammen fest, bricht der Lauf ab, bleibt die Datenbank, wie sie war."""
+    old = db.execute("SELECT person_id, vec, speech_s, origin FROM embeddings WHERE job_id=?", (job_id,)).fetchall()
+    db.execute("DELETE FROM embeddings WHERE job_id=?", (job_id,))
+    return old
+
+
+def carry_refs(db, job_id, source, old, clusters, cfg=None):
+    """Bestätigungen aus der vorigen Auswertung übernehmen – nur wo ein neuer Cluster eindeutig dieselbe Gruppe ist
+    (Stimme ≥ carry_sim und Sprechzeit ±20 %). Wurde eine früher gemischte Gruppe jetzt aufgeteilt, passt keiner
+    der Teile in der Sprechzeit; dann bleibt er offen, statt den Namen auf den größeren Teil zu vererben."""
+    cfg = cfg or config.load()
+    names = {r["id"]: r["name"] for r in db.execute("SELECT id, name FROM persons")}
+    used = set()
+    for r in old:
+        v = _unit(_vec(r["vec"]))
+        free = [(float(v @ _unit(c["embedding"])), c) for c in clusters if c["label"] not in used]
+        if not free:
+            break
+        s, c = max(free, key=lambda x: x[0])
+        if s < cfg["carry_sim"] or not 0.8 <= c["speech_s"] / max(r["speech_s"] or 1, 1) <= 1.25:
+            continue
+        used.add(c["label"])
+        c.update(person_id=r["person_id"], name=names[r["person_id"]], status="bestätigt",
+                 score=c["score"] if c.get("person_id") == r["person_id"] else None)
+        db.execute("INSERT OR REPLACE INTO embeddings(person_id, vec, speech_s, job_id, label, source, origin, created) "
+                   "VALUES(?,?,?,?,?,?,?,?)", (r["person_id"], _unit(c["embedding"]).tobytes(), c["speech_s"], job_id,
+                                               c["label"], str(source), r["origin"], time.time()))
+    return used
 
 
 def enroll(db, job_id, label, name, origin="named", cfg=None):
@@ -184,6 +222,68 @@ def merge(db, src, dst):
     db.execute("UPDATE embeddings SET person_id=? WHERE person_id=?", (b, a))
     db.execute("UPDATE clusters SET person_id=? WHERE person_id=?", (b, a))
     db.execute("DELETE FROM persons WHERE id=?", (a,)); db.commit()
+
+
+# Austauschformat „Stimmen weitergeben“: je Person ein Stimmabdruck (sprechzeitgewichtetes Mittel ihrer Referenzen –
+# genau das, womit identify() vergleicht), Name und Gesamtsprechzeit. Keine Aufnahmen, keine Pfade oder Titel, keine
+# Zeitpunkte einzelner Aufnahmen. Nur zwischen gleichen Einbettungsmodellen austauschbar.
+VOICES_FORMAT, VOICES_VERSION = "transcriber-voices", 1
+EMBEDDING = "pyannote/speaker-diarization-community-1"
+
+
+def export_voices(db, names=None):
+    """Stimmabdrücke ausgewählter (sonst aller) Personen mit Referenzen als dict fürs Austauschformat."""
+    C = centroids(db)
+    want = {resolve_name(db, n) for n in names} if names else None
+    persons = [{"name": name, "speech_s": round(s, 1), "refs": n,
+                "vec": base64.b64encode(np.asarray(v, dtype=np.float32).tobytes()).decode()}
+               for name, v, n, s in sorted(C.values(), key=lambda x: x[0].lower()) if want is None or name in want]
+    if want and (missing := want - {p["name"] for p in persons}):
+        raise KeyError(t("ohne Stimmreferenz oder unbekannt: ", "no voice reference or unknown: ") + ", ".join(sorted(missing)))
+    return {"format": VOICES_FORMAT, "version": VOICES_VERSION, "embedding": EMBEDDING,
+            "dim": len(next(iter(C.values()))[1]) if C else 0, "created": time.strftime("%Y-%m-%d"), "persons": persons}
+
+
+def read_voices(path):
+    """Austauschdatei lesen und prüfen (Format, Version, Einbettungsmodell)."""
+    try:
+        d = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise ValueError(t("keine lesbare Stimmen-Datei: ", "not a readable voices file: ") + str(e))
+    if not isinstance(d, dict) or d.get("format") != VOICES_FORMAT:
+        raise ValueError(t("keine Stimmen-Datei des Transcribers", "not a Transcriber voices file"))
+    if d.get("version", 0) > VOICES_VERSION:
+        raise ValueError(t("Datei stammt von einer neueren Version – bitte aktualisieren", "file is from a newer version – please update"))
+    if d.get("embedding") != EMBEDDING:
+        raise ValueError(t(f"anderes Stimmmodell ({d.get('embedding')}) – nicht vergleichbar",
+                           f"different voice model ({d.get('embedding')}) – not comparable"))
+    return d
+
+
+def import_voices(db, data, names=None, skip_existing=False, source=None):
+    """Stimmen aus einer Austauschdatei übernehmen. Je Person eine Referenz mit origin „imported“; ein früherer Import
+    derselben Person wird ersetzt (erneut importieren = aktualisieren), eigene Referenzen bleiben. Liefert
+    [(name, "neu" | "ergänzt" | "übersprungen")]."""
+    want = {norm_name(n) for n in names} if names else None
+    out = []
+    for p in data["persons"]:
+        name = norm_name(p["name"])
+        if want is not None and name not in want:
+            continue
+        vec = np.frombuffer(base64.b64decode(p["vec"]), dtype=np.float32)
+        if len(vec) != data["dim"] or not np.isfinite(vec).all():
+            raise ValueError(t(f"Stimmabdruck von {name} beschädigt", f"voice print of {name} is damaged"))
+        exists = db.execute("SELECT id FROM persons WHERE name=?", (name,)).fetchone()
+        if exists and skip_existing:
+            out.append((name, "übersprungen")); continue
+        pid = person_id(db, name)
+        db.execute("DELETE FROM embeddings WHERE person_id=? AND origin='imported'", (pid,))
+        db.execute("INSERT INTO embeddings(person_id, vec, speech_s, job_id, label, source, origin, created) "
+                   "VALUES(?,?,?,?,?,?,?,?)", (pid, _unit(vec).tobytes(), p.get("speech_s"), None, None, source,
+                                               "imported", time.time()))
+        out.append((name, "ergänzt" if exists else "neu"))
+    db.commit()
+    return out
 
 
 def forget(db, name):

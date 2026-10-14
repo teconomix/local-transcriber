@@ -55,6 +55,23 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
         return st == noErr && dev != 0 ? dev : nil
     }
 
+    /// Zeichenkette eines Core-Audio-Geräts (UID, Name).
+    static func deviceString(_ dev: AudioObjectID, _ sel: AudioObjectPropertySelector) -> String? {
+        var a = AudioObjectPropertyAddress(mSelector: sel, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var cf: Unmanaged<CFString>?; var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        guard AudioObjectGetPropertyData(dev, &a, 0, nil, &size, &cf) == noErr, let s = cf?.takeRetainedValue() else { return nil }
+        return s as String
+    }
+
+    /// Sprachverarbeitung nur mit dem Standardmikrofon (siehe startEngineMic); ein anderes Gerät wird roh aufgenommen.
+    static func usesVP(_ voiceProcessing: Bool, _ deviceID: String?) -> Bool {
+        guard voiceProcessing else { return false }
+        guard let uid = deviceID, !uid.isEmpty, let dev = audioDeviceID(uid: uid) else { return true }
+        let isDefault = dev == defaultInputDevice()
+        if !isDefault { appLog("Mikrofon ist nicht der Systemstandard: Aufnahme ohne Sprachverarbeitung") }
+        return isDefault
+    }
+
     static func defaultInputDevice() -> AudioDeviceID? {
         var addr = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultInputDevice,
                                               mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
@@ -94,8 +111,8 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
 
         // Mikrofon: mit Apple-Sprachverarbeitung über AVAudioEngine, sonst roh über AVCaptureSession.
         var micRate = 48000.0
-        if voiceProcessing {
-            do { micRate = try startEngineMic(deviceID: deviceID) }
+        if Self.usesVP(voiceProcessing, deviceID) {
+            do { micRate = try startEngineMic() }
             catch {
                 let msg = "Sprachverarbeitung nicht möglich, nehme roh auf: \(error) – Details in ~/.local/share/transcriber/app.log"
                 appLog(msg)
@@ -118,7 +135,8 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
         }
         queue.sync { self.writer = w; self.micInput = mic; self.sysInput = sys; self.sessionStarted = false }
 
-        appLog("Aufnahme gestartet: \(name).m4a (\(withSystem ? "mit" : "ohne") Systemton)")
+        let micName = deviceID.flatMap(Self.audioDeviceID(uid:)) ?? Self.defaultInputDevice()
+        appLog("Aufnahme gestartet: \(name).m4a (\(withSystem ? "mit" : "ohne") Systemton, Mikrofon \(micName.flatMap { Self.deviceString($0, kAudioObjectPropertyName) } ?? "?"))")
         await MainActor.run {
             self.startDate = Date(); self.elapsed = 0; self.isRecording = true
             let t = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
@@ -128,6 +146,20 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
             RunLoop.main.add(t, forMode: .common)
             self.timer = t
         }
+    }
+
+    /// Mikrofon mitten in der Aufnahme wechseln (Call-App hat umgestellt). Die kurze Lücke (~0,5 s) füllt append() mit
+    /// Stille; der Kodierer der Spur bleibt derselbe.
+    func switchMic(deviceID: String, voiceProcessing: Bool) throws {
+        session?.stopRunning(); session = nil
+        if let e = engine { e.inputNode.removeTap(onBus: 0); e.stop(); engine = nil }
+        if Self.usesVP(voiceProcessing, deviceID) {
+            do { _ = try startEngineMic() }
+            catch { appLog("Mikrofonwechsel mit Sprachverarbeitung nicht möglich, nehme roh auf: \(error)"); try startSessionMic(deviceID: deviceID) }
+        } else {
+            try startSessionMic(deviceID: deviceID)
+        }
+        appLog("Mikrofon gewechselt: \(Self.audioDeviceID(uid: deviceID).flatMap { Self.deviceString($0, kAudioObjectPropertyName) } ?? deviceID)")
     }
 
     private func startSessionMic(deviceID: String?) throws {
@@ -149,14 +181,12 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
     /// Apple-Sprachverarbeitung (Voice Processing I/O): automatische Pegelregelung, Rauschunterdrückung, Echounterdrückung.
     /// Andere Wiedergabe wird dabei normalerweise leiser geregelt („Ducking“) – hier auf das Minimum gestellt.
     /// Liefert die Abtastrate des Mikrofonsignals.
-    private func startEngineMic(deviceID: String?) throws -> Double {
+    private func startEngineMic() throws -> Double {
         let e = AVAudioEngine()
         let inNode = e.inputNode
-        // Gerät nur setzen, wenn es nicht ohnehin das Standard-Eingabegerät ist (Voice Processing verträgt das schlecht).
-        if let uid = deviceID, let dev = Self.audioDeviceID(uid: uid), dev != Self.defaultInputDevice() {
-            do { try inNode.auAudioUnit.setDeviceID(dev) }
-            catch { appLog("setDeviceID(\(uid)) fehlgeschlagen: \(error)"); throw error }
-        }
+        // Nur das Standardmikrofon: ein anderes Gerät ignorierte Voice Processing stillschweigend (vor dem Einschalten
+        // gesetzt) oder lieferte gar nichts mehr (danach gesetzt) – Core Audio im Mic-Switch-Test, 2026-10-14.
+        // Andere Mikrofone nimmt start()/switchMic() deshalb roh über AVCaptureSession auf (usesVP).
         do { try inNode.setVoiceProcessingEnabled(true) }
         catch { appLog("setVoiceProcessingEnabled fehlgeschlagen: \(error)"); throw error }
         inNode.isVoiceProcessingAGCEnabled = true

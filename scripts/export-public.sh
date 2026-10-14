@@ -10,7 +10,7 @@ DEST="${1:-../transcriber-public}"
 
 # Was hinein darf (alles andere bleibt draußen: CLAUDE.md, .mcp.json, bench/, dist/, …)
 KEEP=(README.md LICENSE THIRD_PARTY_NOTICES.md VERSION pyproject.toml .gitignore
-      transcriber app/Package.swift app/build-app.sh app/l10n-check.sh app/Resources app/Sources
+      transcriber app/Package.swift app/build-app.sh app/l10n-check.sh app/make-icon.sh app/Resources app/Sources
       installer scripts/make-release.sh scripts/install-watch.sh scripts/net.teconomix.transcriber.watch.plist
       scripts/export-public.sh scripts/check.sh tests docs website)
 
@@ -25,17 +25,26 @@ rm -f "$DEST/docs/STAND.md" "$DEST/docs/VEROEFFENTLICHUNG.md" "$DEST/docs/TESTPL
 # Letzte Kontrolle: keine Namen von Personen aus der lokalen Stimmdatenbank, keine Wörter der lokalen Sperrliste
 # (~/.local/share/transcriber/publish-blocklist.txt, eine Zeile je Begriff – liegt bewusst NICHT im Repo),
 # keine internen Hosts/Adressen, keine absoluten Home-Pfade.
+# Namen zählen als ganzes Wort in gleicher Schreibweise (sonst schlug der Nachname „Lang“ bei „language“ an).
+# Namensteile, die zugleich harmlose Wörter sind (z. B. „Anna“ = macOS-Stimme in check.sh), stehen in
+# ~/.local/share/transcriber/publish-allowlist.txt – ebenfalls nicht im Repo.
 BAD='\.lan\b|192\.168\.|10\.0\.|vaultwarden|/Users/[a-z]'
+NAMES=''
 DB=~/.local/share/transcriber/speakers.db
 OWNER=$(grep -m1 -i 'copyright' LICENSE | sed 's/.*[0-9]\{4\} //')     # Urheber darf genannt werden
+AL=~/.local/share/transcriber/publish-allowlist.txt
+ALLOW=" $([[ -f $AL ]] && grep -v '^#' "$AL" | tr '\n' ' ') "
 if [[ -f $DB ]]; then
   for w in ${(f)"$(sqlite3 -readonly "$DB" 'SELECT name FROM persons' | tr ' ' '\n' | awk 'length >= 4')"}; do
-    [[ " $OWNER " == *" $w "* ]] || BAD+="|$w"
+    [[ " $OWNER " == *" $w "* || $ALLOW == *" $w "* ]] || NAMES+="${NAMES:+|}$w"
   done
 fi
 BL=~/.local/share/transcriber/publish-blocklist.txt
 [[ -f $BL ]] && for w in ${(f)"$(grep -v '^#' "$BL" | sed '/^$/d')"}; do BAD+="|$w"; done
-if grep -r -n -i -E "$BAD" "$DEST" --exclude=LICENSE --exclude=export-public.sh; then
+hits=0
+grep -r -n -i -E "$BAD" "$DEST" --exclude=LICENSE --exclude=export-public.sh && hits=1
+[[ -n $NAMES ]] && grep -r -n -I -w -E "$NAMES" "$DEST" --exclude=LICENSE --exclude=export-public.sh && hits=1
+if (( hits )); then
   echo "\n✗ Obige Treffer vor der Veröffentlichung entfernen (Export liegt in $DEST)."; exit 1
 fi
 grep -rn --exclude=export-public.sh "\[GITHUB-NUTZER\]" "$DEST" >/dev/null && echo "! Platzhalter [GITHUB-NUTZER] in website/ noch ersetzen."

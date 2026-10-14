@@ -19,7 +19,7 @@ def _pipeline():
     return _PIPE
 
 
-def diarize(wav, min_speakers=2, max_speakers=6, num_speakers=None):
+def diarize(wav, min_speakers=2, max_speakers=15, num_speakers=None):
     import numpy as np
     import soundfile as sf
     import torch

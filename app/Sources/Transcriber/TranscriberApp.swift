@@ -24,6 +24,17 @@ struct TranscriberApp: App {
             let gap = CommandLine.arguments.firstIndex(of: "--gap").flatMap { Double(CommandLine.arguments[$0 + 1]) } ?? 2.5
             Task { await VPTest.gap(folder, voiceProcessing: CommandLine.arguments.contains("--vp"), gap: gap); exit(0) }
         }
+        if let i = CommandLine.arguments.firstIndex(of: "--mic-switch-test"), i + 1 < CommandLine.arguments.count {
+            let folder = URL(fileURLWithPath: CommandLine.arguments[i + 1])
+            Task { await VPTest.micSwitch(folder); exit(0) }
+        }
+        if CommandLine.arguments.contains("--report-test") {   // Fehlerbericht erstellen, ohne Mail
+            Task { @MainActor in
+                let r = await BugReport.create(description: "Selbsttest", redact: true)
+                appLog("Report-Test: \(r.url?.path ?? "FEHLER \(r.error ?? "?")")")
+                exit(0)
+            }
+        }
         if let i = CommandLine.arguments.firstIndex(of: "--title-test") {
             let files = CommandLine.arguments[(i + 1)...].map { URL(fileURLWithPath: $0) }
             Task { await VPTest.titles(files); exit(0) }
@@ -41,7 +52,10 @@ struct TranscriberApp: App {
                     appDelegate.recorder = r; appDelegate.jobs = j
                     dictation.micBusy = { r.isRecording }
                     calls.isRecording = { r.isRecording }
-                    calls.startRecording = { Task { try? await Control.start(r) } }
+                    let c = calls
+                    calls.startRecording = { Task { try? await Control.start(r, callMic: c.micUID) } }
+                    calls.currentMic = { Control.callMic }
+                    calls.switchMic = { uid in Control.switchMic(r, uid) }
                     calls.stopRecording = { Task { await Control.stop(r, j) } }
                 }
         }
@@ -51,7 +65,8 @@ struct TranscriberApp: App {
             Task { await VPTest.ui(recorder: recorder, jobs: jobs, dictation: dictation, calls: calls, updates: updates); exit(0) }
         }
 
-        Window("Stimmen", id: "voices") { VoicesView() }
+        Window("Fehler melden", id: "report") { ReportView() }
+            .windowResizability(.contentSize)
         Window("Einstellungen", id: "settings") {
             SettingsView().environmentObject(dictation).environmentObject(calls).environmentObject(updates)
         }
@@ -92,8 +107,11 @@ var recordingsDir: URL {
 enum Control {
     /// Termin der laufenden Aufnahme (beim Start ermittelt, beim Stopp neben die Datei gelegt).
     private static var event: [String: Any]?
+    /// Call-Aufnahme: Mikrofon der Call-App (UID); nil = Mikrofon aus dem Panel.
+    static var callMic: String?
 
-    static func start(_ recorder: Recorder) async throws {
+    /// callMic: bei Call-Aufnahmen das Mikrofon der Call-App statt der Panel-Auswahl.
+    static func start(_ recorder: Recorder, callMic: String? = nil) async throws {
         guard !recorder.isRecording, !recorder.isStarting else { return }
         recorder.isStarting = true
         defer { recorder.isStarting = false }
@@ -106,21 +124,31 @@ enum Control {
             }
         }
         let d = UserDefaults.standard
-        let mic = d.string(forKey: "micID") ?? ""
+        let mic = callMic ?? d.string(forKey: "micID") ?? ""
+        Self.callMic = callMic
         recorder.warning = nil
         try await recorder.start(deviceID: mic.isEmpty ? nil : mic, systemAudio: d.object(forKey: "systemAudio") as? Bool ?? true,
                                  voiceProcessing: d.object(forKey: "voiceProcessing") as? Bool ?? true,
                                  folder: recordingsDir)
     }
 
+    static func switchMic(_ recorder: Recorder, _ uid: String) {
+        guard recorder.isRecording else { return }
+        let vp = UserDefaults.standard.object(forKey: "voiceProcessing") as? Bool ?? true
+        do { try recorder.switchMic(deviceID: uid, voiceProcessing: vp); callMic = uid }
+        catch { appLog("Mikrofonwechsel fehlgeschlagen: \(error)"); callMic = uid }   // nicht jede 2 s erneut versuchen
+    }
+
     static func stop(_ recorder: Recorder, _ jobs: JobManager) async {
         guard recorder.isRecording else { return }
+        callMic = nil
         let d = UserDefaults.standard
         let url = await recorder.stop()
         if let url, let e = event { CalendarContext.write(e, next: url) }
         event = nil
         if let url, d.object(forKey: "autoTranscribe") as? Bool ?? true {
-            jobs.add(url, language: d.string(forKey: "language") ?? "de")
+            jobs.add(url, language: d.string(forKey: "language") ?? "de", speakers: Int(d.string(forKey: "nextSpeakers") ?? "") ?? 0)
+            d.set("0", forKey: "nextSpeakers")
         }
     }
 }
@@ -163,6 +191,8 @@ struct PanelView: View {
     @AppStorage("micID") private var micID = ""
     @AppStorage("language") private var language = "de"
     @AppStorage("languages") private var languages = Core.defaultLanguages
+    @AppStorage("nextSpeakers") private var nextSpeakers = "0"   // nur für die nächste Aufnahme/Datei, dann wieder 0
+    @State private var listHeight: CGFloat = 0
     @State private var mics: [AVCaptureDevice] = Recorder.microphones()
     @State private var error: String?
     @Environment(\.openWindow) private var openWindow
@@ -181,8 +211,10 @@ struct PanelView: View {
                     Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
                         GridRow {
                             Button { toggleRecording() } label: {
-                                Label(recorder.isStarting ? "Startet …" : recorder.isRecording ? "Aufnahme beenden" : "Aufnahme starten",
-                                      systemImage: recorder.isStarting ? "hourglass" : recorder.isRecording ? "stop.circle.fill" : "record.circle")
+                                Label(recorder.isStarting ? "Startet …" : recorder.isRecording ? "Aufnahme beenden"
+                                      : calls.current != nil ? "Call aufnehmen" : "Aufnahme starten",
+                                      systemImage: recorder.isStarting ? "hourglass" : recorder.isRecording ? "stop.circle.fill"
+                                      : calls.current != nil ? "phone.circle" : "record.circle")
                                     .frame(maxWidth: .infinity)
                             }
                             .keyboardShortcut(.defaultAction)
@@ -190,7 +222,7 @@ struct PanelView: View {
                             .tint(recorder.isRecording ? .red : .accentColor)
                             FillMenu(selection: $micID,
                                      options: [("", String(localized: "Systemstandard"))] + mics.map { ($0.uniqueID, $0.localizedName) })
-                            .frame(width: 170)
+                            .frame(width: 190)
                             .disabled(recorder.isRecording || recorder.isStarting)
                             .onAppear { mics = Recorder.microphones() }
                             .help("Mikrofon")
@@ -199,8 +231,15 @@ struct PanelView: View {
                             Button { pickFiles() } label: {
                                 Label("Datei transkribieren …", systemImage: "doc.badge.plus").frame(maxWidth: .infinity)
                             }
-                            FillMenu(selection: $language, options: Core.languages(languages))
-                                .frame(width: 170).help("Sprache für Aufnahmen, Dateien und Diktat")
+                            HStack(spacing: 6) {
+                                FillMenu(selection: $language, options: Core.languages(languages))
+                                    .help("Sprache für Aufnahmen, Dateien und Diktat")
+                                FillMenu(selection: $nextSpeakers, options: Core.speakerCounts, icon: "person.2",
+                                         compact: { $0 == "0" ? String(localized: "Auto") : $0 })
+                                    .frame(width: 86)
+                                    .help("Personen in der nächsten Aufnahme oder Datei – Auto erkennt selbst; danach wieder Auto")
+                            }
+                            .frame(width: 190)
                         }
                     }
                     .controlSize(.large)
@@ -213,7 +252,11 @@ struct PanelView: View {
                         .font(.callout)
                     }
                     if let c = calls.current {
-                        Label("Call in \(c) erkannt", systemImage: "phone.fill").font(.caption).foregroundStyle(.secondary)
+                        Group {
+                            if let m = calls.micName { Label("Call in \(c) erkannt · Mikrofon wie im Call: \(m)", systemImage: "phone.fill") }
+                            else { Label("Call in \(c) erkannt", systemImage: "phone.fill") }
+                        }
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     }
                     if let w = recorder.warning { Text(w).font(.caption).foregroundStyle(.orange).textSelection(.enabled) }
                     Divider()
@@ -221,6 +264,8 @@ struct PanelView: View {
                 }
                 .padding(6)
             }
+
+            if !jobs.untranscribed.isEmpty { untranscribedLine }
 
             if !jobs.jobs.isEmpty {
                 HStack {
@@ -230,25 +275,58 @@ struct PanelView: View {
                         Button("Erledigte ausblenden") { jobs.clearFinished() }.controlSize(.small).buttonStyle(.link)
                     }
                 }
-                // Keine ScrollView: im selbst bemessenden Menüleistenfenster schrumpft sie auf Höhe 0.
-                VStack(alignment: .leading, spacing: 10) { ForEach(jobs.jobs.prefix(5)) { JobRow(job: $0) } }
+                // Eine ScrollView schrumpft im selbst bemessenden Menüleistenfenster auf Höhe 0 – deshalb feste Höhe:
+                // so hoch wie der Inhalt, höchstens so, dass Kopf und Fußzeile (Beenden) auf dem Bildschirm bleiben.
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) { ForEach(jobs.jobs) { JobRow(job: $0) } }
+                        .background(GeometryReader { g in
+                            Color.clear.onAppear { listHeight = g.size.height }
+                                .onChange(of: g.size.height) { _, h in listHeight = h }
+                        })
+                }
+                .frame(height: min(listHeight, maxListHeight))
             }
             if let e = error ?? jobs.launchError { Text(e).font(.caption).foregroundStyle(.red) }
             updateLine
-
             Divider()
-            HStack {
-                Button("Ordner öffnen") { NSWorkspace.shared.open(watchDir) }
-                Button("Stimmen …") { openWindow(id: "voices"); NSApp.activate(ignoringOtherApps: true) }
-                Button("Einstellungen …") { openWindow(id: "settings"); NSApp.activate(ignoringOtherApps: true) }
-                    .keyboardShortcut(",")
-                Spacer()
-                Button("Beenden") { NSApp.terminate(nil) }
-            }
+            toolbar
         }
         .padding(14)
         .frame(width: 440)
     }
+
+    /// Leiste unten, bündig mit den Kästen darüber (Variante „E3“ aus den Mockups, Björn 2026-10-14): Ordner und
+    /// Einstellungen mit Text, Fehler melden als Käfer, Beenden rechts. Mit Text bei allen vier passten de/en nicht.
+    private var toolbar: some View {
+        HStack(spacing: 6) {
+            Button { NSWorkspace.shared.open(watchDir) } label: { Label("Ordner", systemImage: "folder") }.fixedSize()
+            Button { openWindow(id: "settings"); NSApp.activate(ignoringOtherApps: true) } label: { Label("Einstellungen", systemImage: "gearshape") }
+                .keyboardShortcut(",").fixedSize()
+            Spacer(minLength: 0)
+            Button { openWindow(id: "report"); NSApp.activate(ignoringOtherApps: true) } label: { Image(systemName: "ladybug") }
+                .help("Fehler melden …")
+            Button { NSApp.terminate(nil) } label: { Label("Beenden", systemImage: "power") }.fixedSize()
+        }
+        .controlSize(.small)
+    }
+
+
+    /// Aufnahmen ohne Transkript (Transkribieren war aus oder der Start scheiterte): nur auf Klick starten.
+    private var untranscribedLine: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "doc.badge.clock").foregroundStyle(.orange)
+            Text(jobs.untranscribed.count == 1 ? String(localized: "1 Aufnahme ohne Transkript")
+                                                : String(localized: "\(jobs.untranscribed.count) Aufnahmen ohne Transkript"))
+                .help(jobs.untranscribed.map(\.lastPathComponent).joined(separator: "\n"))
+            Spacer(minLength: 4)
+            Button("Transkribieren") { jobs.transcribeUntranscribed(language: language) }.controlSize(.small)
+            Button("Ausblenden") { jobs.ignoreUntranscribed() }.controlSize(.small).buttonStyle(.link)
+        }
+        .font(.caption)
+    }
+
+    /// Bildschirmhöhe minus Kopf, Aufnahmebereich, Update-Hinweis und Fußzeile (großzügig geschätzt).
+    private var maxListHeight: CGFloat { max(200, (NSScreen.main?.visibleFrame.height ?? 800) - 420) }
 
     private var status: String {
         if recorder.isRecording { return String(localized: "Aufnahme \(timeString(recorder.elapsed))") }
@@ -318,6 +396,8 @@ struct PanelView: View {
         Task {
             if recorder.isRecording {
                 await Control.stop(recorder, jobs)
+            } else if calls.current != nil {
+                calls.recordCall()                      // Mikrofon wie im Call, endet mit dem Call
             } else {
                 do { try await Control.start(recorder) } catch { self.error = error.localizedDescription }
             }
@@ -329,7 +409,10 @@ struct PanelView: View {
         p.allowsMultipleSelection = true
         p.allowedContentTypes = [.audio, .movie, .mpeg4Audio, .mpeg4Movie]
         NSApp.activate(ignoringOtherApps: true)
-        if p.runModal() == .OK { for u in p.urls { jobs.add(u, language: language) } }
+        if p.runModal() == .OK {
+            for u in p.urls { jobs.add(u, language: language, speakers: Int(nextSpeakers) ?? 0) }
+            nextSpeakers = "0"
+        }
     }
 
     private func timeString(_ t: TimeInterval) -> String {
@@ -343,11 +426,14 @@ struct PanelView: View {
 struct FillMenu: View {
     @Binding var selection: String
     let options: [(String, String)]
+    var icon: String?
+    var compact: ((String) -> String)?          // kürzere Beschriftung im Knopf als im Menü
 
     var body: some View {
         Button(action: show) {
-            HStack {
-                Text(options.first { $0.0 == selection }?.1 ?? options.first?.1 ?? "").lineLimit(1)
+            HStack(spacing: 4) {
+                if let icon { Image(systemName: icon).foregroundStyle(.secondary) }
+                Text(compact?(selection) ?? options.first { $0.0 == selection }?.1 ?? options.first?.1 ?? "").lineLimit(1)
                 Spacer(minLength: 4)
                 Image(systemName: "chevron.up.chevron.down").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             }
@@ -407,6 +493,8 @@ struct JobRow: View {
     @State private var names: [String: String] = [:]
     @State private var editing: Set<String> = []     // Sprecher, deren Namensfeld per ✎ geöffnet wurde
     @State private var hovered: String?
+    @State private var newTitle: String?              // Umbenennen: Feld offen, solange nicht nil
+    @Environment(\.openWindow) private var openWindow
 
     init(job: Job, editing: Set<String> = []) {        // editing vorbelegt nur für den Foto-Test (--ui-test)
         self.job = job
@@ -427,11 +515,17 @@ struct JobRow: View {
                         .buttonStyle(.borderless).foregroundStyle(.secondary).help("Aus der Liste entfernen (Dateien bleiben)")
                 }
             }
+            if let t = newTitle { renameEditor(t) }
             switch job.state {
             case .running:
                 ProgressView(value: job.progress) { Text(job.message).font(.caption) }
             case .failed, .aborted:
                 Text(job.error ?? String(localized: "fehlgeschlagen")).font(.caption).foregroundStyle(.red).textSelection(.enabled)
+                Button("Fehler melden …") {
+                    ReportDraft.shared.text = String(localized: "Transkription fehlgeschlagen: \(job.error ?? "?")") + "\n\n"
+                    openWindow(id: "report"); NSApp.activate(ignoringOtherApps: true)
+                }
+                .buttonStyle(.link).font(.caption)
             case .done:
                 VStack(alignment: .leading, spacing: 2) { ForEach(job.speakers) { s in speakerRow(s) } }
                 // Ab zwei offenen Zuordnungen; eine einzelne übernimmt das ✓ in ihrer Zeile.
@@ -456,8 +550,51 @@ struct JobRow: View {
             Text("·").foregroundStyle(.tertiary)
             Button("Im Finder") { if let m = job.mdURL ?? job.jsonURL { NSWorkspace.shared.activateFileViewerSelecting([m]) } }
                 .buttonStyle(.link)
+            Text("·").foregroundStyle(.tertiary)
+            Button("Umbenennen") { newTitle = job.source.deletingPathExtension().lastPathComponent }.buttonStyle(.link)
+                .help("Aufnahme und Transkript umbenennen – im Finder umbenannt würde die Aufnahme neu transkribiert")
+            Text("·").foregroundStyle(.tertiary)
+            Button("Neu auswerten …") { rerunMenu() }.buttonStyle(.link)
+                .help("Namen neu zuordnen oder Sprecher neu trennen")
         }
         .font(.caption)
+    }
+
+    private func renameEditor(_ t: String) -> some View {
+        HStack(spacing: 6) {
+            TextField("Neuer Name", text: Binding(get: { newTitle ?? t }, set: { newTitle = $0 }))
+                .textFieldStyle(.roundedBorder).font(.caption)
+                .onSubmit { submitRename() }
+            Button("Umbenennen") { submitRename() }.controlSize(.small)
+            Button { newTitle = nil } label: { Image(systemName: "xmark.circle") }
+                .buttonStyle(.borderless).foregroundStyle(.secondary).help("Abbrechen")
+        }
+    }
+
+    private func submitRename() {
+        let n = (newTitle ?? "").trimmingCharacters(in: .whitespaces)
+        newTitle = nil
+        guard !n.isEmpty, n != job.source.deletingPathExtension().lastPathComponent else { return }
+        Task { job.error = await jobs.rename(job, to: n) }
+    }
+
+    /// Namen neu zuordnen (nur Abgleich mit der Datenbank, sofort) oder Sprecher neu trennen mit fester Personenzahl
+    /// (Sprechertrennung neu, Spracherkennung aus dem Zwischenspeicher). Benennung nach Rückfrage 2026-10-12:
+    /// „Stimmen neu erkennen“ vs. „Neu auswerten mit“ war nicht unterscheidbar.
+    private func rerunMenu() {
+        let menu = NSMenu()
+        let names = ClosureMenuItem(title: String(localized: "Namen neu zuordnen")) { Task { await jobs.recheck(job) } }
+        let hint = String(localized: "Nur neuer Abgleich mit Stimmdatenbank")
+        if #available(macOS 14.4, *) { names.subtitle = hint } else { names.toolTip = hint }
+        menu.addItem(names)
+        menu.addItem(.separator())
+        let head = NSMenuItem(title: String(localized: "Sprecher neu trennen:"), action: nil, keyEquivalent: "")
+        head.isEnabled = false
+        menu.addItem(head)
+        for (id, title) in [("0", String(localized: "Automatisch"))] + Core.speakerCounts.dropFirst() + (7...10).map({ (String($0), String(localized: "\($0) Personen")) }) {
+            menu.addItem(ClosureMenuItem(title: title) { jobs.rerun(job, speakers: Int(id) ?? 0) })
+        }
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
     }
 
     @ViewBuilder private func speakerRow(_ s: Speaker) -> some View {

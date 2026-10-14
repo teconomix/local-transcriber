@@ -2,7 +2,11 @@
 
 Abfrage alle 5 s (kein zusätzliches Paket nötig). Eine Datei gilt als fertig kopiert, wenn sich Größe und
 Änderungszeit 10 s lang nicht ändern. Erledigt = <name>.transcript.json existiert und ist neuer als die Datei.
-Dateien mit <name>.lock (laufender Auftrag) werden übersprungen. Fehlschläge werden in <name>.error.txt notiert und erst nach Änderung der Datei erneut versucht."""
+Dateien mit <name>.lock (laufender Auftrag) werden übersprungen. Fehlschläge werden in <name>.error.txt notiert und erst nach Änderung der Datei erneut versucht.
+
+Den Aufnahmeordner der App (oberste Ebene „Aufnahmen“/„Recordings“, config „watch_exclude“) transkribiert der Wächter
+nicht – dort startet die App selbst, und ihre Einstellung „Transkribieren“ soll gelten (2026-10-12). Überall gilt:
+eine im Finder umbenannte oder verschobene Datei bekommt ihr vorhandenes Transkript nachgezogen (pipeline.adopt)."""
 import time
 import traceback
 from pathlib import Path
@@ -42,6 +46,16 @@ def run(dir_=None, interval=5, settle=10):
             if seen.get(f) != sig:
                 seen[f] = sig; seen[(f, "t")] = time.time(); continue
             if time.time() - seen[(f, "t")] < settle:
+                continue
+            if f.relative_to(d).parts[0] in cfg.get("watch_exclude", []):
+                if seen.get((f, "x")) == sig:        # schon geprüft, kein umbenanntes Transkript: nicht ständig hashen
+                    continue
+                seen[(f, "x")] = sig
+                try:
+                    if pipeline.adopt(f):
+                        print(f"{time.strftime('%H:%M:%S')} ↪ {f.name}: " + t("umbenannt, Transkript nachgezogen", "renamed, transcript moved along"), flush=True)
+                except Exception:
+                    print(f"{time.strftime('%H:%M:%S')} ↪ {f.name}: " + traceback.format_exc(), flush=True)
                 continue
             print(f"{time.strftime('%H:%M:%S')} → {f.name}", flush=True)
             try:

@@ -13,18 +13,21 @@ DEFAULTS = {
     "language": "de",              # Whisper-Sprachcode: de, en, es, fr, …
     "ui_language": None,           # Ausgabesprache de|en; None = macOS-Sprache (i18n.py), App setzt TRANSCRIBER_UI_LANG
     "watch_dir": "~/Transcriber",
+    "watch_exclude": ["Aufnahmen", "Recordings"],   # Aufnahmeordner der App: dort startet die App selbst (watch.py)
     "formats": ["md", "json"],     # zusätzlich möglich: "srt"
     "min_speakers": 2,
-    "max_speakers": 6,
+    "max_speakers": 15,            # großzügig: zu viele Cluster führt die Stimmdatenbank wieder zusammen, zu wenige
+                                   # mischen Personen unumkehrbar (2026-10-12: 9 Personen, Grenze 6 → zwei in einem Cluster)
     "vocab_file": str(DATA / "vocab.txt"),  # Glossar, Format siehe glossary.py
     "glossary_prompt": False,      # Glossar zusätzlich als Whisper-Prompt (gemessen: schadet, siehe asr.py)
     # Stimmenabgleich (Kosinus). Gemessen 2026-10-08: gleiche Person 0,75–0,93, verschiedene ≤ 0,42.
-    "match_sure": 0.65,
+    "match_sure": 0.75,            # ab 60 s; war 0,65 – falsche Personen kamen bis 0,65, richtige ab 0,80 (bench/SCHWELLEN.md)
     "match_maybe": 0.50,
     "min_speech_s": 60,            # darunter gilt die strengere Schwelle match_sure_short
     "match_sure_short": 0.75,      # 15–60 s Sprechzeit: sicher erst ab dieser Ähnlichkeit (speakers.sure_match)
     "min_sure_s": 15,              # darunter nie „sicher“
     "min_enroll_s": 15,            # kürzere Cluster nicht als Stimmreferenz speichern
+    "carry_sim": 0.9,              # Neuauswertung: Bestätigung übernehmen ab dieser Ähnlichkeit zur alten Referenz
     # Zwei Tonspuren (App: Mikrofon + Systemton): auto = getrennt auswerten, außer die Spuren sind Kopien desselben
     # Raumklangs (Handy mit zwei Mikrofonen: ≥ copy_share der Fenster korreliert) → gemischt. Siehe bench/SPUREN.md.
     "track_mode": "auto",          # auto | getrennt | gemischt

@@ -71,7 +71,8 @@ enum CalendarContext {
         }
         let mail = email(p)
         let name = p.name.flatMap { $0.contains("@") ? nil : $0 } ?? nameFromEmail(mail)
-        return ["name": name, "email": mail, "me": p.isCurrentUser, "status": status]
+        let type = switch p.participantType { case .room: "room"; case .resource: "resource"; default: "person" }
+        return ["name": name, "email": mail, "me": p.isCurrentUser, "status": status, "type": type]
     }
 
     /// Google liefert für Gäste oft keinen Anzeigenamen (beobachtet 2026-10-10: nur Adressen). Dann aus der Adresse:

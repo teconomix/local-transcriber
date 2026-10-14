@@ -1,7 +1,8 @@
 import EventKit
 import SwiftUI
 
-/// Einstellungen (eigenes Fenster): Allgemein · Aufnahme · Diktat · Kalender. Das Panel enthält nur, was man im Alltag braucht.
+/// Einstellungen (eigenes Fenster): Allgemein · Aufnahme · Diktat · Kalender · Stimmen. Das Panel enthält nur, was man im
+/// Alltag braucht.
 struct SettingsView: View {
     var body: some View {
         TabView {
@@ -9,8 +10,9 @@ struct SettingsView: View {
             RecordingSettings().tabItem { Label("Aufnahme", systemImage: "record.circle") }
             DictationSettings().tabItem { Label("Diktat", systemImage: "mic") }
             CalendarSettings().tabItem { Label("Kalender", systemImage: "calendar") }
+            VoicesView().tabItem { Label("Stimmen", systemImage: "person.wave.2") }
         }
-        .frame(width: 520, height: 440)
+        .frame(width: 640, height: 480)
     }
 }
 

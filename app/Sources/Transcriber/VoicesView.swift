@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Fenster „Stimmen“: bekannte Personen mit ihren Stimmreferenzen; einzelne Referenzen oder ganze Personen entfernen.
 /// Daten kommen aus `transcriber speakers check --json` (Ähnlichkeit jeder Referenz zum Mittel der übrigen).
@@ -46,6 +48,28 @@ final class VoicesModel: ObservableObject {
         await load()
     }
 
+    /// Stimmen weitergeben: Stimmabdrücke der gewählten Personen in eine Datei (`transcriber speakers export`).
+    func export(_ names: [String], to url: URL) async -> String {
+        let (ok, out) = await Core.run(["speakers", "export", url.path] + names)
+        return ok ? out.split(separator: "\n").last.map(String.init) ?? "" : out
+    }
+
+    /// Wer steht in der Datei (und ist schon bekannt)?
+    func peek(_ url: URL) async -> [(name: String, exists: Bool)]? {
+        let (ok, out) = await Core.run(["speakers", "import", url.path, "--list"])
+        guard ok, let line = out.split(separator: "\n").last(where: { $0.hasPrefix("[") }),
+              let arr = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [[String: Any]] else {
+            error = out.split(separator: "\n").last.map(String.init) ?? out; return nil
+        }
+        return arr.compactMap { p in (p["name"] as? String).map { ($0, p["exists"] as? Bool ?? false) } }
+    }
+
+    func importVoices(_ url: URL, names: [String], skipExisting: Bool) async -> String {
+        let (ok, out) = await Core.run(["speakers", "import", url.path] + names + (skipExisting ? ["--skip-existing"] : []))
+        await load()
+        return ok ? out.trimmingCharacters(in: .whitespacesAndNewlines) : out
+    }
+
     func forget(_ name: String) async {
         let (ok, out) = await Core.run(["speakers", "forget", name])
         if !ok { error = out }
@@ -57,14 +81,20 @@ struct VoicesView: View {
     @StateObject private var model = VoicesModel()
     @State private var dropRef: VoiceRef?
     @State private var forgetName: String?
+    @State private var exporting = false
+    @State private var importFile: URL?
+    @State private var importList: [(name: String, exists: Bool)] = []
+    @State private var notice: String?
 
-    private static let originText = ["enrolled": String(localized: "eingelernt"), "confirmed": String(localized: "bestätigt"), "named": String(localized: "benannt")]
+    private static let originText = ["enrolled": String(localized: "eingelernt"), "confirmed": String(localized: "bestätigt"), "named": String(localized: "benannt"),
+                                     "imported": String(localized: "importiert")]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Je Referenz: Ähnlichkeit zu den übrigen Referenzen derselben Person. Orange (< 0,60) = vermutlich falsch zugeordnet.")
                 .font(.caption).foregroundStyle(.secondary)
             if let e = model.error { Text(e).font(.caption).foregroundStyle(.red).textSelection(.enabled) }
+            if let n = notice { Text(n).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
             List {
                 ForEach(model.persons, id: \.name) { p in
                     Section {
@@ -83,11 +113,32 @@ struct VoicesView: View {
             HStack {
                 Button("Aktualisieren") { Task { await model.load() } }
                 if model.loading { ProgressView().controlSize(.small) }
+                Spacer()
+                Button("Importieren …") { pickImport() }
+                Button("Exportieren …") { exporting = true }.disabled(model.persons.isEmpty)
             }
         }
         .padding(12)
-        .frame(minWidth: 620, minHeight: 420)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task { await model.load() }
+        .sheet(isPresented: $exporting) {
+            PickVoices(title: String(localized: "Stimmen exportieren"),
+                       note: String(localized: "Je Person ein Stimmabdruck (256 Zahlen) mit Name – keine Aufnahmen, keine Titel oder Pfade. Stimmabdrücke sind biometrische Daten: nur mit Einwilligung der Personen weitergeben, möglichst über geschützte Wege. Die Datei ist nicht verschlüsselt."),
+                       items: model.persons.map { ($0.name, "") }, action: String(localized: "Exportieren …")) { names in
+                exporting = false
+                guard let url = saveURL() else { return }
+                Task { notice = await model.export(names, to: url) }
+            } cancel: { exporting = false }
+        }
+        .sheet(isPresented: Binding(get: { importFile != nil }, set: { if !$0 { importFile = nil } })) {
+            PickVoices(title: String(localized: "Stimmen importieren"),
+                       note: String(localized: "Bereits bekannte Personen bekommen den Abdruck als zusätzliche Referenz („importiert“); ein früherer Import derselben Person wird ersetzt. Tipp: zuerst die eigene Stimme benennen – sonst kann sie einer ähnlich klingenden importierten Person zugeordnet werden."),
+                       items: importList.map { ($0.name, $0.exists ? String(localized: "bekannt – wird ergänzt") : String(localized: "neu")) },
+                       action: String(localized: "Importieren")) { names in
+                let f = importFile; importFile = nil
+                if let f { Task { notice = await model.importVoices(f, names: names, skipExisting: false) } }
+            } cancel: { importFile = nil }
+        }
         .confirmationDialog("Referenz entfernen?", isPresented: Binding(get: { dropRef != nil }, set: { if !$0 { dropRef = nil } })) {
             Button("Entfernen", role: .destructive) { if let r = dropRef { Task { await model.drop(r) } } }
         } message: {
@@ -99,6 +150,25 @@ struct VoicesView: View {
             }
         } message: {
             Text("Alle Stimmreferenzen dieser Person werden entfernt. Transkripte bleiben unverändert.")
+        }
+    }
+
+    private func saveURL() -> URL? {
+        let p = NSSavePanel()
+        p.nameFieldStringValue = String(localized: "Stimmen") + " " + Date().formatted(.iso8601.year().month().day()) + ".voices.json"
+        p.allowedContentTypes = [.json]
+        NSApp.activate(ignoringOtherApps: true)
+        return p.runModal() == .OK ? p.url : nil
+    }
+
+    private func pickImport() {
+        let p = NSOpenPanel()
+        p.allowedContentTypes = [.json]
+        NSApp.activate(ignoringOtherApps: true)
+        guard p.runModal() == .OK, let url = p.url else { return }
+        Task {
+            guard let list = await model.peek(url) else { return }
+            importList = list; importFile = url
         }
     }
 
@@ -117,5 +187,43 @@ struct VoicesView: View {
             Button { dropRef = r } label: { Image(systemName: "trash") }.buttonStyle(.borderless)
                 .help("Diese Referenz entfernen")
         }
+    }
+}
+
+/// Auswahl der Personen für Export/Import: Häkchen je Person, „Alle“/„Keine“, Hinweistext.
+struct PickVoices: View {
+    let title: String
+    let note: String
+    let items: [(String, String)]          // Name, Zusatz (z. B. „neu“)
+    let action: String
+    let done: ([String]) -> Void
+    let cancel: () -> Void
+    @State private var chosen: Set<String> = []
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title).font(.headline)
+            Text(note).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Button("Alle") { chosen = Set(items.map(\.0)) }
+                Button("Keine") { chosen = [] }
+            }
+            .controlSize(.small)
+            List(items, id: \.0) { name, extra in
+                Toggle(isOn: Binding(get: { chosen.contains(name) }, set: { on in if on { chosen.insert(name) } else { chosen.remove(name) } })) {
+                    HStack { Text(name); if !extra.isEmpty { Text(extra).foregroundStyle(.secondary).font(.caption) } }
+                }
+            }
+            .frame(minHeight: 220)
+            HStack {
+                Spacer()
+                Button("Abbrechen", role: .cancel) { cancel() }.keyboardShortcut(.cancelAction)
+                Button(action) { done(items.map(\.0).filter(chosen.contains)) }
+                    .keyboardShortcut(.defaultAction).disabled(chosen.isEmpty)
+            }
+        }
+        .padding(16)
+        .frame(width: 460)
+        .onAppear { chosen = Set(items.map(\.0)) }
     }
 }

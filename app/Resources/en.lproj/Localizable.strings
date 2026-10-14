@@ -66,7 +66,6 @@
 "Einmal täglich nach neuen Versionen suchen?" = "Check for new versions once a day?";
 "Einstellungen" = "Settings";
 "Einstellungen öffnen" = "Open System Settings";
-"Einstellungen …" = "Settings…";
 "Entfernen" = "Remove";
 "Erledigte ausblenden" = "Hide finished";
 "fehlgeschlagen" = "failed";
@@ -99,7 +98,6 @@
 "nur lesen" = "read-only";
 "Nutzt Teams, Zoom, ein Browser … das Mikrofon, fragt eine Mitteilung „Aufnehmen?“. So gestartete Aufnahmen enden mit dem Call." = "When Teams, Zoom, a browser … uses the microphone, a notification asks “Record?”. Recordings started this way end with the call.";
 "Ordner" = "Folder";
-"Ordner öffnen" = "Open folder";
 "Person löschen …" = "Delete person…";
 "Person löschen?" = "Delete person?";
 "Prüfung fehlgeschlagen: %@" = "Check failed: %@";
@@ -117,7 +115,6 @@
 "Sprechend benennen (Kalendertitel, sonst Apple-KI)" = "Give a descriptive name (calendar title, otherwise Apple AI)";
 "Startet …" = "Starting…";
 "Stimmen" = "Voices";
-"Stimmen …" = "Voices…";
 "Suchen" = "Search";
 "Symbol an der Schreibmarke" = "Icon at the cursor";
 "Systemstandard" = "System default";
@@ -156,3 +153,60 @@
 "übernehmen" = "accept";
 "„%@“ als richtig bestätigen" = "Confirm “%@” as correct";
 "„Aufnahme 2026-10-10 14-03“ → „2026-10-10 14-03 Thema“; Transkript und Stimmdatenbank werden mitgezogen." = "“Recording 2026-10-10 14-03” → “2026-10-10 14-03 Topic”; transcript and voice database are updated too.";
+
+/* Personenzahl, Neu auswerten (2026-10-12) */
+"%lld Personen" = "%lld people";
+"1 Person" = "1 person";
+"Audiodatei nicht gefunden" = "Audio file not found";
+"Auto" = "Auto";
+"Automatisch" = "Automatic";
+"Sprecher neu trennen:" = "Separate speakers again:";
+"Neu auswerten …" = "Re-analyze…";
+"Personen in der nächsten Aufnahme oder Datei – Auto erkennt selbst; danach wieder Auto" = "People in the next recording or file – Auto detects them itself; resets to Auto afterwards";
+"Namen neu zuordnen" = "Match names again";
+"Nur neuer Abgleich mit Stimmdatenbank" = "Only re-match against voice database";
+"Namen neu zuordnen oder Sprecher neu trennen" = "Match names again or separate speakers again";
+
+/* Umbenennen im Panel (2026-10-12) */
+"Aufnahme und Transkript umbenennen – im Finder umbenannt würde die Aufnahme neu transkribiert" = "Rename recording and transcript – renamed in Finder, the recording would be transcribed again";
+"Neuer Name" = "New name";
+"Transkript nicht gefunden" = "Transcript not found";
+"Umbenennen fehlgeschlagen" = "Renaming failed";
+
+/* Aufnahmen ohne Transkript (2026-10-12) */
+"%lld Aufnahmen ohne Transkript" = "%lld recordings without transcript";
+"1 Aufnahme ohne Transkript" = "1 recording without transcript";
+"Ausblenden" = "Hide";
+
+/* Stimmen weitergeben (2026-10-13) */
+"Alle" = "All";
+"Keine" = "None";
+"Exportieren …" = "Export…";
+"Importieren" = "Import";
+"Importieren …" = "Import…";
+"Stimmen exportieren" = "Export voices";
+"Stimmen importieren" = "Import voices";
+"bekannt – wird ergänzt" = "known – will be added";
+"importiert" = "imported";
+"neu" = "new";
+"Je Person ein Stimmabdruck (256 Zahlen) mit Name – keine Aufnahmen, keine Titel oder Pfade. Stimmabdrücke sind biometrische Daten: nur mit Einwilligung der Personen weitergeben, möglichst über geschützte Wege. Die Datei ist nicht verschlüsselt." = "One voice print (256 numbers) per person, with the name – no recordings, no titles or paths. Voice prints are biometric data: share them only with the consent of the people concerned, preferably over protected channels. The file is not encrypted.";
+"Bereits bekannte Personen bekommen den Abdruck als zusätzliche Referenz („importiert“); ein früherer Import derselben Person wird ersetzt. Tipp: zuerst die eigene Stimme benennen – sonst kann sie einer ähnlich klingenden importierten Person zugeordnet werden." = "Known people get the voice print as an additional reference (“imported”); an earlier import of the same person is replaced. Tip: name your own voice first – otherwise it may be matched to a similar-sounding imported person.";
+
+/* Call aufnehmen, Mikrofon wie im Call (2026-10-14) */
+"Call aufnehmen" = "Record call";
+"Call in %@ erkannt · Mikrofon wie im Call: %@" = "Call in %1$@ detected · Microphone as in the call: %2$@";
+
+/* Fehler melden (2026-10-14) */
+"Angehängt werden Protokolle, Version, Mac-Modell, macOS, Freigaben, Audiogeräte und Einstellungen – keine Aufnahmen, keine Transkripte, keine Stimmdatenbank. Die Mail geht an %@; du siehst sie vor dem Absenden." = "Attached: logs, version, Mac model, macOS, permissions, audio devices and settings – no recordings, no transcripts, no voice database. The email goes to %@; you see it before sending.";
+"Angehängt: Protokolle und Systeminfos (ohne Aufnahmen, Transkripte und Stimmdatenbank)." = "Attached: logs and system info (no recordings, transcripts or voice database).";
+"Bericht erstellen …" = "Create report…";
+"Bericht konnte nicht erstellt werden: %@" = "Could not create the report: %@";
+"Bericht wird erstellt …" = "Creating report…";
+"Dateinamen und Termintitel unkenntlich machen" = "Hide file names and event titles";
+"Fehler melden" = "Report a problem";
+"Fehler melden …" = "Report a problem…";
+"Kein Mailprogramm gefunden. Die Datei liegt im Download-Ordner (im Finder markiert); die Adresse %@ ist in der Zwischenablage – bitte die Datei an eine Mail hängen." = "No mail app found. The file is in your Downloads folder (selected in Finder); the address %@ is on the clipboard – please attach the file to an email.";
+"Transcriber-Fehlerbericht" = "Transcriber problem report";
+"Transkription fehlgeschlagen: %@" = "Transcription failed: %@";
+"Was hast du gemacht, was hast du erwartet, was ist stattdessen passiert?" = "What did you do, what did you expect, what happened instead?";
+"Was ist passiert?" = "What happened?";

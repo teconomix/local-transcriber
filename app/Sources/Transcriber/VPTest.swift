@@ -181,10 +181,60 @@ enum VPTest {
         appLog("Gap-Test: fertig → \(url?.path ?? "keine Datei")")
     }
 
+    /// Mikrofonwechsel mitten in der Aufnahme (wie wenn die Call-App umstellt):
+    /// `open -n ~/Applications/Transcriber.app --args --mic-switch-test ORDNER` – je 4 s Standard → anderes Mikrofon →
+    /// Standard, mit Sprachverarbeitung, ohne Systemton. Ergebnis im app.log, Datei im ORDNER.
+    static func micSwitch(_ folder: URL) async {
+        let def = Recorder.defaultInputDevice().flatMap { Recorder.deviceString($0, kAudioDevicePropertyDeviceUID) }
+        guard let other = Recorder.microphones().first(where: { $0.uniqueID != def }) else {
+            appLog("Mic-Switch-Test: kein zweites Mikrofon"); return
+        }
+        let r = Recorder()
+        do { try await r.start(deviceID: nil, systemAudio: false, voiceProcessing: true, folder: folder) }
+        catch { appLog("Mic-Switch-Test: Start fehlgeschlagen: \(error.localizedDescription)"); return }
+        try? await Task.sleep(nanoseconds: 4_000_000_000)
+        appLog("Mic-Switch-Test: Eingabe laut Core Audio: \(CallDetector.ownInputDeviceNames())")
+        await MainActor.run { do { try r.switchMic(deviceID: other.uniqueID, voiceProcessing: true) } catch { appLog("Mic-Switch-Test: Wechsel 1: \(error)") } }
+        try? await Task.sleep(nanoseconds: 4_000_000_000)
+        appLog("Mic-Switch-Test: Eingabe laut Core Audio: \(CallDetector.ownInputDeviceNames())")
+        if let def { await MainActor.run { do { try r.switchMic(deviceID: def, voiceProcessing: true) } catch { appLog("Mic-Switch-Test: Wechsel 2: \(error)") } } }
+        try? await Task.sleep(nanoseconds: 4_000_000_000)
+        appLog("Mic-Switch-Test: Eingabe laut Core Audio: \(CallDetector.ownInputDeviceNames())")
+        let url = await r.stop()
+        appLog("Mic-Switch-Test: fertig → \(url?.path ?? "keine Datei") (Wechsel zu \(other.localizedName) und zurück)")
+    }
+
+    /// Beispieleinträge statt echter Aufnahmen (Screenshots für Website/Slack): `--args --ui-test --demo`.
+    @MainActor
+    static func demo(_ jobs: JobManager) {
+        let en = Core.uiLanguage == "en"
+        func job(_ title: String, _ min: Double, _ ago: Double, _ spk: [(String, String, String, Double, String?)]) -> Job {
+            let j = Job(id: UUID().uuidString, source: URL(fileURLWithPath: "/demo/\(title).m4a"), started: Date().addingTimeInterval(-ago))
+            j.state = .done; j.duration = min * 60
+            j.speakers = spk.map { Speaker(letter: $0.0, display: $0.1, status: $0.2, score: nil, speechMin: $0.3,
+                                           candidates: $0.4.map { [($0, 0.62)] } ?? []) }
+            return j
+        }
+        let running = Job(id: UUID().uuidString, source: URL(fileURLWithPath: en ? "/demo/2026-10-14 16-00 Team meeting.m4a" : "/demo/2026-10-14 16-00 Teamrunde.m4a"),
+                          started: Date())
+        running.progress = 0.62; running.message = en ? "Speaker separation" : "Sprechertrennung"
+        jobs.frozen = true
+        jobs.jobs = [
+            running,
+            job(en ? "2026-10-14 14-03 Q4 budget planning" : "2026-10-14 14-03 Budgetplanung Q4", 42.3, 3600,
+                [("A", "Alex Beispiel", "sicher", 12.4, nil), ("B", "Kim Exempel", "bestätigt", 9.8, nil),
+                 ("C", "Sam Muster (?)", "vermutlich", 3.1, "Sam Muster")]),
+            job(en ? "2026-10-14 11-30 Client call website relaunch" : "2026-10-14 11-30 Kundengespräch Website-Relaunch", 27.1, 7200,
+                [("A", "Alex Beispiel", "sicher", 11.0, nil), ("B", en ? "Speaker B" : "Sprecher B", "unbekannt", 7.2, nil)]),
+        ]
+    }
+
     /// Oberfläche ansehen ohne Mausklick: `open -n ~/Applications/Transcriber.app --args --ui-test`
     /// Zeigt Panel und Einstellungs-Reiter kurz als Fenster, fotografiert sie (ScreenCaptureKit) → DATA/ui-*.png.
     @MainActor
     static func ui(recorder: Recorder, jobs: JobManager, dictation: Dictation, calls: CallDetector, updates: UpdateCheck) async {
+        await jobs.loadNames()                                    // vor dem Bau der Ansichten (Exportblatt braucht die Namen)
+        if CommandLine.arguments.contains("--demo") { demo(jobs) }
         let views: [(String, AnyView)] = [
             ("panel", AnyView(PanelView().environmentObject(recorder).environmentObject(jobs).environmentObject(dictation).environmentObject(calls)
                 .environmentObject(updates))),
@@ -197,8 +247,11 @@ enum VPTest {
             ("aufnahme", AnyView(RecordingSettings().frame(width: 520, height: 440))),
             ("diktat", AnyView(DictationSettings().environmentObject(dictation).frame(width: 520, height: 440))),
             ("kalender", AnyView(CalendarSettings().frame(width: 520, height: 440))),
+            ("stimmen", AnyView(VoicesView().frame(width: 620, height: 420))),
+            ("fehler-melden", AnyView(ReportView())),
+            ("stimmen-export", AnyView(PickVoices(title: String(localized: "Stimmen exportieren"), note: String(localized: "Je Person ein Stimmabdruck (256 Zahlen) mit Name – keine Aufnahmen, keine Titel oder Pfade. Stimmabdrücke sind biometrische Daten: nur mit Einwilligung der Personen weitergeben, möglichst über geschützte Wege. Die Datei ist nicht verschlüsselt."),
+                                              items: jobs.knownNames.map { ($0, "") }, action: String(localized: "Exportieren …"), done: { _ in }, cancel: {}))),
         ]
-        await jobs.loadNames()
         try? await Task.sleep(nanoseconds: 1_500_000_000)       // Aufträge einlesen lassen
         for (name, view) in views {
             let w = NSWindow(contentRect: NSRect(x: 200, y: 200, width: 540, height: 500), styleMask: [.titled], backing: .buffered, defer: false)

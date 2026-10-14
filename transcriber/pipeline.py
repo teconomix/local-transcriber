@@ -4,6 +4,7 @@ import fcntl
 import hashlib
 import json
 import os
+import sys
 import threading
 import time
 from pathlib import Path
@@ -22,6 +23,24 @@ def job_id(path):
         for b in iter(lambda: f.read(1 << 20), b""):
             h.update(b)
     return h.hexdigest()[:12]
+
+
+def _asr(wav, language, terms):
+    """Spracherkennung mit Zwischenspeicher neben der WAV: Eine Neuauswertung (andere Sprecherzahl, „Neu auswerten“
+    in der App) rechnet dann nur die Sprechertrennung neu. Gültig für dieselbe Aufnahme (Ordner = Inhalts-Hash),
+    Sprache, Modell und Prompt; die Glossar-Ersetzungen laufen danach immer frisch."""
+    f = Path(wav).with_name(f"asr-{language}.json")
+    key = {"model": asr.MODEL, "terms": terms}
+    with contextlib.suppress(OSError, ValueError, KeyError):
+        c = json.loads(f.read_text())
+        if c["key"] == key:
+            return c["result"]
+    r = asr.transcribe(wav, terms=terms, language=language)
+    with contextlib.suppress(OSError):
+        tmp = f.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"key": key, "result": r}, ensure_ascii=False))
+        tmp.replace(f)
+    return r
 
 
 class Progress:
@@ -104,7 +123,7 @@ def _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, du
     x = [sf.read(str(w), dtype="float32")[0] for w in tracks]
 
     P.start("asr", dur / RTFX["asr"], tr("Spracherkennung", "Speech recognition"))
-    t0 = time.time(); r = asr.transcribe(wav, terms=terms if cfg["glossary_prompt"] else None, language=language)
+    t0 = time.time(); r = _asr(wav, language, terms if cfg["glossary_prompt"] else None)
     t["asr"] = time.time() - t0
     replaced = glossary.apply(r["words"], rules)
     mixed = r["words"]
@@ -420,6 +439,15 @@ def run(src, out_dir=None, formats=None, num_speakers=None, progress=None, cfg=N
     language = language or cfg["language"]
     formats = formats or cfg["formats"]
     terms, rules = glossary.load(Path(cfg["vocab_file"]).expanduser())
+    moved = None
+    if not num_speakers:                 # im Finder umbenannt/verschoben: Transkript nachziehen statt neu rechnen
+        try:
+            moved = adopt(src)
+        except Exception as e:           # dann eben normal transkribieren
+            print(tr("Nachziehen fehlgeschlagen: ", "moving transcript failed: ") + str(e), file=sys.stderr)
+    if moved:
+        Progress(progress, src).done(moved[1])
+        return moved
     P = Progress(progress, src)
     t = {}
     lock = src.with_name(src.stem + ".lock")  # hält watch.py und parallele Aufrufe fern
@@ -444,11 +472,19 @@ def _run(src, language, out_dir, formats, num_speakers, cfg, terms, rules, P, t)
         cfg = dict(cfg, max_speakers=min(cfg["max_speakers"], len(others) + 2))
     jid = job_id(src)
     wav = config.CACHE / jid / "audio.wav"
-    t0 = time.time(); info = audio.prepare(src, wav); t["prepare"] = time.time() - t0
+    t0 = time.time()
+    if wav.exists():                     # Neuauswertung: Ordner = Inhalts-Hash, die WAV wird nur fertig dort abgelegt
+        n, d = audio.probe(src)
+        info = {"tracks": len(n), "duration": d}
+    else:
+        info = audio.prepare(src, wav)
+    t["prepare"] = time.time() - t0
     dur = info["duration"]
     mode, relation = "gemischt", None
     if info["tracks"] == 2 and cfg.get("track_mode", "auto") != "gemischt":
-        tracks = audio.prepare_tracks(src, config.CACHE / jid, 2)
+        tracks = [config.CACHE / jid / f"track{i}.wav" for i in (1, 2)]
+        if not all(p.exists() for p in tracks):
+            tracks = audio.prepare_tracks(src, config.CACHE / jid, 2)
         relation = audio.track_relation(tracks)
         # Kopien desselben Raumklangs (fast alle Fenster korreliert) bleiben gemischt; sonst Mikrofon + Call getrennt.
         if cfg.get("track_mode") == "getrennt" or relation["windows"] and relation["share_correlated"] < cfg.get("copy_share", 0.9):
@@ -461,7 +497,7 @@ def _run(src, language, out_dir, formats, num_speakers, cfg, terms, rules, P, t)
         words, segs, clusters, replaced, overlaps = _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, dur)
     else:
         P.start("asr", dur / RTFX["asr"], tr("Spracherkennung", "Speech recognition"))
-        t0 = time.time(); r = asr.transcribe(wav, terms=terms if cfg["glossary_prompt"] else None, language=language); t["asr"] = time.time() - t0
+        t0 = time.time(); r = _asr(wav, language, terms if cfg["glossary_prompt"] else None); t["asr"] = time.time() - t0
         replaced = glossary.apply(r["words"], rules)
 
         P.start("diarize", dur / RTFX["diarize"], tr("Sprechertrennung", "Speaker separation"))
@@ -473,7 +509,9 @@ def _run(src, language, out_dir, formats, num_speakers, cfg, terms, rules, P, t)
 
     P.start("finish", msg=tr("Stimmen abgleichen", "Matching voices"))
     db = speakers.connect()
+    old = speakers.release_job_refs(db, jid)       # Neuauswertung: eigene Referenzen nicht mit sich selbst abgleichen
     speakers.identify(db, clusters, cfg)
+    speakers.carry_refs(db, jid, src, old, clusters, cfg)
     display_names(clusters, words)
     out_dir = Path(out_dir).expanduser().resolve() if out_dir else src.parent
     out_dir.mkdir(parents=True, exist_ok=True)     # --out mit neuem Ordner brach sonst erst beim Schreiben ab (96 %)
@@ -498,6 +536,9 @@ def load_event(src):
         ev = json.loads(f.read_text())
     except ValueError:
         return None, []
+    # Räume/Ressourcen sind keine Sprecher (ältere .event.json haben kein "type": Google-Ressourcenadresse)
+    ev["attendees"] = [a for a in ev.get("attendees", []) if a.get("type", "person") == "person"
+                       and "@resource.calendar.google.com" not in a.get("email", "")]
     others = [a["name"] for a in ev.get("attendees", []) if not a.get("me") and a.get("status") != "abgesagt" and a.get("name")]
     return ev, others
 
@@ -534,6 +575,36 @@ def name_speaker(path, who, name):
     c.update(name=name, status="bestätigt", person_id=speakers.person_id(db, name))
     display_names(doc["speakers"], doc["words"])
     return rerender(doc, jp), stored, c
+
+
+def recheck(path):
+    """Offene Stimmen eines fertigen Transkripts neu gegen die Stimmdatenbank abgleichen – ohne neu zu rechnen (die
+    Cluster-Einbettungen liegen in der Datenbank). Nützlich, wenn seither Personen benannt wurden. Bestätigte bleiben;
+    eine offene Stimme bekommt eine hier schon bestätigte Person nur, wenn sie sicher passt (aufgespaltene Stimme).
+    Liefert die geänderten Sprecher."""
+    doc, jp = load_doc(path)
+    db = speakers.connect()
+    cfg = config.load()
+    vec = {r["label"]: speakers._vec(r["vec"]) for r in db.execute("SELECT label, vec FROM clusters WHERE job_id=?", (doc["job_id"],))}
+    todo = [dict(c, embedding=vec[c["label"]]) for c in doc["speakers"] if c["status"] != "bestätigt" and c["label"] in vec]
+    speakers.identify(db, todo, cfg)
+    confirmed = {c.get("person_id") for c in doc["speakers"] if c["status"] == "bestätigt"}
+    by = {c["label"]: c for c in doc["speakers"]}
+    changed = []
+    for n in todo:
+        if n["person_id"] in confirmed and n["status"] != "sicher":
+            n.update(person_id=None, name=None, score=None, status="unbekannt")
+        c = by[n["label"]]
+        before = (c.get("name"), c["status"])
+        c.update({k: n[k] for k in ("person_id", "name", "score", "status", "candidates")})
+        db.execute("UPDATE clusters SET person_id=?, score=?, status=? WHERE job_id=? AND label=?",
+                   (c["person_id"], c["score"], c["status"], doc["job_id"], c["label"]))
+        if (c["name"], c["status"]) != before:
+            changed.append(c)
+    db.commit()
+    display_names(doc["speakers"], doc["words"])
+    rerender(doc, jp)
+    return changed
 
 
 SIDECARS = (".md", ".srt", ".error.txt", ".event.json")
@@ -585,10 +656,16 @@ def rename(path, new_stem):
     if old_src.exists():
         os.utime(new_json, None)               # Transkript bleibt jünger als das Audio (Wächter: „erledigt“)
         old_src.rename(new_src)
+    _relink(doc["job_id"], old_src, new_src, paths)
+    return {**paths, "source": new_src}
+
+
+def _relink(jid, old_src, new_src, paths):
+    """Verweise auf eine umbenannte/verschobene Aufnahme nachziehen: Stimmdatenbank und Statusdateien der App."""
     db = speakers.connect()
     with db:
-        db.execute("UPDATE jobs SET source=?, transcript=? WHERE id=?", (str(new_src), str(new_json), doc["job_id"]))
-        db.execute("UPDATE embeddings SET source=? WHERE job_id=?", (str(new_src), doc["job_id"]))
+        db.execute("UPDATE jobs SET source=?, transcript=? WHERE id=?", (str(new_src), str(paths["json"]), jid))
+        db.execute("UPDATE embeddings SET source=? WHERE job_id=?", (str(new_src), jid))
     for f in config.JOBS.glob("*.json"):       # App-Liste: Quelle und Ergebnis zeigen auf die neuen Dateien
         try:
             st = json.loads(f.read_text())
@@ -599,7 +676,45 @@ def rename(path, new_stem):
             if st.get("result"):
                 st["result"] = {k: str(v) for k, v in paths.items()}
             f.write_text(json.dumps(st, ensure_ascii=False))
-    return {**paths, "source": new_src}
+
+
+def find_moved(src, jid=None):
+    """Im Finder umbenannte oder verschobene Aufnahme wiedererkennen: gleicher Inhalt (job_id = Inhalts-Hash) wie ein
+    erledigter Auftrag, dessen Audio unter dem alten Pfad nicht mehr liegt, dessen Transkript aber noch. Liefert den
+    Pfad des alten Transkripts oder None (auch bei einer Kopie – das Original liegt dann ja noch)."""
+    src = Path(src).expanduser().resolve()
+    r = speakers.connect().execute("SELECT source, transcript FROM jobs WHERE id=?", (jid or job_id(src),)).fetchone()
+    if not r or not r["transcript"]:
+        return None
+    jp, old = Path(r["transcript"]), Path(r["source"])
+    if old == src or old.exists() or not jp.exists():
+        return None
+    return jp
+
+
+def adopt(src, jid=None):
+    """Transkript samt Begleitdateien zu einer umbenannten/verschobenen Aufnahme holen statt neu zu rechnen (neuer Name
+    und Ordner wie die Aufnahme); Stimmdatenbank und App-Liste werden mitgezogen. Liefert (doc, paths) oder None."""
+    src = Path(src).expanduser().resolve()
+    jp = find_moved(src, jid)
+    if not jp:
+        return None
+    doc, _ = load_doc(jp)
+    old_src, old_stem = Path(doc["source"]), jp.name.removesuffix(".transcript.json")
+    dest = src.parent / src.stem
+    formats = [f for f, ext in (("md", ".md"), ("srt", ".srt")) if (jp.parent / (old_stem + ext)).exists()]
+    doc["source"] = str(src)
+    display_names(doc["speakers"], doc["words"])
+    paths = render.write(doc, dest, formats)
+    for ext in SIDECARS + (".transcript.json",):
+        old = jp.parent / (old_stem + ext)
+        if old.exists() and old != paths.get("json"):
+            if ext in (".error.txt", ".event.json"):
+                old.rename(dest.with_name(dest.name + ext))
+            else:
+                old.unlink()
+    _relink(doc["job_id"], old_src, src, paths)
+    return doc, paths
 
 
 def confirm(path):

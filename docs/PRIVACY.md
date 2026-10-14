@@ -27,6 +27,11 @@ one optional exception: if you agree (the panel asks once; Settings › General)
 `https://transcriber.teconomix.net/latest.txt` once a day to show a hint when a new version is out. The request
 carries nothing about you or your recordings; the server sees your IP address and does not log it.
 
+**Problem reports** (ladybug in the panel) are not sent by the app: it creates a ZIP file in your Downloads folder
+and opens an email to info@teconomix.net, which you send yourself. The file contains logs, version, Mac model,
+macOS, permissions, audio devices and app settings – no recordings, transcripts, voice database or glossary. File
+names, event titles, names and email addresses are replaced by placeholders unless you switch that off.
+
 ## People you record
 
 Recording conversations and storing voices means processing other people's personal data – and, for voice profiles,

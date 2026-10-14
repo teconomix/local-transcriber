@@ -138,6 +138,64 @@ class StatusCodes(unittest.TestCase):
         self.assertEqual(refs, {"Kim Beispiel": 1, "Sam Probe": 0})
         self.assertTrue((tmp / "beispiel.md").exists())
 
+    def test_recheck_matches_open_voices_against_newer_references(self):
+        """Neu erkennen: eine seither (in einer anderen Aufnahme) benannte Stimme wird erkannt, Bestätigte bleiben."""
+        set_lang("de")
+        tmp = Path(tempfile.mkdtemp(dir=_DATA))
+        jp = tmp / "beispiel.transcript.json"
+        doc = sample()
+        doc["source"] = str(tmp / "beispiel.m4a")
+        jp.write_text(json.dumps(doc, ensure_ascii=False))
+        db = fresh_db()
+        rng = np.random.default_rng(3)
+        vecs = {c["label"]: rng.normal(size=192) for c in doc["speakers"]}
+        speakers.save_job(db, doc["job_id"], doc["source"], jp, doc["model"],
+                          [{"label": c["label"], "speech_s": c["speech_s"], "embedding": vecs[c["label"]],
+                            "status": c["status"]} for c in doc["speakers"]])
+        pid = speakers.person_id(db, "Kim Beispiel")             # in einer späteren Aufnahme benannt
+        db.execute("INSERT INTO embeddings(person_id, vec, speech_s, job_id, label) VALUES(?,?,?,?,?)",
+                   (pid, speakers._unit(vecs["SPEAKER_01"] + rng.normal(size=192) * 0.1).tobytes(), 120, "anders", "SPEAKER_00"))
+        db.commit()
+        changed = pipeline.recheck(jp)
+        self.assertEqual([c["letter"] for c in changed], ["B"])
+        out = {c["letter"]: (c["display"], c["status"]) for c in json.loads(jp.read_text())["speakers"]}
+        self.assertEqual(out, {"A": ("Alex Muster", "bestätigt"), "B": ("Kim Beispiel", "sicher"), "C": ("Sprecher C", "unbekannt")})
+
+
+class Report(unittest.TestCase):
+    def test_redactor_whole_words_stable_placeholders(self):
+        from transcriber import report
+        r = report.Redactor()
+        r.add("Kim Beispiel", "Person"); r.add("Kurz", "Name"); r.add("Budget Q4, Tag 1", "Termin"); r.add("Budget Q4", "Termin")
+        out = r("Kim Beispiel im Termin Budget Q4, Tag 1 und Budget Q4; Kurzfassung bleibt, Kurz nicht; mail kim@example.org")
+        self.assertEqual(out, "‹Person 1› im Termin ‹Termin 1› und ‹Termin 2›; Kurzfassung bleibt, ‹Name 1› nicht; mail ‹E-Mail›")
+        self.assertEqual(report.Redactor(enabled=False)("Kim Beispiel"), "Kim Beispiel")
+
+    def test_report_zip_has_no_recordings_and_redacts_titles(self):
+        import zipfile
+        from transcriber import report
+        tmp = Path(tempfile.mkdtemp(dir=_DATA))
+        watch = tmp / "Transcriber" / "Aufnahmen"
+        watch.mkdir(parents=True)
+        (watch / "2026-10-14 Geheimes Projekt.m4a").write_bytes(b"\0" * 64)
+        (watch / "2026-10-14 Geheimes Projekt.transcript.json").write_text("{}")
+        config.CONFIG.write_text(json.dumps({"watch_dir": str(tmp / "Transcriber")}))
+        (config.DATA / "app.log").write_text("2026-10-14T10:00:00Z Aufnahme benannt in 0.1 s: 2026-10-14 Geheimes Projekt.m4a\n"
+                                             "2026-10-14T10:00:01Z Termin zur Aufnahme: Vertrauliche Runde (3 Teilnehmer)\n")
+        try:
+            out = tmp / "bericht.zip"
+            files = report.build(out, "Mikro geht nicht")
+            with zipfile.ZipFile(out) as z:
+                text = "\n".join(z.read(n).decode() for n in z.namelist())
+            self.assertIn("protokolle/app.log", files)
+            self.assertFalse([n for n in files if n.endswith((".m4a", ".transcript.json", ".db"))])
+            self.assertNotIn("Geheimes Projekt", text)
+            self.assertNotIn("Vertrauliche Runde", text)
+            self.assertIn("Mikro geht nicht", text)
+        finally:
+            config.CONFIG.unlink(missing_ok=True)
+            (config.DATA / "app.log").unlink(missing_ok=True)
+
 
 class Rename(unittest.TestCase):
     """Umbenennen zieht Audio, Begleitdateien, Stimmdatenbank und App-Statusdateien mit."""
@@ -177,6 +235,40 @@ class Rename(unittest.TestCase):
         self.assertEqual(st["source"], str(tmp / f"{new}.m4a"))
         self.assertEqual(Path(st["result"]["json"]).name, f"{new}.transcript.json")
         status.unlink()
+
+    def test_finder_rename_or_move_adopts_transcript(self):
+        """Im Finder umbenannt/verschoben: Transkript samt Begleitdateien wandert mit, statt neu transkribiert zu werden.
+        Eine Kopie (Original liegt noch) wird dagegen nicht übernommen."""
+        set_lang("de")
+        tmp = Path(tempfile.mkdtemp(dir=_DATA)).resolve()
+        audio = tmp / "Aufnahmen" / "alt.m4a"
+        audio.parent.mkdir()
+        audio.write_bytes(b"\1" * 32)
+        doc = sample()
+        doc["source"], doc["job_id"] = str(audio), pipeline.job_id(audio)
+        jp = audio.with_name("alt.transcript.json")
+        jp.write_text(json.dumps(doc, ensure_ascii=False))
+        for ext in (".md", ".event.json"):
+            audio.with_name("alt" + ext).write_text("alt")
+        db = fresh_db()
+        db.execute("INSERT INTO jobs VALUES(?,?,?,?,?)", (doc["job_id"], str(audio), str(jp), "m", 0))
+        db.commit()
+
+        copy = tmp / "kopie.m4a"
+        copy.write_bytes(audio.read_bytes())
+        self.assertIsNone(pipeline.find_moved(copy))                 # Original noch da: Kopie, nicht umbenannt
+        copy.unlink()
+
+        moved = tmp / "Projekt" / "Neuer Titel.m4a"
+        moved.parent.mkdir()
+        audio.rename(moved)
+        doc2, paths = pipeline.run(moved)                             # ohne Modelle: nur nachziehen
+        self.assertEqual(sorted(p.name for p in moved.parent.iterdir()),
+                         ["Neuer Titel.event.json", "Neuer Titel.m4a", "Neuer Titel.md", "Neuer Titel.transcript.json"])
+        self.assertEqual(list(audio.parent.iterdir()), [])
+        self.assertEqual(doc2["source"], str(moved))
+        self.assertEqual(tuple(db.execute("SELECT source, transcript FROM jobs").fetchone()),
+                         (str(moved), str(moved.with_name("Neuer Titel.transcript.json"))))
 
     def test_running_transcription_blocks_rename(self):
         tmp = Path(tempfile.mkdtemp(dir=_DATA))
@@ -220,8 +312,8 @@ class Tracks(unittest.TestCase):
 class VoiceDatabase(unittest.TestCase):
     def test_sure_thresholds_by_speaking_time(self):
         cfg = config.load()
-        cases = [(0.99, 14, False), (0.74, 30, False), (0.75, 30, True), (0.64, 60, False), (0.65, 60, True),
-                 (0.65, 59, False)]
+        cases = [(0.99, 14, False), (0.74, 30, False), (0.75, 30, True), (0.74, 60, False), (0.75, 60, True),
+                 (0.65, 600, False)]
         for score, secs, want in cases:
             self.assertEqual(speakers.sure_match(score, secs, cfg), want, (score, secs))
 
@@ -231,6 +323,63 @@ class VoiceDatabase(unittest.TestCase):
         self.assertEqual(speakers.resolve_name(db, "Kim"), "Kim Beispiel")
         speakers.person_id(db, "Kim Anders")
         self.assertEqual(speakers.resolve_name(db, "Kim"), "Kim")          # zwei Kims: nicht raten
+
+    def test_rerun_moves_confirmations_to_new_labels(self):
+        """Neuauswertung: Labels wechseln; Bestätigungen wandern mit, gemischte Gruppen vererben ihren Namen nicht."""
+        db = fresh_db()
+        rng = np.random.default_rng(2)
+        alex, kim, sam = (rng.normal(size=192) for _ in range(3))
+        sid, bid = speakers.person_id(db, "Alex Probe"), speakers.person_id(db, "Kim Probe")
+        for pid, vec, secs, label in ((sid, alex, 407, "SPEAKER_02"), (bid, kim + sam, 541, "SPEAKER_00")):
+            db.execute("INSERT INTO embeddings(person_id, vec, speech_s, job_id, label, origin) VALUES(?,?,?,?,?,?)",
+                       (pid, speakers._unit(vec).tobytes(), secs, "job1", label, "named"))
+        db.commit()
+        new = [{"label": "SPEAKER_01", "speech_s": 403, "embedding": alex + rng.normal(size=192) * 0.05},
+               {"label": "SPEAKER_02", "speech_s": 154, "embedding": kim},
+               {"label": "SPEAKER_03", "speech_s": 389, "embedding": sam}]
+        old = speakers.release_job_refs(db, "job1")
+        speakers.identify(db, new, config.load())
+        speakers.carry_refs(db, "job1", "a.m4a", old, new)
+        db.commit()
+        self.assertEqual([(c["label"], c["name"], c["status"]) for c in new],
+                         [("SPEAKER_01", "Alex Probe", "bestätigt"), ("SPEAKER_02", None, "unbekannt"),
+                          ("SPEAKER_03", None, "unbekannt")])
+        refs = db.execute("SELECT person_id, label FROM embeddings WHERE job_id='job1'").fetchall()
+        self.assertEqual([tuple(r) for r in refs], [(sid, "SPEAKER_01")])   # alte Alex-/Mischreferenz weg
+
+    def test_voices_export_import_roundtrip(self):
+        """Weitergeben: nur ausgewählte Personen, je ein Abdruck ohne Pfade; Import erkennt die Stimme, ein zweiter
+        Import ersetzt den ersten, eigene Referenzen bleiben."""
+        db = fresh_db()
+        rng = np.random.default_rng(4)
+        kim, alex = rng.normal(size=192), rng.normal(size=192)
+        for name, v in (("Kim Beispiel", kim), ("Alex Muster", alex)):
+            for _ in range(2):
+                db.execute("INSERT INTO embeddings(person_id, vec, speech_s, source, origin) VALUES(?,?,?,?,?)",
+                           (speakers.person_id(db, name), speakers._unit(v + rng.normal(size=192) * 0.1).tobytes(), 90,
+                            "/geheim/Termin XY.m4a", "named"))
+        db.commit()
+        d = speakers.export_voices(db, ["Kim"])                       # Vorname genügt
+        self.assertEqual([p["name"] for p in d["persons"]], ["Kim Beispiel"])
+        self.assertNotIn("geheim", json.dumps(d))
+        f = Path(tempfile.mkdtemp(dir=_DATA)) / "stimmen.voices.json"
+        f.write_text(json.dumps(d))
+
+        db = fresh_db()                                               # anderer Rechner
+        own = speakers.person_id(db, "Kim Beispiel")
+        db.execute("INSERT INTO embeddings(person_id, vec, speech_s, origin) VALUES(?,?,?,?)",
+                   (own, speakers._unit(kim).tobytes(), 30, "named"))
+        db.commit()
+        for _ in range(2):
+            self.assertEqual(speakers.import_voices(db, speakers.read_voices(f), source=f.name), [("Kim Beispiel", "ergänzt")])
+        self.assertEqual([tuple(r) for r in db.execute("SELECT origin FROM embeddings ORDER BY origin")], [("imported",), ("named",)])
+        probe = [{"label": "SPEAKER_00", "speech_s": 120, "embedding": kim + rng.normal(size=192) * 0.1}]
+        speakers.identify(db, probe, config.load())
+        self.assertEqual((probe[0]["name"], probe[0]["status"]), ("Kim Beispiel", "sicher"))
+        self.assertEqual(speakers.import_voices(db, speakers.read_voices(f), skip_existing=True), [("Kim Beispiel", "übersprungen")])
+        f.write_text(json.dumps(dict(d, embedding="anderes/modell")))
+        with self.assertRaises(ValueError):
+            speakers.read_voices(f)
 
     def test_nfd_and_nfc_are_the_same_person(self):
         db = fresh_db()

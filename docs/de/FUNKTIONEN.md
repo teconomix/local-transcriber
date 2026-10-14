@@ -73,5 +73,7 @@ lief, per Apple Intelligence aus dem Inhalt (macOS 26). Transkript und Stimmdate
 - **Kommandozeile:** `transcriber transcribe DATEI`, `who`, `name`, `confirm`, `speakers`, `vocab`, `rename`, `watch`.
 - **MCP-Server** (`transcriber-mcp`): Werkzeuge `transcribe`, `who`, `name_speaker`, `confirm_speakers`,
   `list_speakers` für KI-Agenten wie Claude.
-- **Ordnerwächter** als LaunchAgent: legt Ergebnisse neben jede neue Datei in `~/Transcriber`.
+- **Ordnerwächter** als LaunchAgent: legt Ergebnisse neben jede neue Datei in `~/Transcriber` und seinen Unterordnern –
+  außer im Aufnahmeordner der App, dort startet die App selbst. Eine im Finder umbenannte oder verschobene Datei behält
+  ihr Transkript (am Inhalt erkannt), statt neu transkribiert zu werden.
 - **Einstellungen** in `~/.local/share/transcriber/config.json` (Schwellen, Formate, Sprecherzahl …).

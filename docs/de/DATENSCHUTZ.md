@@ -27,6 +27,11 @@ Ausnahme: Wenn du zustimmst (das Panel fragt einmal; Einstellungen › Allgemein
 `https://transcriber.teconomix.net/latest.txt`, um auf eine neue Version hinzuweisen. Die Anfrage enthält nichts über
 dich oder deine Aufnahmen; der Server sieht deine IP-Adresse und protokolliert sie nicht.
 
+**Fehlerberichte** (Käfer im Panel) verschickt nicht die App: Sie legt eine ZIP-Datei in den Download-Ordner und
+öffnet eine Mail an info@teconomix.net, die du selbst abschickst. Die Datei enthält Protokolle, Version, Mac-Modell,
+macOS, Freigaben, Audiogeräte und Einstellungen der App – keine Aufnahmen, Transkripte, Stimmdatenbank oder Glossar.
+Dateinamen, Termintitel, Namen und E-Mail-Adressen werden durch Platzhalter ersetzt, sofern du das nicht abschaltest.
+
 ## Personen, die du aufnimmst
 
 Wer Gespräche aufnimmt und Stimmen speichert, verarbeitet personenbezogene – bei Stimmprofilen sogar biometrische –

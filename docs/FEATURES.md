@@ -74,5 +74,7 @@ updated accordingly.
 - **Command line:** `transcriber transcribe FILE`, `who`, `name`, `confirm`, `speakers`, `vocab`, `rename`, `watch`.
 - **MCP server** (`transcriber-mcp`): tools `transcribe`, `who`, `name_speaker`, `confirm_speakers`,
   `list_speakers` for AI agents such as Claude.
-- **Folder watcher** as a LaunchAgent: puts results next to every new file in `~/Transcriber`.
+- **Folder watcher** as a LaunchAgent: puts results next to every new file in `~/Transcriber` and its subfolders –
+  except the app's own recordings folder, where the app starts transcription itself. A file renamed or moved in
+  Finder keeps its transcript (recognized by content) instead of being transcribed again.
 - **Settings** in `~/.local/share/transcriber/config.json` (thresholds, formats, number of speakers …).

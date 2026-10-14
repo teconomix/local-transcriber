@@ -28,6 +28,9 @@ enum Core {
             return (code, Locale(identifier: uiLanguage).localizedString(forLanguageCode: code == "jw" ? "jv" : code) ?? code)
         }
         .sorted { $0.1.localizedStandardCompare($1.1) == .orderedAscending }
+    /// Personenzahl im Panel: „0“ = automatisch, sonst genau so viele (an pyannote als num_speakers).
+    static let speakerCounts: [(String, String)] = [("0", String(localized: "Automatisch")), ("1", String(localized: "1 Person"))]
+        + (2...6).map { (String($0), String(localized: "\($0) Personen")) }
     /// Welche davon im Panel zur Auswahl stehen (UserDefaults „languages“, Codes mit Komma).
     static let defaultLanguages = "de,en,es,fr"
     static func languages(_ enabled: String) -> [(String, String)] {
@@ -87,6 +90,7 @@ final class Job: ObservableObject, Identifiable {
     @Published var error: String?
     @Published var attendees: [String] = []      // Kalender: andere Teilnehmer (Vorschläge beim Benennen)
     @Published var duration: Double = 0
+    var language = "de"                          // Sprache dieses Transkripts (für „Neu auswerten“)
 
     init(id: String, source: URL, started: Date) { self.id = id; self.source = source; self.started = started }
 
@@ -95,6 +99,7 @@ final class Job: ObservableObject, Identifiable {
               let doc = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
               let sp = doc["speakers"] as? [[String: Any]] else { return }
         duration = doc["duration"] as? Double ?? 0
+        language = doc["language"] as? String ?? language
         attendees = ((doc["event"] as? [String: Any])?["attendees"] as? [[String: Any]] ?? []).compactMap { a in
             (a["me"] as? Bool ?? false) || a["status"] as? String == "abgesagt" ? nil : a["name"] as? String
         }
@@ -116,6 +121,12 @@ final class JobManager: ObservableObject {
     @Published var launchError: String?
     /// Namen aus der Stimmdatenbank – Vorschläge beim Benennen, damit nicht aus „Bjorn“ eine zweite Person wird.
     @Published var knownNames: [String] = []
+    /// Aufnahmen im Aufnahmeordner ohne Transkript (der Wächter lässt diesen Ordner aus – die App startet dort selbst).
+    /// Entsteht, wenn „Transkribieren“ aus ist oder ein Start scheiterte (Absturz zwischen Stopp und Auftrag).
+    @Published var untranscribed: [URL] = []
+    private var ticks = 0
+    /// Nur Demo-Bild (--ui-test --demo): Liste nicht aus den Statusdateien neu einlesen.
+    var frozen = false
     private var timer: Timer?
     private var hiddenBefore: Double { UserDefaults.standard.double(forKey: "hiddenBefore") }
     private var firstScan = true
@@ -138,9 +149,11 @@ final class JobManager: ObservableObject {
         return r.isEmpty ? nil : r.map(\.progress).reduce(0, +) / Double(r.count)
     }
 
-    func add(_ url: URL, language: String) {
+    /// speakers: genaue Personenzahl (0 = automatisch, Obergrenze aus Kalender bzw. 15).
+    func add(_ url: URL, language: String, speakers: Int = 0) {
         launchError = nil
-        let p = Core.process(["transcribe", url.path, "--language", language, "--progress", "json"])
+        let p = Core.process(["transcribe", url.path, "--language", language, "--progress", "json"]
+                             + (speakers > 0 ? ["--speakers", String(speakers)] : []))
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
         do { try p.run() } catch { launchError = String(localized: "Kern nicht startbar: \(error.localizedDescription) (\(Core.exe.path))"); appLog(launchError!) }
@@ -160,15 +173,24 @@ final class JobManager: ObservableObject {
     }
 
     private func scan() {
+        guard !frozen else { return }
         let files = (try? FileManager.default.contentsOfDirectory(at: Core.jobsDir, includingPropertiesForKeys: nil)) ?? []
         var seen = Set<String>()
         let hidden = Set(UserDefaults.standard.stringArray(forKey: "hiddenJobs") ?? [])
-        for f in files where f.pathExtension == "json" {
-            guard let d = try? Data(contentsOf: f), let s = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
-                  let src = s["source"] as? String, let started = s["started"] as? Double else { continue }
+        let status: [(URL, [String: Any])] = files.filter { $0.pathExtension == "json" }.compactMap { f in
+            guard let d = try? Data(contentsOf: f), let s = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return nil }
+            return (f, s)
+        }
+        // Neuauswertung derselben Datei: nur der jüngste Lauf je Quelle. Ältere hier überspringen – nicht erst anlegen und
+        // wieder entfernen, sonst gälten sie bei jedem Durchlauf als „gerade fertig“ (Mitteilung im Sekundentakt, 2026-10-12).
+        var newest: [String: Double] = [:]
+        for (_, s) in status { if let src = s["source"] as? String, let t = s["started"] as? Double { newest[src] = max(newest[src] ?? t, t) } }
+        for (f, s) in status {
+            guard let src = s["source"] as? String, let started = s["started"] as? Double else { continue }
             let id = f.lastPathComponent
             var state = Job.State(rawValue: s["state"] as? String ?? "") ?? .running
             if state == .running, let pid = s["pid"] as? Int32, kill(pid, 0) != 0 { state = .aborted }   // Prozess weg
+            if state != .running && started < newest[src]! { continue }
             if state != .running && (started < hiddenBefore || hidden.contains(id)) { continue }
             if state != .running && Date().timeIntervalSince1970 - started > 86400 { continue }  // nur letzte 24 h
             seen.insert(id)
@@ -217,6 +239,36 @@ final class JobManager: ObservableObject {
         }
         jobs.sort { $0.started > $1.started }
         firstScan = false
+        if ticks % 5 == 0 { findUntranscribed() }
+        ticks += 1
+    }
+
+    private func findUntranscribed() {
+        let fm = FileManager.default
+        let ignored = Set(UserDefaults.standard.stringArray(forKey: "ignoredRecordings") ?? [])
+        let busy = Set(running.map(\.source.path))
+        let files = (try? fm.contentsOfDirectory(at: recordingsDir, includingPropertiesForKeys: [.contentModificationDateKey],
+                                                 options: .skipsHiddenFiles)) ?? []   // laufende Aufnahme: „.name.m4a“
+        let found = files.filter { f in
+            let stem = f.deletingPathExtension()
+            let modified = (try? f.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            return ["m4a", "mp3", "wav", "aac", "caf", "mp4", "mov"].contains(f.pathExtension.lowercased())
+                && !ignored.contains(f.path) && !busy.contains(f.path)
+                && Date().timeIntervalSince(modified) > 60                       // gerade beendet: Auftrag startet gleich
+                && ["transcript.json", "lock", "error.txt"].allSatisfy { !fm.fileExists(atPath: stem.path + "." + $0) }
+        }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        if found != untranscribed { untranscribed = found }
+    }
+
+    func transcribeUntranscribed(language: String) {
+        for u in untranscribed { add(u, language: language) }
+        untranscribed = []
+    }
+
+    func ignoreUntranscribed() {
+        let d = UserDefaults.standard
+        d.set(Array(Set(d.stringArray(forKey: "ignoredRecordings") ?? []).union(untranscribed.map(\.path))), forKey: "ignoredRecordings")
+        untranscribed = []
     }
 
     private func notify(_ job: Job) {
@@ -238,6 +290,40 @@ final class JobManager: ObservableObject {
         guard ok, let line = out.split(separator: "\n").last, let d = line.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return }
         knownNames = obj.keys.sorted { $0.localizedCompare($1) == .orderedAscending }
+    }
+
+    /// Neu auswerten (andere Personenzahl): Der Kern nimmt Spracherkennung und Audio aus dem Zwischenspeicher, rechnet
+    /// nur die Sprechertrennung neu und übernimmt eindeutige Bestätigungen. Der alte Eintrag weicht dem neuen Lauf.
+    func rerun(_ job: Job, speakers: Int) {
+        guard FileManager.default.fileExists(atPath: job.source.path) else {
+            job.error = String(localized: "Audiodatei nicht gefunden"); return
+        }
+        hide(job)
+        add(job.source, language: job.language, speakers: speakers)
+    }
+
+    /// Offene Stimmen neu mit der Stimmdatenbank abgleichen (Sekundenbruchteile, nichts wird neu gerechnet).
+    func recheck(_ job: Job) async {
+        guard let j = job.jsonURL else { return }
+        let (ok, out) = await Core.run(["recheck", j.path])
+        if ok { job.loadSpeakers() } else { job.error = out }
+    }
+
+    /// Aufnahme samt Transkript umbenennen (`transcriber rename`: Audio, .transcript.json, .md, .srt, .event.json,
+    /// Stimmdatenbank, Statusdateien). Im Finder umbenannt fände der Wächter eine Datei ohne Transkript und
+    /// transkribierte sie neu. Liefert nil bei Erfolg, sonst die Fehlermeldung.
+    func rename(_ job: Job, to name: String) async -> String? {
+        guard let j = job.jsonURL else { return String(localized: "Transkript nicht gefunden") }
+        let (ok, out) = await Core.run(["rename", j.path, name, "--json"])
+        guard ok, let line = out.split(separator: "\n").last, let d = line.data(using: .utf8),
+              let p = try? JSONSerialization.jsonObject(with: d) as? [String: String] else {
+            appLog("Umbenennen fehlgeschlagen: \(out)")
+            return out.split(separator: "\n").last.map(String.init) ?? String(localized: "Umbenennen fehlgeschlagen")
+        }
+        if let s = p["source"] { job.source = URL(fileURLWithPath: s) }
+        job.mdURL = p["md"].map { URL(fileURLWithPath: $0) }
+        job.jsonURL = p["json"].map { URL(fileURLWithPath: $0) }
+        return nil
     }
 
     func confirm(_ job: Job) async {

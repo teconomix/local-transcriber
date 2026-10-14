@@ -34,8 +34,10 @@ def prepare(src, dst):
     else:
         af = ["-af", "loudnorm=I=-18"]
     Path(dst).parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run([tool("ffmpeg"), "-nostdin", "-v", "error", "-y", "-i", str(src), *af, "-ac", "1", "-ar", "16000", str(dst)],
+    tmp = Path(dst).with_suffix(".tmp.wav")   # erst fertig, dann umbenennen: der Zwischenspeicher wird wiederverwendet
+    subprocess.run([tool("ffmpeg"), "-nostdin", "-v", "error", "-y", "-i", str(src), *af, "-ac", "1", "-ar", "16000", str(tmp)],
                    check=True)
+    tmp.replace(dst)
     return {"tracks": len(tracks), "duration": dur}
 
 
@@ -47,8 +49,10 @@ def prepare_tracks(src, dst_dir, n):
     out = []
     for i in range(n):
         dst = Path(dst_dir) / f"track{i + 1}.wav"
+        tmp = dst.with_suffix(".tmp.wav")
         subprocess.run([tool("ffmpeg"), "-nostdin", "-v", "error", "-y", "-i", str(src), "-map", f"0:a:{i}",
-                        "-ac", "1", "-ar", "16000", str(dst)], check=True)
+                        "-ac", "1", "-ar", "16000", str(tmp)], check=True)
+        tmp.replace(dst)
         out.append(dst)
     return out
 
