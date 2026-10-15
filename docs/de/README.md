@@ -8,8 +8,10 @@ Local Transcriber (in der Menüleiste kurz „Transcriber“) ist ein kleines Me
 wer gesprochen hat, und lässt dich überall per Tastendruck diktieren. Alles läuft lokal auf dem Mac – kein Konto,
 kein Abo, kein Lizenzserver, kein Audio, das den Rechner verlässt.
 
+[![Demo-Video (70 s) auf der Website](https://transcriber.teconomix.net/assets/video/poster-de.jpg)](https://transcriber.teconomix.net/de/?k=github)
+
 ```bash
-curl -fsSL https://transcriber.teconomix.net/install.sh | bash
+curl -fsSL https://transcriber.teconomix.net/k/github/install.sh | bash
 ```
 
 Oder mit Homebrew: `brew install --cask teconomix/tap/local-transcriber`. Fragen: [Diskussionen](https://github.com/teconomix/local-transcriber/discussions).

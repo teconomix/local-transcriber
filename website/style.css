@@ -363,6 +363,18 @@ section { padding: 88px 0; }
 .note strong { color: var(--text); }
 .note p:last-child { margin-bottom: 0; }
 
+/* Themenseiten (de/beratung.html u. a.) */
+.article h1 { font-size: clamp(1.9rem, 4.6vw, 2.6rem); }
+.article .article-lead { font-size: 1.15rem; color: var(--text); }
+.article .cmd { margin: 12px 0 16px; }
+.article li { margin-bottom: .5em; }
+.table-wrap { overflow-x: auto; margin: 0 0 1em; }
+.article table { border-collapse: collapse; width: 100%; font-size: .95rem; }
+.article th, .article td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+.article thead th { color: var(--text); font-weight: 650; }
+.article tbody th { color: var(--text); font-weight: 600; }
+.article td { color: var(--muted); }
+
 /* FAQ */
 .faq { max-width: 760px; }
 .faq details {

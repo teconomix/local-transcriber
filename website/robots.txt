@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /download/
+Disallow: /k/
+
+Sitemap: https://transcriber.teconomix.net/sitemap.xml

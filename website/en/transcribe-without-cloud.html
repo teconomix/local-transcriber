@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Transcribe conversations without the cloud – Teams, Zoom and Meet without a meeting bot | Local Transcriber</title>
+  <meta name="description" content="Transcribe meetings, video calls and interviews on your Mac without uploading anything and without a bot in the call: free, open source, with speaker recognition. What's different from cloud services.">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Local Transcriber">
+  <meta property="og:title" content="Transcribe conversations without the cloud – no meeting bot">
+  <meta property="og:description" content="Transcribe meetings, calls and interviews locally on your Mac – free and open source.">
+  <meta property="og:url" content="https://transcriber.teconomix.net/en/transcribe-without-cloud.html">
+  <meta property="og:image" content="https://transcriber.teconomix.net/assets/og-en.png">
+  <meta property="og:locale" content="en_US">
+  <meta name="color-scheme" content="light dark">
+  <meta name="referrer" content="no-referrer">
+  <link rel="canonical" href="https://transcriber.teconomix.net/en/transcribe-without-cloud.html">
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../style.css?v=0.7-2">
+  <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/lokal-transkribieren.html">
+  <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/transcribe-without-cloud.html">
+  <script src="../script.js?v=0.7-2" defer></script>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="../assets/icon.svg" alt="" width="28" height="28">Local Transcriber</a>
+    <nav class="nav" aria-label="Main navigation"><a class="opt" href="./?k=seo-nocloud">Home</a><a class="lang" href="../de/lokal-transkribieren.html" hreflang="de" lang="de">Deutsch</a></nav>
+  </div>
+</header>
+
+<main class="legal article wrap">
+  <h1>Transcribe conversations without the cloud – Teams, Zoom and Meet without a meeting bot</h1>
+  <p class="article-lead">Most transcription services upload the conversation to their servers or send a bot into the call. For client calls, interviews, HR conversations or anything confidential, both are a concern. There is another way: a current Mac with Apple Silicon is fast enough to transcribe a one-hour conversation itself in a few minutes – with speaker recognition.</p>
+
+  <h2>Cloud service or local – the difference</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th></th><th>Typical cloud service</th><th>Local Transcriber</th></tr></thead>
+    <tbody>
+      <tr><th>Where is it transcribed?</th><td>on the provider's servers</td><td>on your Mac</td></tr>
+      <tr><th>Who is in the call?</th><td>often a bot as an extra participant</td><td>nobody – microphone and system audio are recorded on the Mac</td></tr>
+      <tr><th>Account, subscription</th><td>usually required</td><td>no, free and open source (MIT)</td></tr>
+      <tr><th>Internet</th><td>required</td><td>only for installation</td></tr>
+      <tr><th>Speaker recognition</th><td>usually yes</td><td>yes, with a learning voice database (local)</td></tr>
+      <tr><th>Platform</th><td>browser, many devices</td><td>Mac with Apple Silicon only, macOS 14+</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>What Local Transcriber does</h2>
+  <ul>
+    <li><strong>Record calls:</strong> detects Zoom, Teams, Google Meet, Webex, Slack, FaceTime and calls in the browser and asks “Record?” – never starts on its own. When the call ends, so does the recording.</li>
+    <li><strong>Two tracks:</strong> microphone (you) and system audio (the others) separately – so it's clear who said what.</li>
+    <li><strong>Transcribe:</strong> Whisper large-v3-turbo on the Apple Silicon GPU, around 100 languages; one hour of audio in about three to four minutes.</li>
+    <li><strong>Names:</strong> once named, the app recognizes voices later. With calendar access, it suggests the event's attendees.</li>
+    <li><strong>Output:</strong> Markdown, JSON and subtitles (SRT) next to the recording – for notes, minutes or your own AI tools.</li>
+    <li><strong>Files:</strong> transcribe existing recordings (interviews, voice memos).</li>
+    <li><strong>Dictation:</strong> hold a key, speak, release – the text appears at the cursor in any app.</li>
+  </ul>
+
+  <h2>Honestly: the limits</h2>
+  <p>Macs with Apple Silicon only. Several people on one microphone in the same room are separated less reliably than online calls. Rare languages and dialects are recognized less well. And as with any tool: getting everyone's consent before recording is up to you.</p>
+
+  <h2>Install</h2>
+  <p>Open Terminal (<kbd>⌘</kbd> + <kbd>Space</kbd>, “Terminal”) and paste – the installer does the rest in about ten minutes:</p>
+  <div class="cmd">
+    <pre id="install-cmd-a">curl -fsSL https://transcriber.teconomix.net/k/seo-nocloud/install.sh | bash</pre>
+    <button class="copy-btn" type="button" data-copied="Copied" data-copy="install-cmd-a" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>
+      <span aria-live="polite">Copy</span>
+    </button>
+  </div>
+  <p>Or with Homebrew: <code>brew install --cask teconomix/tap/local-transcriber</code>. Guide with pictures and a 70-second video: <a href="./?k=seo-nocloud#installation">home page</a>. For confidential conversations in particular: <a href="counseling.html">counseling, coaching and supervision</a>.</p>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Local Transcriber · Open source (MIT) · no warranty</span>
+    <nav aria-label="Legal and links">
+      <a href="legal-notice.html">Legal notice</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="counseling.html">For counseling &amp; supervision</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

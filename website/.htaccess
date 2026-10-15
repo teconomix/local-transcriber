@@ -18,6 +18,9 @@ RewriteRule ^(index\.html)?$ /de/ [R=302,L,E=LANG_NEGOTIATED:1]
 RewriteRule ^(index\.html)?$ /en/ [R=302,L,E=LANG_NEGOTIATED:1]
 # /de und /en ohne Schrägstrich: sonst ergänzt mod_dir ihn und verrät dabei das Unterverzeichnis (/transcriber/de/)
 RewriteRule ^(de|en)$ /$1/ [R=301,L]
+# Kampagnen-Kürzel: /k/<kürzel>/install.sh liefert intern install.sh (Pfad statt ?k=, weil zsh ein unmaskiertes „?“
+# als Platzhalter liest). Das Kürzel steht nur im Zugriffsprotokoll und wird von scripts/site-stats.py gezählt.
+RewriteRule ^k/[a-z0-9-]{1,24}/install\.sh$ /install.sh [L]
 # Alte Adressen der Rechtstexte (bis 0.4.0 an der Wurzel)
 RewriteRule ^(impressum|datenschutz)\.html$ /de/$1.html [R=301,L]
 

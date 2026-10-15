@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Transcribe counseling, coaching and supervision sessions – locally on your Mac | Local Transcriber</title>
+  <meta name="description" content="Transcribe counseling, coaching and supervision sessions without the audio ever leaving your Mac: no cloud service, no meeting bot, no subscription. How it works, its limits, and what to watch out for with confidential conversations.">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Local Transcriber">
+  <meta property="og:title" content="Transcribe counseling, coaching and supervision sessions – locally on your Mac">
+  <meta property="og:description" content="Transcripts of confidential conversations without cloud or meeting bot. Free and open source.">
+  <meta property="og:url" content="https://transcriber.teconomix.net/en/counseling.html">
+  <meta property="og:image" content="https://transcriber.teconomix.net/assets/og-en.png">
+  <meta property="og:locale" content="en_US">
+  <meta name="color-scheme" content="light dark">
+  <meta name="referrer" content="no-referrer">
+  <link rel="canonical" href="https://transcriber.teconomix.net/en/counseling.html">
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../style.css?v=0.7-2">
+  <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/beratung.html">
+  <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/counseling.html">
+  <script src="../script.js?v=0.7-2" defer></script>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="../assets/icon.svg" alt="" width="28" height="28">Local Transcriber</a>
+    <nav class="nav" aria-label="Main navigation"><a class="opt" href="./?k=seo-counseling">Home</a><a class="lang" href="../de/beratung.html" hreflang="de" lang="de">Deutsch</a></nav>
+  </div>
+</header>
+
+<main class="legal article wrap">
+  <h1>Transcribe counseling, coaching and supervision sessions – without a word leaving your Mac</h1>
+  <p class="article-lead">Anyone who counsels, coaches or supervises knows the dilemma: take notes and be half absent – or stay fully in the conversation and reconstruct it from memory afterwards. A transcript solves that. Cloud services, however, are hardly an option for confidential conversations. Local Transcriber therefore transcribes entirely on your own Mac.</p>
+
+  <h2>Why local instead of cloud</h2>
+  <ul>
+    <li><strong>No third party gets the conversations.</strong> Speech recognition (Whisper) and speaker recognition (pyannote) run on the Mac. No service provider processes recordings – responsibility for recording and retention stays with you.</li>
+    <li><strong>No bot in the call.</strong> In online sessions, no “notetaker” joins as an extra participant. The app records the microphone and system audio on your own Mac – on two separate tracks, so your voice and your client's are kept apart cleanly.</li>
+    <li><strong>No internet needed.</strong> After installation, everything works offline. No account, no subscription.</li>
+  </ul>
+
+  <h2>How a session works</h2>
+  <ol>
+    <li><strong>Get consent</strong> – before recording, from everyone involved. The app deliberately makes no automatic announcement; you have that conversation yourself.</li>
+    <li><strong>Record</strong> – one click in the menu bar. With Zoom, Teams, Google Meet &amp; co., the app detects the call and asks “Record?”. It never starts on its own.</li>
+    <li><strong>Wait for the transcript</strong> – one hour of conversation is transcribed in about three to four minutes, with timestamps and speakers, as a Markdown file next to the recording.</li>
+    <li><strong>Name speakers – or deliberately don't.</strong> The app separates voices automatically (A, B, …). It recognizes named voices in later sessions.</li>
+    <li><strong>Keep working</strong> – mark key passages, pull quotes for documentation, case review or supervision.</li>
+  </ol>
+  <p>For your own notes in between there is <strong>dictation</strong>: hold the right <kbd>⌘</kbd>, speak, release – the text appears at the cursor in any app.</p>
+
+  <h2>What to watch out for with confidential conversations</h2>
+  <ul>
+    <li><strong>Voice profiles are biometric data.</strong> When you name a voice, the app stores a voice profile – locally, but it remains a biometric identifier. Name clients only with their explicit consent, or leave them as “Speaker B”. Voice profiles can be deleted at any time in the “Voices” window.</li>
+    <li><strong>Decide on retention.</strong> Recordings and transcripts are ordinary files in the folder <code>~/Transcriber</code>. You decide how long they stay – for example, delete the audio right after transcribing.</li>
+    <li><strong>Protect the Mac.</strong> Turn on FileVault, use a screen lock, encrypt backups: local is only as safe as the device.</li>
+    <li><strong>Mind your professional rules.</strong> Whether and how you may record is governed by your professional code and the law of your country. The tool doesn't make that judgment for you.</li>
+  </ul>
+
+  <h2>What works well – and the limits</h2>
+  <p><strong>Works well:</strong> clear German and English, even in long conversations; online sessions thanks to the separate tracks; recurring voices once they are named.</p>
+  <p><strong>Limits:</strong> several people in one room on one microphone – short interjections are sometimes attributed to the wrong speaker; uncertain assignments are marked “(?)”. Dialects and quiet or overlapping voices reduce accuracy. A transcript doesn't replace listening; it's a memory aid.</p>
+
+  <h2>Try it</h2>
+  <p>Local Transcriber is free and open source (MIT). Requirements: a Mac with Apple Silicon (M1 or newer), macOS 14 or newer, about 8 GB of free disk space. Open Terminal (<kbd>⌘</kbd> + <kbd>Space</kbd>, “Terminal”) and paste:</p>
+  <div class="cmd">
+    <pre id="install-cmd-a">curl -fsSL https://transcriber.teconomix.net/k/seo-counseling/install.sh | bash</pre>
+    <button class="copy-btn" type="button" data-copied="Copied" data-copy="install-cmd-a" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>
+      <span aria-live="polite">Copy</span>
+    </button>
+  </div>
+  <p>Step-by-step guide with pictures and a 70-second video: <a href="./?k=seo-counseling#installation">home page</a>. Questions: <a href="https://github.com/teconomix/local-transcriber/discussions">GitHub Discussions</a>.</p>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Local Transcriber · Open source (MIT) · no warranty</span>
+    <nav aria-label="Legal and links">
+      <a href="legal-notice.html">Legal notice</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="transcribe-without-cloud.html">Transcribe without the cloud</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

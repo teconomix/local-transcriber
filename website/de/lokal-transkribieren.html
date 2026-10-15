@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gespräche transkribieren ohne Cloud – Teams, Zoom und Meet ohne Meeting-Bot | Local Transcriber</title>
+  <meta name="description" content="Meetings, Videocalls und Interviews auf dem Mac transkribieren, ohne Upload und ohne Bot im Call: kostenlos, Open Source, mit Sprechererkennung. Was lokal anders ist als bei Cloud-Diensten.">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Local Transcriber">
+  <meta property="og:title" content="Gespräche transkribieren ohne Cloud – ohne Meeting-Bot">
+  <meta property="og:description" content="Meetings, Calls und Interviews lokal auf dem Mac transkribieren – kostenlos und Open Source.">
+  <meta property="og:url" content="https://transcriber.teconomix.net/de/lokal-transkribieren.html">
+  <meta property="og:image" content="https://transcriber.teconomix.net/assets/og-de.png">
+  <meta property="og:locale" content="de_AT">
+  <meta name="color-scheme" content="light dark">
+  <meta name="referrer" content="no-referrer">
+  <link rel="canonical" href="https://transcriber.teconomix.net/de/lokal-transkribieren.html">
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../style.css?v=0.7-2">
+  <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/lokal-transkribieren.html">
+  <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/transcribe-without-cloud.html">
+  <script src="../script.js?v=0.7-2" defer></script>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="../assets/icon.svg" alt="" width="28" height="28">Local Transcriber</a>
+    <nav class="nav" aria-label="Hauptnavigation"><a class="opt" href="./?k=seo-lokal">Zur Startseite</a><a class="lang" href="../en/transcribe-without-cloud.html" hreflang="en" lang="en">English</a></nav>
+  </div>
+</header>
+
+<main class="legal article wrap">
+  <h1>Gespräche transkribieren ohne Cloud – Teams, Zoom und Meet ohne Meeting-Bot</h1>
+  <p class="article-lead">Die meisten Transkriptions-Dienste laden das Gespräch auf ihre Server oder schicken einen Bot in den Call. Für Kundengespräche, Interviews, Personalgespräche oder alles Vertrauliche ist beides heikel. Es geht auch anders: Ein aktueller Mac mit Apple Silicon ist schnell genug, um ein einstündiges Gespräch in wenigen Minuten selbst zu transkribieren – mit Sprechererkennung.</p>
+
+  <h2>Cloud-Dienst oder lokal – der Unterschied</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th></th><th>Typischer Cloud-Dienst</th><th>Local Transcriber</th></tr></thead>
+    <tbody>
+      <tr><th>Wo wird transkribiert?</th><td>auf Servern des Anbieters</td><td>auf deinem Mac</td></tr>
+      <tr><th>Wer ist im Call?</th><td>oft ein Bot als zusätzlicher Teilnehmer</td><td>niemand – Aufnahme von Mikrofon und Systemton auf dem Mac</td></tr>
+      <tr><th>Konto, Abo</th><td>meist nötig</td><td>nein, kostenlos und Open Source (MIT)</td></tr>
+      <tr><th>Internet</th><td>nötig</td><td>nur für die Installation</td></tr>
+      <tr><th>Sprechererkennung</th><td>meist ja</td><td>ja, mit lernender Stimmdatenbank (lokal)</td></tr>
+      <tr><th>Plattform</th><td>Browser, viele Geräte</td><td>nur Mac mit Apple Silicon, macOS 14+</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>Was Local Transcriber macht</h2>
+  <ul>
+    <li><strong>Calls aufnehmen:</strong> erkennt Zoom, Teams, Google Meet, Webex, Slack, FaceTime und Calls im Browser und fragt „Aufnehmen?“ – startet nie von selbst. Endet der Call, endet die Aufnahme.</li>
+    <li><strong>Zwei Spuren:</strong> Mikrofon (du) und Systemton (die anderen) getrennt – so wird sauber zugeordnet, wer was gesagt hat.</li>
+    <li><strong>Transkribieren:</strong> Whisper large-v3-turbo auf der Apple-Silicon-GPU, rund 100 Sprachen; eine Stunde Audio in etwa drei bis vier Minuten.</li>
+    <li><strong>Namen:</strong> einmal benannt, erkennt die App Stimmen später wieder. Mit Kalender-Zugriff schlägt sie die Termin-Teilnehmer vor.</li>
+    <li><strong>Ergebnis:</strong> Markdown, JSON und Untertitel (SRT) neben der Aufnahme – für Notizen, Protokolle oder die eigene KI.</li>
+    <li><strong>Dateien:</strong> vorhandene Aufnahmen (Interviews, Sprachmemos) einfach transkribieren lassen.</li>
+    <li><strong>Diktat:</strong> Taste halten, sprechen, loslassen – Text an der Schreibmarke jeder App.</li>
+  </ul>
+
+  <h2>Ehrlich: die Grenzen</h2>
+  <p>Nur für Macs mit Apple Silicon. Mehrere Personen an einem Mikrofon im selben Raum werden weniger zuverlässig getrennt als Online-Calls. Seltene Sprachen und Dialekte werden schwächer erkannt. Und wie bei jedem Werkzeug gilt: Die Einwilligung aller Beteiligten vor der Aufnahme holst du selbst ein.</p>
+
+  <h2>Installieren</h2>
+  <p>Terminal öffnen (<kbd>⌘</kbd> + <kbd>Leertaste</kbd>, „Terminal“) und einfügen – der Installer erledigt den Rest in etwa zehn Minuten:</p>
+  <div class="cmd">
+    <pre id="install-cmd-a">curl -fsSL https://transcriber.teconomix.net/k/seo-lokal/install.sh | bash</pre>
+    <button class="copy-btn" type="button" data-copied="Kopiert" data-copy="install-cmd-a" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>
+      <span aria-live="polite">Kopieren</span>
+    </button>
+  </div>
+  <p>Oder mit Homebrew: <code>brew install --cask teconomix/tap/local-transcriber</code>. Anleitung mit Bildern und 70-Sekunden-Video: <a href="./?k=seo-lokal#installation">zur Startseite</a>. Speziell für vertrauliche Gespräche: <a href="beratung.html">Beratung, Coaching und Supervision</a>.</p>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Local Transcriber · Open Source (MIT) · ohne Gewähr</span>
+    <nav aria-label="Rechtliches und Links">
+      <a href="impressum.html">Impressum</a>
+      <a href="datenschutz.html">Datenschutz</a>
+      <a href="beratung.html">Für Beratung &amp; Supervision</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>
