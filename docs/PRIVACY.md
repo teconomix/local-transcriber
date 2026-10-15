@@ -25,7 +25,8 @@ Python packages from PyPI, the Whisper model from Hugging Face and, if needed, f
 During operation, Transcriber does not access the internet (speech recognition runs with `HF_HUB_OFFLINE=1`) – with
 one optional exception: if you agree (the panel asks once; Settings › General), the app reads
 `https://transcriber.teconomix.net/latest.txt` once a day to show a hint when a new version is out. The request
-carries nothing about you or your recordings; the server sees your IP address and does not log it.
+carries nothing about you or your recordings; the server sees your IP address and keeps it only shortened (e.g. 82.98.0.0) in its access log, which is deleted
+after 7 days; only daily totals are kept (see the website's privacy policy).
 
 **Problem reports** (ladybug in the panel) are not sent by the app: it creates a ZIP file in your Downloads folder
 and opens an email to info@teconomix.net, which you send yourself. The file contains logs, version, Mac model,

@@ -25,7 +25,8 @@ Python-Pakete von PyPI, das Whisper-Modell von Hugging Face und ggf. ffmpeg von 
 greift Transcriber nicht aufs Internet zu (die Spracherkennung läuft mit `HF_HUB_OFFLINE=1`) – mit einer optionalen
 Ausnahme: Wenn du zustimmst (das Panel fragt einmal; Einstellungen › Allgemein), liest die App einmal täglich
 `https://transcriber.teconomix.net/latest.txt`, um auf eine neue Version hinzuweisen. Die Anfrage enthält nichts über
-dich oder deine Aufnahmen; der Server sieht deine IP-Adresse und protokolliert sie nicht.
+dich oder deine Aufnahmen; der Server sieht deine IP-Adresse und speichert sie nur gekürzt (z. B. 82.98.0.0) im Zugriffsprotokoll, das nach
+7 Tagen gelöscht wird; aufbewahrt werden nur Tagessummen (siehe Datenschutzerklärung der Website).
 
 **Fehlerberichte** (Käfer im Panel) verschickt nicht die App: Sie legt eine ZIP-Datei in den Download-Ordner und
 öffnet eine Mail an info@teconomix.net, die du selbst abschickst. Die Datei enthält Protokolle, Version, Mac-Modell,
