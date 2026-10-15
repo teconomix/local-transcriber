@@ -12,6 +12,8 @@ runs locally on the Mac – no account, no subscription, no license server, no a
 curl -fsSL https://transcriber.teconomix.net/install.sh | bash
 ```
 
+Or with Homebrew: `brew install --cask teconomix/tap/local-transcriber`. Questions: [Discussions](https://github.com/teconomix/local-transcriber/discussions).
+
 ## What it does
 
 - **Record meetings** – one click; microphone and system audio (the others in the call) as separate tracks.

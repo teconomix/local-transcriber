@@ -52,5 +52,11 @@ tar -czf "$OUT/pyannote-community-1.tar.gz" -C "$T" speaker-diarization-communit
 cp installer/uninstall.sh "$OUT/uninstall.sh"
 (cd "$OUT" && shasum -a 256 "Transcriber-$V.zip" "transcriber-$V.tar.gz" pyannote-community-1.tar.gz uninstall.sh > SHA256SUMS)
 sed -e "s#__VERSION__#$V#" -e "s#__BASE__#$BASE#" installer/install.sh > dist/install.sh
+# Versionierte Kopie für den Homebrew-Cask (feste Prüfsumme je Version); nicht in SHA256SUMS – der Installer prüft
+# nur, was er selbst lädt.
+cp dist/install.sh "$OUT/install.sh"
+mkdir -p dist/homebrew
+sed -e "s#__VERSION__#$V#" -e "s#__BASE__#$BASE#" -e "s#__SHA256__#$(shasum -a 256 "$OUT/install.sh" | cut -d' ' -f1)#" \
+    installer/local-transcriber.rb > dist/homebrew/local-transcriber.rb
 echo "$V" > dist/latest.txt
 echo "▸ fertig:"; ls -la "$OUT" dist/install.sh

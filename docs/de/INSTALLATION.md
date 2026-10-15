@@ -34,6 +34,19 @@ oder älter benennt der Installer den Datenordner `~/Transkription` einmalig in 
 Optionen (hinter `bash -s --` anhängen, z. B. `curl -fsSL …/install.sh | bash -s -- --no-watch`):
 `--no-launch` (App nicht starten), `--no-watch` (keinen Ordnerwächter anbieten), `--yes` (keine Rückfragen).
 
+### Mit Homebrew
+
+```bash
+brew install --cask teconomix/tap/local-transcriber
+```
+
+Der Cask führt denselben Installer aus (`--yes --no-watch`); `brew upgrade` aktualisiert, `brew uninstall
+local-transcriber` ruft den Deinstaller auf (ohne Rückfrage im Terminal bleiben Stimmdatenbank und Whisper-Modell
+liegen). Den Ordnerwächter bietet dieser Weg nicht an – bei Bedarf einmal den curl-Installer ausführen und mit „j“
+antworten; Updates lassen ihn weiterlaufen.
+
+Fragen oder hängt etwas? [Diskussionen auf GitHub](https://github.com/teconomix/local-transcriber/discussions).
+
 ## Erste Schritte
 
 Beim ersten Aufnehmen fragt macOS nach **Mikrofon** und **Systemaudio**. Fürs Diktat in den Einstellungen das Diktat

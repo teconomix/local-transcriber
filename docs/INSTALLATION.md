@@ -34,6 +34,18 @@ installer renames the data folder `~/Transkription` to `~/Transcriber` (once, no
 Options (append after `bash -s --`, e.g. `curl -fsSL …/install.sh | bash -s -- --no-watch`):
 `--no-launch` (do not start the app), `--no-watch` (do not offer the folder watcher), `--yes` (no prompts).
 
+### With Homebrew
+
+```bash
+brew install --cask teconomix/tap/local-transcriber
+```
+
+The cask runs the same installer (`--yes --no-watch`); `brew upgrade` updates, `brew uninstall local-transcriber`
+runs the uninstaller (without a terminal prompt it keeps the voice database and the Whisper model). The folder watcher
+is not offered here – run the curl installer once and answer “y” if you want it; upgrades keep it running.
+
+Questions or stuck? [GitHub Discussions](https://github.com/teconomix/local-transcriber/discussions).
+
 ## First steps
 
 The first time you record, macOS asks for **Microphone** and **System Audio Recording** access. For dictation, turn

@@ -7,3 +7,9 @@ app/build/
 *.m4a
 .DS_Store
 dist/
+website/assets/video/*.mp4
+scripts/demo-video/html/
+scripts/demo-video/png/
+scripts/demo-video/clips/
+scripts/demo-video/preview/
+scripts/demo-video/chrome-profile/

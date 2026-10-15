@@ -12,6 +12,8 @@ kein Abo, kein Lizenzserver, kein Audio, das den Rechner verlässt.
 curl -fsSL https://transcriber.teconomix.net/install.sh | bash
 ```
 
+Oder mit Homebrew: `brew install --cask teconomix/tap/local-transcriber`. Fragen: [Diskussionen](https://github.com/teconomix/local-transcriber/discussions).
+
 ## Was es kann
 
 - **Meetings aufnehmen** – ein Klick; Mikrofon und Systemton (die anderen im Call) als getrennte Spuren.
