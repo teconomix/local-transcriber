@@ -3,6 +3,7 @@ import contextlib
 import fcntl
 import hashlib
 import json
+import re
 import os
 import sys
 import threading
@@ -132,16 +133,22 @@ def _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, du
     for i, w in enumerate(tracks, 1):
         P.start("diarize", dur / RTFX["diarize"], tr("Sprechertrennung Spur", "Speaker separation track") + f" {i}/2")
         t0 = time.time()
-        # Je Spur kann auch nur eine Person sprechen (Mikrofon: man selbst); Sprecherzahl-Vorgabe gilt für den Call.
+        # Je Spur kann auch nur eine Person sprechen (Mikrofon: man selbst). Die Sprecherzahl-Vorgabe zählt alle
+        # Personen; auf der Call-Spur fehlt man selbst → eine weniger (vorher die volle Zahl: bei „3“ erzwang das einen
+        # dritten Cluster aus Bruchstücken neben den zwei anderen, 2026-10-19).
         others = cfg.get("_others") or []         # Kalender: Call-Spur höchstens die anderen Teilnehmer + 1
         mx = cfg["max_speakers"] if i == 1 or not others else min(cfg["max_speakers"], len(others) + 1)
-        segs, clusters = diarize.diarize(w, 1, mx, num_speakers if i == 2 else None)
+        segs, clusters = diarize.diarize(w, 1, mx, max(num_speakers - 1, 1) if i == 2 and num_speakers else None)
         t[f"diarize{i}"] = time.time() - t0
         for sg in segs:
             sg["speaker"] = f"T{i}:" + sg["speaker"]
         for c in clusters:
             c["label"] = f"T{i}:" + c["label"]; c["track"] = i
-        per.append((segs, _merge_similar(clusters, segs, [], cfg.get("merge_sim", 0.6))))
+        # Call-Spur: nie unter die erwartete Zahl anderer Personen zusammenlegen, und erst ab merge_sim_call – über den
+        # Call-Codec ähneln sich verschiedene Stimmen stärker (2026-10-20: zwei Gegenüber 0,63 → zu einem verschmolzen).
+        keep = (max(num_speakers - 1, 1) if num_speakers else max(len(others), 1)) if i == 2 else 1
+        thr = cfg.get("merge_sim", 0.6) if i == 1 else cfg.get("merge_sim_call", 0.7)
+        per.append((segs, _merge_similar(clusters, segs, [], thr, keep)))
 
     echo = _echo_clusters(x[0], x[1], per[0][0], per[0][1])
     t["echo_clusters"] = len(echo)
@@ -196,12 +203,16 @@ def _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, du
     words = []
     for i in (1, 2):
         words += assign_words(by[i], per[i - 1][0])
-    mic = [w for w in words if (w["speaker"] or "").startswith("T1:")]
-    _absorb_minor(per[0][1], mic, cfg, echo)
     # Kein Segment dieser Spur in der Nähe (z. B. Whisper-Wort am Rand einer Pause): Segmente der anderen Spur.
+    # Vor dem Zuschlagen, sonst landete so ein Wort wieder beim Echo-Cluster (2026-10-19: 1 Wort → „Sprecher B“).
     loose = [w for w in words if w["speaker"] is None]
     if loose:
         assign_words(loose, sorted(per[0][0] + per[1][0], key=lambda s: s["start"]))
+    mic = [w for w in words if (w["speaker"] or "").startswith("T1:")]
+    me = _absorb_minor(per[0][1], mic, cfg, echo)
+    call = [w for w in words if (w["speaker"] or "").startswith("T2:")]
+    t["fragment_clusters"] = _absorb_fragments(per[1][1], per[1][0], call, [s for s in per[0][0] if s["speaker"] == me],
+                                               me, cfg)
     words.sort(key=lambda w: w["start"])
     used = {w["speaker"] for w in words}
     clusters = [c for _, cl in per for c in cl if c["label"] in used]
@@ -334,7 +345,7 @@ def _absorb_minor(clusters, words, cfg, echo=(), share=0.25):
     from collections import Counter
     n = Counter(w["speaker"] for w in words)
     if len(n) < 2:
-        return
+        return next(iter(n), None)
     probe = [dict(c) for c in clusters]
     speakers.identify(speakers.connect(), probe, cfg)             # nur lesen: wer passt sicher zu wem?
     main = next((lab for lab, _ in n.most_common() if lab not in echo), n.most_common(1)[0][0])
@@ -348,15 +359,53 @@ def _absorb_minor(clusters, words, cfg, echo=(), share=0.25):
         for w in words:
             if w["speaker"] == lab:
                 w["speaker"] = main
+    return main
 
 
-def _merge_similar(clusters, segs, words, thr):
-    """Cluster einer Spur mit ähnlicher Stimme (Kosinus ≥ thr) zu einem zusammenlegen. pyannote zerlegt eine einzelne
-    Stimme auf der Mikrofonspur gern in mehrere Cluster (Test 2026-10-10: eine Person allein → 3 Cluster). Gemessen in der
-    Stimmdatenbank: gleiche Person 0,68–0,98, verschiedene ≤ 0,45 → Schwelle 0,6 dazwischen."""
+def _absorb_fragments(clusters, segs, words, mine, me, cfg, max_mean_s=1.0):
+    """Call-Spur: Cluster aus lauter Bruchstücken (Ø Abschnitt < max_mean_s) auflösen – außer sie passen sicher zu
+    einer bekannten Person. Gemessen 2026-10-19 an drei Calls: neben den echten Stimmen (Ø 2,4–4,6 s) je ein Cluster mit
+    Ø 0,4–0,6 s, 95 % unter 1,5 s, 1,5–2 min, 130–250 Wörter – Einwürfe („Ja.“, „Genau.“) und gleichzeitiges Sprechen.
+    Kein Echo (eigene Stimme zurück: 5–10 %, wie bei den echten Stimmen). Mit Googles Transkript verglichen (Meet, 189
+    Wörter): 131 von der Hauptstimme, 50 eigene, 8 von der dritten Person. Wort fällt in ein Segment der eigenen Stimme
+    (mine) → eigene Stimme (me), sonst → ähnlichste echte Stimme der Call-Spur: 85 % richtig (alles an die größte: 69 %).
+    Liefert die Zahl aufgelöster Cluster."""
+    import bisect
+    from collections import Counter
+    nseg = Counter(s["speaker"] for s in segs)
+    probe = [dict(c) for c in clusters]
+    if len(probe) < 2:
+        return 0
+    speakers.identify(speakers.connect(), probe, cfg)             # nur lesen
+    sure = {p["label"] for p in probe if p["person_id"] is not None and (p["score"] or 0) >= cfg["match_sure"]}
+    big = max(clusters, key=lambda c: c["speech_s"])["label"]
+    frag = {c["label"] for c in clusters if c["label"] != big and c["label"] not in sure
+            and c["speech_s"] / max(nseg[c["label"]], 1) < max_mean_s}
+    if not frag:
+        return 0
+    real = [c for c in clusters if c["label"] not in frag]
+    unit = lambda c: speakers._unit(c["embedding"])
+    target = {f["label"]: max(real, key=lambda c: float(unit(f) @ unit(c)))["label"] for f in clusters if f["label"] in frag}
+    mine = sorted(mine, key=lambda s: s["start"])
+    starts = [s["start"] for s in mine]
+    def own(w):
+        m = (w["start"] + w["end"]) / 2
+        i = bisect.bisect_right(starts, m) - 1
+        return me is not None and i >= 0 and mine[i]["end"] >= m
+    for w in words:
+        if w["speaker"] in frag:
+            w["speaker"] = me if own(w) else target[w["speaker"]]
+    return len(frag)
+
+
+def _merge_similar(clusters, segs, words, thr, keep=1):
+    """Cluster einer Spur mit ähnlicher Stimme (Kosinus ≥ thr) zu einem zusammenlegen, höchstens bis `keep` übrig sind.
+    pyannote zerlegt eine einzelne Stimme auf der Mikrofonspur gern in mehrere Cluster (Test 2026-10-10: eine Person
+    allein → 3 Cluster). Gemessen in der Stimmdatenbank: gleiche Person 0,68–0,98, verschiedene ≤ 0,45 → Schwelle 0,6.
+    Über Zoom ähnelten sich zwei verschiedene Gegenüber aber 0,63 (2026-10-20) → Call-Spur strenger, siehe _run_tracks."""
     import numpy as np
     cl = sorted(clusters, key=lambda c: -c["speech_s"])
-    while True:
+    while len(cl) > keep:
         best = None
         for i in range(len(cl)):
             for j in range(i + 1, len(cl)):
@@ -374,6 +423,78 @@ def _merge_similar(clusters, segs, words, thr):
             if x.get("speaker") == b["label"]:
                 x["speaker"] = a["label"]
         del cl[j]
+    return cl
+
+
+# Bekannte Whisper-Floskeln, die es in Stille erfindet (Untertitel-Trainingsdaten). Allein nie ein Grund zum Löschen –
+# nur zusammen mit „leise“ oder „außerhalb erkannter Sprache“ (ein echtes, lautes „Vielen Dank“ am Ende bleibt).
+_FLOSKELN = re.compile(r"^(vielen dank( fürs zuschauen| für ihre aufmerksamkeit)?|danke( schön| fürs zuschauen)?|"
+                       r"untertitel.*(zdf|amara|funk).*|thank you( for watching)?|thanks for watching|"
+                       r"bis zum nächsten mal|tschüss)[.!]?$")
+
+
+def drop_hallucinations(words, segs, wav, gap=3.0, rel=0.10, maxd=0.3, max_p=0.2):
+    """Von Whisper in Stille erfundene Phrasen entfernen (z. B. „Vielen Dank.“ in jedem stillen 30-s-Fenster nach dem
+    Auflegen – 2026-10-12, 12× in einer Aufnahme). Phrase = Wörter ohne Lücke ≥ gap s; nur kurze Phrasen (≤ 6 Wörter,
+    ≤ 8 s), die so allein stehen. Weg, wenn (a) leise (< rel der mittleren Sprechlautstärke) UND außerhalb erkannter
+    Sprache (> maxd s von jedem Sprechabschnitt), (b) dieselbe Phrase ≥ 3× unmittelbar hintereinander, oder (c) bekannte
+    Floskel UND (leise ODER außerhalb). Gemessen an 24 Aufnahmen (bench/HALLUZINATIONEN.md): 51 Wörter weg, alle erfunden;
+    leise echte Wörter von weiter entfernten Personen stehen nie allein und bleiben. (d) gleich welche Länge: außerhalb
+    erkannter Sprache UND Whisper im Mittel unsicher (p < max_p) – 2026-10-20 an 28 Transkripten: 30 Phrasen, Wortsalat
+    bis 35 Wörter in Gesprächspausen („weit이고 finns“), echte Wörter dort sonst p ~0,9. Liefert (behaltene, entfernte)."""
+    if not words or not segs:
+        return words, []
+    import numpy as np
+    import soundfile as sf
+    a, sr = sf.read(str(wav), dtype="float32")
+    if a.ndim > 1:
+        a = a.mean(axis=1)
+
+    def level(s, e):
+        x = a[int(max(s, 0) * sr):int(max(e, 0) * sr)]
+        return float(np.sqrt(np.mean(x ** 2))) if len(x) else 0.0
+    speech = [level(s["start"], s["end"]) for s in segs if s["end"] - s["start"] > 0.5]
+    ref = float(np.median(speech)) if speech else 0.0
+    starts = sorted((s["start"], s["end"]) for s in segs)
+
+    def outside(w):
+        m = (w["start"] + w["end"]) / 2
+        return all(not (s - maxd <= m <= e + maxd) for s, e in starts)
+    phrases, cur = [], [words[0]]
+    for w in words[1:]:
+        if w["start"] - cur[-1]["end"] >= gap:
+            phrases.append(cur); cur = [w]
+        else:
+            cur.append(w)
+    phrases.append(cur)
+    norm = lambda p: re.sub(r"\s+", " ", " ".join(w["w"] for w in p).lower()).strip()
+    info = [{"text": norm(p), "short": len(p) <= 6 and p[-1]["end"] - p[0]["start"] <= 8,
+             "out": all(outside(w) for w in p), "quiet": ref > 0 and level(p[0]["start"] - 0.1, p[-1]["end"] + 0.1) < rel * ref,
+             "unsure": all(w.get("p") is not None for w in p) and sum(w["p"] for w in p) / len(p) < max_p}
+            for p in phrases]
+    kept, dropped = [], []
+    for i, (p, f) in enumerate(zip(phrases, info)):
+        why = ""
+        if f["short"]:
+            if f["out"] and f["quiet"]:
+                why += "a"
+            j = i
+            while j > 0 and info[j - 1]["short"] and info[j - 1]["text"] == f["text"]:
+                j -= 1
+            k = i
+            while k + 1 < len(info) and info[k + 1]["short"] and info[k + 1]["text"] == f["text"]:
+                k += 1
+            if k - j + 1 >= 3:
+                why += "b"
+            if _FLOSKELN.match(f["text"]) and (f["out"] or f["quiet"]):
+                why += "c"
+        if f["out"] and f["unsure"]:
+            why += "d"
+        if why:
+            dropped.append({"start": round(p[0]["start"], 2), "end": round(p[-1]["end"], 2), "text": " ".join(w["w"] for w in p), "why": why})
+        else:
+            kept += p
+    return kept, dropped
 
 
 def assign_words(words, segs):
@@ -480,6 +601,13 @@ def _run(src, language, out_dir, formats, num_speakers, cfg, terms, rules, P, t)
         info = audio.prepare(src, wav)
     t["prepare"] = time.time() - t0
     dur = info["duration"]
+    language_set = None
+    if cfg.get("language_check", True):   # Sprache falsch eingestellt? Eindeutig andere Sprache → die nehmen
+        found, share = asr.detect_language(wav)
+        if found and found != language and found in asr.LANGUAGES:
+            print(tr(f"Sprache: {found} erkannt ({share:.0%} der Stichproben), eingestellt war {language}",
+                     f"Language: detected {found} ({share:.0%} of samples), setting was {language}"), file=sys.stderr)
+            language_set, language = language, found
     mode, relation = "gemischt", None
     if info["tracks"] == 2 and cfg.get("track_mode", "auto") != "gemischt":
         tracks = [config.CACHE / jid / f"track{i}.wav" for i in (1, 2)]
@@ -507,6 +635,10 @@ def _run(src, language, out_dir, formats, num_speakers, cfg, terms, rules, P, t)
         t["diarize"] = time.time() - t0
         words = assign_words(r["words"], segs)
 
+    words, dropped = drop_hallucinations(words, segs, wav)
+    if dropped:
+        t["dropped_words"] = sum(len(d["text"].split()) for d in dropped)
+
     P.start("finish", msg=tr("Stimmen abgleichen", "Matching voices"))
     db = speakers.connect()
     old = speakers.release_job_refs(db, jid)       # Neuauswertung: eigene Referenzen nicht mit sich selbst abgleichen
@@ -517,10 +649,11 @@ def _run(src, language, out_dir, formats, num_speakers, cfg, terms, rules, P, t)
     out_dir.mkdir(parents=True, exist_ok=True)     # --out mit neuem Ordner brach sonst erst beim Schreiben ab (96 %)
     stem = out_dir / src.stem
     doc = {"version": 1, "job_id": jid, "source": str(src), "created": time.strftime("%Y-%m-%d %H:%M"),
-           "model": asr.MODEL, "language": language, "duration": dur, "tracks": info["tracks"], "track_mode": mode, "event": event,
+           "model": asr.MODEL, "language": language, "language_set": language_set, "duration": dur, "tracks": info["tracks"], "track_mode": mode, "event": event,
            "track_relation": relation, "timing_s": {k: round(v, 1) for k, v in t.items()},
            "glossary": terms, "glossary_replacements": replaced, "speakers": [{k: v for k, v in c.items() if k != "embedding"} for c in clusters],
-           "words": words, "diarization": segs, "overlaps": [[round(s, 2), round(e, 2)] for s, e in overlaps]}
+           "words": words, "diarization": segs, "overlaps": [[round(s, 2), round(e, 2)] for s, e in overlaps],
+           "dropped": dropped}   # von Whisper in Stille erfundene Phrasen (drop_hallucinations) – nachvollziehbar, nicht stumm weg
     db.execute("DELETE FROM clusters WHERE job_id=?", (jid,))
     speakers.save_job(db, jid, src, f"{stem}.transcript.json", asr.MODEL, clusters)
     paths = render.write(doc, stem, formats)
@@ -607,7 +740,7 @@ def recheck(path):
     return changed
 
 
-SIDECARS = (".md", ".srt", ".error.txt", ".event.json")
+SIDECARS = (".srt", ".error.txt", ".event.json")   # das lesbare Transkript (.md/.txt) behandelt render.find_readable
 
 
 def clean_stem(name):
@@ -641,11 +774,14 @@ def rename(path, new_stem):
     new_src = folder / (stem + old_src.suffix)
     # Erst die Begleitdateien, zuletzt das Audio: sieht der Wächter das Audio unter neuem Namen, liegt das Transkript
     # schon daneben (er wartet ohnehin 10 s, bevor er eine Datei anfasst).
-    formats = [f for f, ext in (("md", ".md"), ("srt", ".srt")) if (jp.parent / (old_stem + ext)).exists()]
+    old_readable, text_format = render.find_readable(jp.parent / old_stem, old_src.name)
+    formats = (["md"] if old_readable else []) + (["srt"] if (jp.parent / (old_stem + ".srt")).exists() else [])
     doc["source"] = str(new_src)
     display_names(doc["speakers"], doc["words"])   # „Sprecher A“/„Speaker A“ in der aktuellen Ausgabesprache
     new_json = jp.parent / (stem + ".transcript.json")
-    paths = render.write(doc, jp.parent / stem, formats)
+    paths = render.write(doc, jp.parent / stem, formats, text_format)
+    if old_readable and old_readable != paths.get("md"):
+        old_readable.unlink()
     for ext in SIDECARS + (".transcript.json",):
         old = jp.parent / (old_stem + ext)
         if old.exists() and old != paths.get("json"):
@@ -702,10 +838,13 @@ def adopt(src, jid=None):
     doc, _ = load_doc(jp)
     old_src, old_stem = Path(doc["source"]), jp.name.removesuffix(".transcript.json")
     dest = src.parent / src.stem
-    formats = [f for f, ext in (("md", ".md"), ("srt", ".srt")) if (jp.parent / (old_stem + ext)).exists()]
+    old_readable, text_format = render.find_readable(jp.parent / old_stem, old_src.name)
+    formats = (["md"] if old_readable else []) + (["srt"] if (jp.parent / (old_stem + ".srt")).exists() else [])
     doc["source"] = str(src)
     display_names(doc["speakers"], doc["words"])
-    paths = render.write(doc, dest, formats)
+    paths = render.write(doc, dest, formats, text_format)
+    if old_readable and old_readable != paths.get("md"):
+        old_readable.unlink()
     for ext in SIDECARS + (".transcript.json",):
         old = jp.parent / (old_stem + ext)
         if old.exists() and old != paths.get("json"):

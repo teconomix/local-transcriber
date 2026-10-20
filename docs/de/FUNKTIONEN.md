@@ -11,7 +11,8 @@ Installation braucht Transcriber kein Internet. Es gibt kein Konto, kein Abo, ke
 - **Ein Knopf** in der Menüleiste: „Aufnahme starten“, daneben die Mikrofonwahl.
 - **Zwei Spuren:** Mikrofon (du und wer mit dir im Raum ist) und Systemton (die anderen im Call). Der Systemton wird
   per Core-Audio-Process-Tap abgegriffen – dafür reicht die Freigabe „Systemaudio“, keine Bildschirmaufnahme.
-- **Apple-Sprachverarbeitung** fürs Mikrofon (Pegel, Rausch- und Echounterdrückung), abschaltbar.
+- **Apple-Sprachverarbeitung** fürs Mikrofon (Pegel, Rausch- und Echounterdrückung), abschaltbar; während Calls aus,
+  damit die Call-App einen weiter hört.
 - Aufnahmen landen unter `~/Transcriber/Aufnahmen/` (`Recordings` auf einem nicht deutschsprachigen Mac) und werden danach automatisch transkribiert.
 
 ## Transkribieren
@@ -20,9 +21,13 @@ Installation braucht Transcriber kein Internet. Es gibt kein Konto, kein Abo, ke
   Sprechererkennung mit ~28-facher Echtzeit.
 - **Rund 100 Sprachen** (alle, die Whisper kennt). Zur Auswahl stehen anfangs Deutsch, Englisch, Spanisch und
   Französisch; weitere in den Einstellungen › Aufnahme › „Sprachen zur Auswahl“ an- oder abwählen. Am besten klappen
-  weit verbreitete Sprachen, seltene deutlich schwächer.
-- **Ausgabe** neben der Audiodatei: `<Name>.md` (lesbar, mit Sprechern und Zeitmarken), `<Name>.transcript.json`
+  weit verbreitete Sprachen, seltene deutlich schwächer. Ist eine Aufnahme eindeutig in einer anderen Sprache als
+  eingestellt, gilt die erkannte.
+- **Ausgabe** neben der Audiodatei: `<Name>.txt` (lesbar, mit Sprechern und Zeitmarken;
+  Markdown `.md` wählbar in Einstellungen › Aufnahme), `<Name>.transcript.json`
   (vollständig, maschinenlesbar), optional `<Name>.srt` (Untertitel).
+- **Löschen:** nur die Aufnahme (Transkript bleibt) oder alles samt den Stimmen aus diesem Gespräch; auf Wunsch
+  Aufnahmen automatisch nach 30 Tagen. Arbeitskopien gehen immer mit.
 - **Glossar** für Namen und Fachbegriffe: feste Ersetzungen nach der Erkennung (`transcriber vocab 'dG = DG, D.G.'`).
 - **Dateien transkribieren:** im Panel „Datei transkribieren …“ oder einfach in `~/Transcriber` legen
   (Ordnerwächter, optional). Video- und Audioformate, die ffmpeg lesen kann.
@@ -67,6 +72,7 @@ lief, per Apple Intelligence aus dem Inhalt (macOS 26). Transkript und Stimmdate
   schreibt gesprochene Dateinamen richtig („dictate punkt py“ → `dictate.py`). Auf Wunsch liest es dazu den Text des
   aktiven Fensters, um Namen richtig zu schreiben. Weicht das Ergebnis zu stark ab, wird der Rohtext eingefügt.
 - Tasten frei wählbar (rechte ⌘/⌥/⌃, fn). Die Zwischenablage bleibt erhalten.
+- **Auch während einer Aufnahme** (Notizen im Call): Das Diktat nimmt den Mikrofonton der Aufnahme mit.
 
 ## Für Profis
 

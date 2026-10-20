@@ -13,6 +13,8 @@ Clicking the waveform icon in the menu bar opens the panel:
    detected call the button reads **Record call** and uses the microphone the call app uses (see below).
 2. **Transcribe file…** – next to it, the language (applies to recordings, files and dictation; which languages are
    offered is set in Settings) and the **number of people** (Auto, or exactly 1–6 – for the next recording or file only).
+   The language applies when the recording stops. If the recording is clearly in another language (e.g. you forgot to
+   switch back), Transcriber uses the detected language and notes this in the transcript header.
 3. **Dictation line** – shows which keys are assigned; orange/red if a permission is missing. The switch on the right
    turns dictation on or off (off frees the keys and the memory of the dictation service).
 4. **Transcriptions** – the most recent jobs with progress, the recognized speakers and *Open · Show in Finder ·
@@ -25,7 +27,7 @@ Clicking the waveform icon in the menu bar opens the panel:
 1. Choose the microphone (usually “System default”), **Start recording**.
 2. The first time, macOS asks for **Microphone** and **System Audio Recording** access – allow both.
 3. **Stop recording.** Transcriber transcribes and names the file; a notification reports “Transcript ready”.
-4. **Open** shows the transcript (Markdown).
+4. **Open** shows the transcript – as plain text (`.txt`, default) or Markdown (`.md`), see Settings › Recording › “Save transcript as”.
 
 ## Recording a video call
 
@@ -34,8 +36,9 @@ When you hang up, the recording stops on its own. Alternatively, use **Record ca
 
 Call recordings use the **microphone the call app uses** and follow it if you switch microphones during the call
 (the panel shows “Microphone as in the call: …”; a switch costs up to a second of audio). The audio of the others is
-recorded regardless of whether it plays through speakers or headphones. Microphones other than the system default
-are recorded without Apple's voice processing.
+recorded regardless of whether it plays through speakers or headphones. During a call the microphone is always recorded
+without Apple's voice processing – otherwise apps like Zoom could no longer hear you (the call app does its own
+noise and echo suppression).
 
 If the notification disappears too quickly: *System Settings › Notifications › Transcriber › Alert style: Alerts*
 keeps it until you click.
@@ -67,6 +70,9 @@ encrypted. Name your own voice before importing – otherwise it may be matched 
 2. Click into any text field, **hold the right ⌘**, wait for the sound, speak, release.
 3. With the **right ⌥** instead of ⌘, Apple Intelligence cleans up the text (macOS 26).
 
+Dictation also works while a recording is running, e.g. notes during a call: the others hear you as usual, and what you
+dictate is also in the transcript.
+
 Note: On a German keyboard, the right ⌥ also types `@` and `€`. This is recognized as a keyboard shortcut and
 ignored; if the short start sound bothers you, choose the right ⌃ in Settings.
 
@@ -77,6 +83,20 @@ ignored; if the short start sound bothers you, choose the right ⌃ in Settings.
   folder is the app's: recordings there are transcribed by the app; if one has no transcript (e.g. “Transcribe” was off),
   the panel offers to transcribe it.
 - **Rename** a recording in the panel; renamed or moved in Finder, the watcher moves its transcript along.
+
+## Deleting
+
+The **trash icon** next to an entry in the panel asks how much to delete:
+
+- **Recording only:** the audio goes to the Trash; the transcript, the voices and the entry stay (“Recording deleted”).
+  “Match names again” still works, “Separate speakers again” no longer does.
+- **Delete everything:** audio, transcript and calendar event go to the Trash; the voices stored from this conversation
+  are deleted for good.
+
+Transcriber also deletes its working copies of the audio (in `~/.local/share/transcriber/cache/`). Deleted in Finder
+instead, Transcriber cleans up the same way within a few minutes. A note in Obsidian you delete there yourself.
+**Settings › Recording › “Delete recordings after 30 days”** does “Recording only” automatically for transcribed
+recordings in the recordings folder. Command line: `transcriber delete FILE [--audio-only]`.
 
 ## Settings
 

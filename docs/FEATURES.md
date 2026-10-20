@@ -12,7 +12,8 @@ installation, Transcriber needs no internet connection. There is no account, no 
 - **Two tracks:** microphone (you and anyone in the room with you) and system audio (the others in the call). System
   audio is captured via a Core Audio process tap – this only needs the “System Audio Recording” permission, not screen
   recording.
-- **Apple voice processing** for the microphone (level, noise and echo suppression), can be turned off.
+- **Apple voice processing** for the microphone (level, noise and echo suppression), can be turned off; off during calls,
+  so the call app keeps hearing you.
 - Recordings are saved to `~/Transcriber/Recordings/` (`Aufnahmen` on a Mac set to German) and transcribed automatically afterwards.
 
 ## Transcription
@@ -21,9 +22,12 @@ installation, Transcriber needs no internet connection. There is no account, no 
   recognition at ~28× real time.
 - **About 100 languages** (all that Whisper knows). Initially offered are German, English, Spanish and French; select
   or deselect more in Settings › Recording › “Languages to choose from”. Widely spoken languages work best, rare ones
-  noticeably worse.
-- **Output** next to the audio file: `<name>.md` (readable, with speakers and timestamps), `<name>.transcript.json`
+  noticeably worse. If a recording is clearly in another language than selected, the detected one is used.
+- **Output** next to the audio file: `<name>.txt` (readable, with speakers and timestamps; Markdown
+  `.md` selectable in Settings › Recording), `<name>.transcript.json`
   (complete, machine-readable), optionally `<name>.srt` (subtitles).
+- **Deleting:** recording only (transcript stays) or everything incl. the voices from that conversation; optionally
+  recordings are deleted automatically after 30 days. Working copies are always deleted along.
 - **Glossary** for names and technical terms: fixed replacements after recognition (`transcriber vocab 'dG = DG, D.G.'`).
 - **Transcribing files:** “Transcribe file…” in the panel, or simply drop them into `~/Transcriber`
   (folder watcher, optional). Video and audio formats that ffmpeg can read.
@@ -68,6 +72,7 @@ updated accordingly.
   writes spoken file names correctly (“dictate dot py” → `dictate.py`). Optionally it also reads the text of the
   active window to spell names correctly. If the result deviates too much, the raw text is inserted.
 - Keys are freely selectable (right ⌘/⌥/⌃, fn). The clipboard is preserved.
+- **Also during a recording** (notes in a call): dictation uses the recording's microphone audio.
 
 ## For power users
 

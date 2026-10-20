@@ -33,6 +33,7 @@ final class CallDetector: NSObject, ObservableObject, UNUserNotificationCenterDe
     var stopRecording: () -> Void = {}
     var currentMic: () -> String? = { nil }          // UID, mit der gerade aufgenommen wird
     var switchMic: (String) -> Void = { _ in }
+    var leaveVoiceProcessing: () -> Void = {}
 
     private var timer: Timer?
     private var since: Date?           // seit wann die Call-App das Mikrofon nutzt
@@ -61,6 +62,7 @@ final class CallDetector: NSObject, ObservableObject, UNUserNotificationCenterDe
         if let call = Self.activeCall() {
             let app = call.app
             current = app; lastSeen = now
+            if isRecording() { leaveVoiceProcessing() }    // kein Mikrofon-Konflikt mit der Call-App
             micName = call.micName
             if call.micUID != micUID { micUID = call.micUID }
             // Im Call umgestellt: erst nachziehen, wenn das neue Gerät zweimal hintereinander gemeldet wird; mehr als

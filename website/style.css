@@ -274,6 +274,7 @@ section { padding: 88px 0; }
 .features { display: grid; grid-template-columns: 1fr; gap: 20px; }
 @media (min-width: 640px) { .features { grid-template-columns: repeat(2, 1fr); } }
 @media (min-width: 960px) { .features { grid-template-columns: repeat(3, 1fr); } .features .highlight { grid-column: span 2; } }
+@media (min-width: 640px) { .features .wide { grid-column: 1 / -1; } }
 .card {
   background: var(--surface);
   border: 1px solid var(--border);

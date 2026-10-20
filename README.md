@@ -25,7 +25,7 @@ Or with Homebrew: `brew install --cask teconomix/tap/local-transcriber`. Questio
 - **Calendar** – event title as file name, attendees as suggestions when naming speakers.
 - **Dictation everywhere** – hold a key, speak, release: the text appears at the cursor in any app.
 - **Local AI** (macOS 26) – dictation cleanup, meaningful file names – with Apple Intelligence on the device.
-- **For power users** – folder watcher, Markdown/JSON/SRT, glossary, command line, MCP server for AI agents.
+- **For power users** – folder watcher, plain text or Markdown, JSON, SRT, glossary, command line, MCP server for AI agents.
 
 In detail: [docs/FEATURES.md](docs/FEATURES.md) · Usage: [docs/USER_GUIDE.md](docs/USER_GUIDE.md) ·
 Installation: [docs/INSTALLATION.md](docs/INSTALLATION.md) · Privacy: [docs/PRIVACY.md](docs/PRIVACY.md)

@@ -189,6 +189,32 @@ def cmd_rename(a):
     print(json.dumps({k: str(v) for k, v in paths.items()}, ensure_ascii=False) if a.json else paths["source"])
 
 
+def cmd_delete(a):
+    from . import cleanup
+    r = cleanup.delete(a.file, audio_only=a.audio_only)
+    if a.json:
+        print(json.dumps(r, ensure_ascii=False))
+    else:
+        for f in r["trashed"]:
+            print(t("Papierkorb: ", "Trash: ") + f)
+        if r["cache"]:
+            print(t("Zwischenspeicher gelöscht", "cache deleted"))
+        if not r["audio_only"]:
+            print(t(f"Stimmdatenbank: Gespräch entfernt ({r['voices']} Referenzen)",
+                    f"voice database: conversation removed ({r['voices']} references)"))
+
+
+def cmd_cleanup(a):
+    from . import cleanup
+    r = cleanup.cleanup(audio_days=a.audio_days, dry_run=a.dry_run)
+    if a.dry_run and not a.json:
+        print("\n".join(r["plan"]) or t("nichts zu tun", "nothing to do"))
+        return
+    print(json.dumps(r, ensure_ascii=False) if a.json else
+          t(f"Aufgeräumt: {r['forgotten']} gelöschte Aufnahmen, {r['cache']} Zwischenspeicher, {len(r['audio_deleted'])} alte Aufnahmen",
+            f"Cleaned up: {r['forgotten']} deleted recordings, {r['cache']} caches, {len(r['audio_deleted'])} old recordings"))
+
+
 def cmd_dictate_server(a):
     from . import dictate
     return dictate.serve()
@@ -237,6 +263,16 @@ def main(argv=None):
     p.add_argument("out"); p.add_argument("--description", metavar=t("DATEI", "FILE")); p.add_argument("--app-info", metavar=t("DATEI", "FILE"))
     p.add_argument("--keep-names", action="store_true", help=t("Dateinamen/Termintitel nicht unkenntlich machen", "do not redact file names/event titles"))
     p.set_defaults(f=cmd_report)
+    p = sp.add_parser("delete", help=t("Aufnahme löschen (Dateien in den Papierkorb, Zwischendaten und Stimmen endgültig)",
+                                       "delete a recording (files to Trash, cached data and voices permanently)"))
+    p.add_argument("file"); p.add_argument("--audio-only", action="store_true",
+                                           help=t("nur das Audio, Transkript und Stimmen bleiben", "audio only, keep transcript and voices"))
+    p.add_argument("--json", action="store_true"); p.set_defaults(f=cmd_delete)
+    p = sp.add_parser("cleanup", help=t("nach Löschen im Finder aufräumen", "clean up after deleting in Finder"))
+    p.add_argument("--audio-days", type=int, metavar="N", help=t("Audio im Aufnahmeordner nach N Tagen löschen (Transkript bleibt)",
+                                                                  "delete audio in the recordings folder after N days (transcript stays)"))
+    p.add_argument("--dry-run", action="store_true", help=t("nur anzeigen", "only show"))
+    p.add_argument("--json", action="store_true"); p.set_defaults(f=cmd_cleanup)
     p = sp.add_parser("dictate-server", help=t("Diktat-Dienst", "dictation service")); p.set_defaults(f=cmd_dictate_server)
     p = sp.add_parser("dictate", help=t("Testdiktat über den Dienst", "test dictation via the service")); p.add_argument("audio")
     p.add_argument("--language", choices=asr.LANGUAGES, metavar="CODE", default="de"); p.set_defaults(f=cmd_dictate)
@@ -245,6 +281,8 @@ def main(argv=None):
         sys.exit(a.f(a) or 0)
     except KeyError as e:
         print(t("Fehler", "Error") + f": {e.args[0]}", file=sys.stderr); sys.exit(2)
+    except (RuntimeError, FileNotFoundError) as e:          # z. B. delete/rename: Transkription läuft noch
+        print(t("Fehler", "Error") + f": {e}", file=sys.stderr); sys.exit(2)
 
 
 if __name__ == "__main__":

@@ -88,7 +88,6 @@
 "Kern nicht startbar: %@ (%@)" = "Cannot start core: %@ (%@)";
 "Läuft beim Start ein Termin, werden Titel und Teilnehmer neben der Aufnahme gespeichert: Dateiname, Vorschläge beim Benennen, Sprecherzahl." = "If an event is running at the start, its title and attendees are saved next to the recording: file name, suggestions when naming, number of speakers.";
 "Mikrofon" = "Microphone";
-"Mikrofon belegt (Meeting-Aufnahme läuft)" = "Microphone busy (meeting recording running)";
 "Mikrofon liefert keinen Ton" = "Microphone delivers no sound";
 "Mikrofon nicht nutzbar" = "Microphone not usable";
 "Mit KI aufräumen" = "Clean up with AI";
@@ -113,6 +112,8 @@
 "Sprachverarbeitung (startet ~1 s langsamer)" = "Voice processing (starts ~1 s slower)";
 "Sprachverarbeitung fürs Mikrofon (Pegel, Rausch- und Echounterdrückung)" = "Voice processing for the microphone (level, noise and echo suppression)";
 "Sprechend benennen (Kalendertitel, sonst Apple-KI)" = "Give a descriptive name (calendar title, otherwise Apple AI)";
+"Transkript speichern als" = "Save transcript as";
+"Text öffnet auf jedem Mac in TextEdit. Markdown (Überschrift, Sprecher-Tabelle, fette Namen) eignet sich für Obsidian & Co. Gilt für neue Transkripte; vorhandene behalten ihr Format." = "Text opens in TextEdit on every Mac. Markdown (heading, speaker table, bold names) suits Obsidian & co. Applies to new transcripts; existing ones keep their format.";
 "Startet …" = "Starting…";
 "Stimmen" = "Voices";
 "Suchen" = "Search";
@@ -210,3 +211,18 @@
 "Transkription fehlgeschlagen: %@" = "Transcription failed: %@";
 "Was hast du gemacht, was hast du erwartet, was ist stattdessen passiert?" = "What did you do, what did you expect, what happened instead?";
 "Was ist passiert?" = "What happened?";
+"Markdown (.md)" = "Markdown (.md)";
+"Text (.txt)" = "Text (.txt)";
+
+/* Löschen (0.8) */
+"Alles löschen" = "Delete everything";
+"Alles löschen: Aufnahme, Transkript und die gespeicherten Stimmen aus diesem Gespräch." = "Delete everything: recording, transcript and the voices stored from this conversation.";
+"Aufnahmen nach 30 Tagen löschen (Transkripte bleiben)" = "Delete recordings after 30 days (transcripts stay)";
+"Die Dateien kommen in den Papierkorb. Eine Notiz in Obsidian löschst du dort selbst." = "The files go to the Trash. Delete a note in Obsidian there yourself.";
+"Löschen fehlgeschlagen" = "Deleting failed";
+"Löschen … (nur die Aufnahme oder alles)" = "Delete … (recording only, or everything)";
+"Aufnahme gelöscht" = "Recording deleted";
+"Nur Aufnahme" = "Recording only";
+"Nur die Aufnahme löschen: Das Transkript bleibt." = "Delete the recording only: the transcript stays.";
+"Nur fertig transkribierte Aufnahmen im Aufnahmeordner. Das Audio kommt in den Papierkorb; Transkript, Stimmen und Namen bleiben." = "Only transcribed recordings in the recordings folder. The audio goes to the Trash; transcript, voices and names stay.";
+"„%@“ löschen?" = "Delete “%@”?";

@@ -10,6 +10,7 @@ screen contents anywhere. There is no telemetry, no analytics, no account.
 | Recordings, transcripts | `~/Transcriber/` | your files |
 | **Voice database** | `~/.local/share/transcriber/speakers.db` | **biometric data** (voice embeddings) of the people you named; readable only by you (file mode 0600) |
 | Event for a recording | `<recording>.event.json` next to the recording | title and attendees (names, email addresses) |
+| Working copies | `~/.local/share/transcriber/cache/` | audio as WAV and the speech recognition, for re-analysis; deleted together with the recording (User Guide › Deleting) |
 | Logs | `~/.local/share/transcriber/*.log` | technical messages, no dictation content |
 
 ## What is not stored
@@ -38,3 +39,4 @@ names, event titles, names and email addresses are replaced by placeholders unle
 Recording conversations and storing voices means processing other people's personal data – and, for voice profiles,
 even biometric data. Get the consent of everyone involved before you record and name voices. You can remove
 individual people and their voice references in the **Voices…** window or with `transcriber speakers forget NAME`.
+Deleting a recording with “Delete everything” also deletes the voices stored from that conversation.

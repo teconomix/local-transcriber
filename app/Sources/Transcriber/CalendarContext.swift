@@ -43,9 +43,14 @@ enum CalendarContext {
             !e.isAllDay && e.startDate <= now.addingTimeInterval(600) && e.endDate >= now.addingTimeInterval(-300)
                 && e.attendees?.first(where: \.isCurrentUser)?.participantStatus != .declined
         }
+        // Gleicher Rang: näherer Beginn; beginnen beide etwa gleichzeitig (± 2 min), der kürzere – 2026-10-19 gewann ein
+        // ganztägiger Block (9:00–16:30) gegen das einstündige Meeting zur selben Zeit.
         return cands.min { a, b in
             let ra = rank(a), rb = rank(b)
-            return ra != rb ? ra < rb : abs(a.startDate.timeIntervalSince(now)) < abs(b.startDate.timeIntervalSince(now))
+            if ra != rb { return ra < rb }
+            let da = abs(a.startDate.timeIntervalSince(now)), db = abs(b.startDate.timeIntervalSince(now))
+            if abs(da - db) > 120 { return da < db }
+            return a.endDate.timeIntervalSince(a.startDate) < b.endDate.timeIntervalSince(b.startDate)
         }
     }
 

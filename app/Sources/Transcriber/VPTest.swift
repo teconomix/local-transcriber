@@ -145,10 +145,14 @@ enum VPTest {
         appLog("Tap-Test: fertig")
     }
 
-    /// Kalender lesen: `open -n ~/Applications/Transcriber.app --args --calendar-test` (→ app.log, ohne E-Mail-Adressen)
+    /// Kalender lesen: `open -n ~/Applications/Transcriber.app --args --calendar-test [--at "JJJJ-MM-TT HH:MM"]`
+    /// (→ app.log, ohne E-Mail-Adressen); `--at` = welchen Termin hätte eine Aufnahme zu dieser Zeit bekommen.
     static func calendar() async {
         guard await CalendarContext.access() else { appLog("Kalender-Test: kein Zugriff"); appLog("Kalender-Test: fertig"); return }
-        let cal = Calendar.current, now = Date()
+        let a = CommandLine.arguments
+        let atF = DateFormatter(); atF.dateFormat = "yyyy-MM-dd HH:mm"
+        let cal = Calendar.current
+        let now = a.firstIndex(of: "--at").flatMap { $0 + 1 < a.count ? atF.date(from: a[$0 + 1]) : nil } ?? Date()
         let pred = CalendarContext.store.predicateForEvents(withStart: cal.startOfDay(for: now),
                                                            end: cal.startOfDay(for: now).addingTimeInterval(86400), calendars: nil)
         let f = DateFormatter(); f.dateFormat = "HH:mm"
@@ -158,7 +162,7 @@ enum VPTest {
                    + (me ? " (ich dabei)" : "") + " · Kalender \(e.calendar?.title ?? "?") · Rang \(CalendarContext.rank(e))")
         }
         appLog("Kalender-Test: \(CalendarContext.calendars().count) Kalender, davon abgewählt \(CalendarContext.excluded.count)")
-        appLog("Kalender-Test: jetzt → \(CalendarContext.current()?.title ?? "kein Termin")")
+        appLog("Kalender-Test: \(atF.string(from: now)) → \(CalendarContext.current(at: now)?.title ?? "kein Termin")")
         appLog("Kalender-Test: fertig")
     }
 
@@ -202,6 +206,192 @@ enum VPTest {
         appLog("Mic-Switch-Test: Eingabe laut Core Audio: \(CallDetector.ownInputDeviceNames())")
         let url = await r.stop()
         appLog("Mic-Switch-Test: fertig → \(url?.path ?? "keine Datei") (Wechsel zu \(other.localizedName) und zurück)")
+    }
+
+    /// Gegenstelle für den Call-Konflikt-Test: nimmt das Standardmikrofon auf wie eine Call-App (mit oder ohne Apple-
+    /// Sprachverarbeitung) und schreibt je 0,5 s „Unixzeit Pegel-dB Samples“ nach `out`.
+    static func micProbe(vp: Bool, out: URL, seconds: Double) {
+        let e = AVAudioEngine()
+        let lock = NSLock()
+        var acc = 0.0, cnt = 0
+        var lines: [String] = []
+        do {
+            let inNode = e.inputNode
+            if vp { try inNode.setVoiceProcessingEnabled(true) }
+            let fmt = inNode.outputFormat(forBus: 0)
+            inNode.installTap(onBus: 0, bufferSize: 2048, format: fmt) { buf, _ in
+                guard let ch = buf.floatChannelData else { return }
+                let len = Int(buf.frameLength)
+                var s = 0.0
+                for i in 0..<len { s += Double(ch[0][i] * ch[0][i]) }
+                lock.lock(); acc += s; cnt += len; lock.unlock()
+            }
+            e.prepare(); try e.start()
+            let end = Date().addingTimeInterval(seconds)
+            while Date() < end {
+                Thread.sleep(forTimeInterval: 0.5)
+                lock.lock(); let a = acc, n = cnt; acc = 0; cnt = 0; lock.unlock()
+                lines.append(String(format: "%.2f %.1f %d", Date().timeIntervalSince1970, 10 * log10(a / Double(max(n, 1)) + 1e-12), n))
+            }
+            e.stop(); inNode.removeTap(onBus: 0)
+        } catch { lines.append("FEHLER \(error)") }
+        try? lines.joined(separator: "\n").write(to: out, atomically: true, encoding: .utf8)
+    }
+
+    /// Hört das Gegenüber einen noch, während der Transcriber aufnimmt? (Fehlerbericht 2026-10-19: Zoom + MacBook-
+    /// Mikrofon + Transcriber mit Sprachverarbeitung → stumm.) `open -n ~/Applications/Transcriber.app --args
+    /// --call-conflict-test ORDNER`: eine zweite Instanz spielt die Call-App (--mic-probe, je einmal mit und ohne
+    /// Sprachverarbeitung), `say` spricht leise über die Lautsprecher; Phasen je 5 s: allein · Transcriber roh ·
+    /// Pause · Transcriber mit Sprachverarbeitung. Ergebnis 2026-10-19: liest die Gegenstelle roh, bekommt sie ab dem
+    /// Start der Sprachverarbeitung keine Samples mehr (−120 dB, auch nach dem Stopp); roh stört nicht; hat die
+    /// Gegenstelle selbst Sprachverarbeitung, stört nichts. Pegel als Textdateien im ORDNER, Auswertung im app.log.
+    static func callConflict(_ folder: URL) async {
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let text = String(repeating: "Hallo, hier spricht der Selbsttest für Calls. Kannst du mich noch hören? ", count: 12)
+        for probeVP in [true, false] {
+            let name = probeVP ? "vp" : "roh"
+            let out = folder.appendingPathComponent("probe-\(name).txt")
+            try? FileManager.default.removeItem(at: out)
+            let probe = Process()
+            probe.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            probe.arguments = ["-n", Bundle.main.bundlePath, "--args", "--mic-probe", name, out.path, "26"]
+            try? probe.run()
+            let say = Process()
+            say.executableURL = URL(fileURLWithPath: "/usr/bin/say")
+            say.arguments = ["[[volm 0.4]] " + text]
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            try? say.run()
+            var marks: [(String, Double)] = []
+            func mark(_ m: String) { marks.append((m, Date().timeIntervalSince1970)) }
+            func pause(_ s: Double) async { try? await Task.sleep(nanoseconds: UInt64(s * 1e9)) }
+            mark("allein"); await pause(5)
+            for vp in [false, true] {                           // roh zuerst: Sprachverarbeitung stört danach dauerhaft
+                let r = Recorder()
+                do { try await r.start(deviceID: nil, systemAudio: false, voiceProcessing: vp, folder: folder) }
+                catch { appLog("Call-Konflikt-Test: Start fehlgeschlagen: \(error.localizedDescription)") }
+                mark(vp ? "transcriber-vp" : "transcriber-roh"); await pause(5)
+                if let u = await r.stop() { try? FileManager.default.removeItem(at: u) }
+                mark("pause"); await pause(3)
+            }
+            mark("ende")
+            say.terminate()
+            await pause(10)                                      // Probe läuft 26 s, dann liegt die Datei vor
+            let rows = ((try? String(contentsOf: out, encoding: .utf8)) ?? "").split(separator: "\n").compactMap { l -> (Double, Double)? in
+                let p = l.split(separator: " "); return p.count >= 2 ? Double(p[0]).flatMap { t in Double(p[1]).map { (t, $0) } } : nil }
+            var summary: [String] = []
+            for (k, m) in marks.enumerated() where k + 1 < marks.count {
+                let lv = rows.filter { $0.0 > m.1 + 1 && $0.0 <= marks[k + 1].1 }.map(\.1)
+                summary.append("\(m.0) \(lv.isEmpty ? "–" : String(format: "%.0f dB", lv.reduce(0, +) / Double(lv.count)))")
+            }
+            appLog("Call-Konflikt-Test (Gegenstelle \(probeVP ? "mit" : "ohne") Sprachverarbeitung): \(summary.joined(separator: " · "))")
+        }
+    }
+
+    /// Die Wege der App selbst: `open -n ~/Applications/Transcriber.app --args --call-path-test ORDNER`.
+    /// A: „Call aufnehmen“ (Control.start mit Call-Mikrofon) → ohne Sprachverarbeitung, die Gegenstelle (--mic-probe roh)
+    /// hört weiter. B: Aufnahme mit Sprachverarbeitung (Einstellung), dann beginnt ein Call → Control.leaveVoiceProcessing
+    /// stellt roh um; eine danach gestartete Gegenstelle hört. Testaufnahmen landen im Aufnahmeordner und werden gelöscht.
+    @MainActor
+    static func callPath(_ folder: URL) async {
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let uid = Recorder.defaultInputDevice().flatMap { Recorder.deviceString($0, kAudioDevicePropertyDeviceUID) } ?? ""
+        func pause(_ s: Double) async { try? await Task.sleep(nanoseconds: UInt64(s * 1e9)) }
+        func probe(_ name: String, _ seconds: Int) -> URL {
+            let out = folder.appendingPathComponent("probe-\(name).txt")
+            try? FileManager.default.removeItem(at: out)
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            p.arguments = ["-n", Bundle.main.bundlePath, "--args", "--mic-probe", "roh", out.path, String(seconds)]
+            try? p.run()
+            return out
+        }
+        func level(_ out: URL, _ from: Double, _ to: Double) -> String {
+            let rows = ((try? String(contentsOf: out, encoding: .utf8)) ?? "").split(separator: "\n").compactMap { l -> (Double, Double)? in
+                let p = l.split(separator: " "); return p.count >= 2 ? Double(p[0]).flatMap { t in Double(p[1]).map { (t, $0) } } : nil }
+            let lv = rows.filter { $0.0 > from && $0.0 <= to }.map(\.1)
+            return lv.isEmpty ? "–" : String(format: "%.0f dB", lv.reduce(0, +) / Double(lv.count))
+        }
+        let say = Process()
+        say.executableURL = URL(fileURLWithPath: "/usr/bin/say")
+        say.arguments = ["[[volm 0.4]] " + String(repeating: "Hallo, hier spricht der Selbsttest für Calls. Kannst du mich noch hören? ", count: 14)]
+        try? say.run()
+        let r = Recorder()
+        // A
+        let pa = probe("a", 14)
+        await pause(3)
+        let a0 = Date().timeIntervalSince1970
+        do { try await Control.start(r, callMic: uid) } catch { appLog("Call-Weg-Test A: Start fehlgeschlagen: \(error)") }
+        let aVP = r.usesVoiceProcessing
+        await pause(5)
+        let a1 = Date().timeIntervalSince1970
+        if let u = await r.stop() { try? FileManager.default.removeItem(at: u) }
+        Control.callMic = nil
+        await pause(8)
+        appLog("Call-Weg-Test A (Call aufnehmen): Sprachverarbeitung \(aVP ? "AN – FEHLER" : "aus – ok"), Gegenstelle vorher \(level(pa, a0 - 2.5, a0)), während \(level(pa, a0 + 1, a1))")
+        // B
+        do { try await Control.start(r) } catch { appLog("Call-Weg-Test B: Start fehlgeschlagen: \(error)") }
+        let bVP = r.usesVoiceProcessing
+        await pause(3)
+        Control.leaveVoiceProcessing(r)
+        let bAfter = r.usesVoiceProcessing
+        let pb = probe("b", 9)
+        await pause(3)
+        let b0 = Date().timeIntervalSince1970
+        await pause(4)
+        let b1 = Date().timeIntervalSince1970
+        if let u = await r.stop() { try? FileManager.default.removeItem(at: u) }
+        say.terminate()
+        await pause(4)
+        appLog("Call-Weg-Test B (Call während Aufnahme): vorher Sprachverarbeitung \(bVP ? "an" : "aus (Einstellung?)"), danach \(bAfter ? "AN – FEHLER" : "aus – ok"), neue Gegenstelle \(level(pb, b0, b1))")
+    }
+
+    /// Diktat während einer Aufnahme: `open -n ~/Applications/Transcriber.app --args --dictation-parallel-test ORDNER`.
+    /// Je einmal Aufnahme roh (wie im Call) und mit Sprachverarbeitung (Treffen im Raum): 2 s Aufnahme allein, 3 s
+    /// zusätzlich Diktat, 2 s danach. `say` spricht leise. Pegel der Aufnahme je Phase und des Diktats → app.log.
+    /// `--own-mic`: Diktat mit eigenem Mikrofonzugriff statt aus der Aufnahme (so war es zuerst gemessen: roh gut, mit
+    /// Sprachverarbeitung bekam das Diktat −62 dB und die Aufnahme änderte sich). Testaufnahmen werden gelöscht.
+    @MainActor
+    static func dictationParallel(_ folder: URL) async {
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        func pause(_ s: Double) async { try? await Task.sleep(nanoseconds: UInt64(s * 1e9)) }
+        let say = Process()
+        say.executableURL = URL(fileURLWithPath: "/usr/bin/say")
+        say.arguments = ["[[volm 0.4]] " + String(repeating: "Hallo, hier spricht der Selbsttest für das Diktat. ", count: 16)]
+        try? say.run()
+        await pause(1)
+        for vp in [false, true] {
+            let r = Recorder()
+            do { try await r.start(deviceID: nil, systemAudio: false, voiceProcessing: vp, folder: folder) }
+            catch { appLog("Diktat-parallel-Test: Start fehlgeschlagen: \(error)"); continue }
+            func meter(_ s: Double) async -> String {
+                var v: [Float] = []
+                for _ in 0..<Int(s * 10) { await pause(0.1); v.append(r.level) }
+                let m = v.reduce(0, +) / Float(max(v.count, 1))
+                return String(format: "%.0f dB", m * 60 - 60)
+            }
+            let before = await meter(2)
+            let cap = DictationCapture()
+            var err: String?
+            let own = CommandLine.arguments.contains("--own-mic")
+            cap.start(voiceProcessing: false, shared: own ? nil : { r.setMicFeed($0) }, onFirstBuffer: {}, onError: { err = $0 })
+            let during = await meter(3)
+            let samples = await cap.stop()
+            let after = await meter(2)
+            if let fmt = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16000, channels: 1, interleaved: false),
+               let b = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: AVAudioFrameCount(max(samples.count, 1))),
+               let f = try? AVAudioFile(forWriting: folder.appendingPathComponent("diktat-\(vp ? "vp" : "roh").wav"), settings: fmt.settings) {
+                b.frameLength = AVAudioFrameCount(samples.count)
+                samples.withUnsafeBufferPointer { b.floatChannelData![0].update(from: $0.baseAddress!, count: samples.count) }
+                try? f.write(from: b)                            // zum Nachprüfen: transcriber dictate DATEI
+            }
+            if let u = await r.stop() { try? FileManager.default.removeItem(at: u) }
+            let rms = samples.isEmpty ? 0 : (samples.reduce(0) { $0 + $1 * $1 } / Float(samples.count)).squareRoot()
+            appLog("Diktat-parallel-Test (\(own ? "eigenes Mikrofon" : "aus der Aufnahme"), Aufnahme \(vp ? "mit Sprachverarbeitung" : "roh")): Aufnahme vorher \(before), "
+                   + "während Diktat \(during), danach \(after) · Diktat \(String(format: "%.1f", Double(samples.count) / 16000)) s, "
+                   + String(format: "%.0f dB", 20 * log10(max(rms, 1e-6))) + (err.map { " · Fehler \($0)" } ?? ""))
+            await pause(1)
+        }
+        say.terminate()
     }
 
     /// Beispieleinträge statt echter Aufnahmen (Screenshots für Website/Slack): `--args --ui-test --demo`.

@@ -78,7 +78,7 @@ def _names(red, watch_dir):
         pass
     # Auch Titel gelöschter oder umbenannter Aufnahmen, die nur noch im Protokoll stehen
     pats = [(r"Aufnahme benannt in [\d.]+ s: (.+?)\.\w+$", "Datei"), (r"Termin zur Aufnahme: (.+) \(\d+ Teilnehmer\)$", "Termin"),
-            (r"Aufnahme (?:gestartet|beendet): (.+?)\.m4a", "Datei"), (r"→ (.+?)\.\w+$", "Datei"), (r"fertig: (.+?)\.md ", "Datei")]
+            (r"Aufnahme (?:gestartet|beendet): (.+?)\.m4a", "Datei"), (r"→ (.+?)\.\w+$", "Datei"), (r"fertig: (.+?)\.(?:md|txt) ", "Datei")]
     for name in LOGS:
         t = _tail(config.DATA / name) or ""
         for line in t.splitlines():

@@ -58,11 +58,13 @@ struct RecordingSettings: View {
     @AppStorage("systemAudio") private var systemAudio = true
     @AppStorage("voiceProcessing") private var voiceProcessing = true
     @AppStorage("autoTranscribe") private var autoTranscribe = true
+    @AppStorage("audioRetention") private var audioRetention = false
     @AppStorage("autoTitle") private var autoTitle = true
     @AppStorage("callDetect") private var callDetect = true
     @AppStorage("language") private var language = "de"
     @AppStorage("languages") private var languages = Core.defaultLanguages
     @State private var filter = ""
+    @State private var textFormat = Core.textFormat
 
     var body: some View {
         Form {
@@ -76,6 +78,14 @@ struct RecordingSettings: View {
                 Toggle("Transkribieren", isOn: $autoTranscribe)
                 Toggle("Sprechend benennen (Kalendertitel, sonst Apple-KI)", isOn: $autoTitle).disabled(!autoTranscribe)
                     .help("„Aufnahme 2026-10-10 14-03“ → „2026-10-10 14-03 Thema“; Transkript und Stimmdatenbank werden mitgezogen.")
+                Picker("Transkript speichern als", selection: $textFormat) {
+                    Text("Text (.txt)").tag("txt")
+                    Text("Markdown (.md)").tag("md")
+                }
+                .onChange(of: textFormat) { _, new in Core.textFormat = new }
+                Toggle("Aufnahmen nach 30 Tagen löschen (Transkripte bleiben)", isOn: $audioRetention)
+                    .help("Nur fertig transkribierte Aufnahmen im Aufnahmeordner. Das Audio kommt in den Papierkorb; Transkript, Stimmen und Namen bleiben.")
+                .help("Text öffnet auf jedem Mac in TextEdit. Markdown (Überschrift, Sprecher-Tabelle, fette Namen) eignet sich für Obsidian & Co. Gilt für neue Transkripte; vorhandene behalten ihr Format.")
             }
             Section("Videokonferenzen") {
                 Toggle("Calls erkennen und Aufnahme anbieten", isOn: $callDetect)

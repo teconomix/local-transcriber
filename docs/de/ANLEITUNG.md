@@ -13,6 +13,8 @@ Klick auf das Wellen-Symbol in der Menüleiste öffnet das Panel:
    erkannter Call, heißt der Knopf **Call aufnehmen** und nimmt das Mikrofon, das die Call-App benutzt (siehe unten).
 2. **Datei transkribieren …** – daneben die Sprache (gilt für Aufnahmen, Dateien und Diktat; welche zur Auswahl stehen,
    legst du in den Einstellungen fest) und die **Personenzahl** (Auto oder genau 1–6 – nur für die nächste Aufnahme/Datei).
+   Die Sprache gilt beim Beenden der Aufnahme. Ist eindeutig eine andere Sprache zu hören (z. B. vergessen
+   zurückzustellen), nimmt Transcriber die erkannte und vermerkt das im Kopf des Transkripts.
 3. **Diktat-Zeile** – zeigt, welche Tasten belegt sind; orange/rot, wenn eine Freigabe fehlt. Der Schalter rechts
    schaltet das Diktat ein oder aus (aus = Tasten und der Speicher des Diktat-Dienstes sind wieder frei).
 4. **Transkriptionen** – die letzten Aufträge mit Fortschritt, den erkannten Sprechern und *Öffnen · Im Finder ·
@@ -26,7 +28,7 @@ Klick auf das Wellen-Symbol in der Menüleiste öffnet das Panel:
 1. Mikrofon wählen (meist „Systemstandard“), **Aufnahme starten**.
 2. Beim ersten Mal fragt macOS nach **Mikrofon** und **Systemaudio** – erlauben.
 3. **Aufnahme beenden.** Transcriber transkribiert und benennt die Datei; eine Mitteilung meldet „Transkript fertig“.
-4. **Öffnen** zeigt das Transkript (Markdown).
+4. **Öffnen** zeigt das Transkript – als reiner Text (`.txt`, Standard) oder Markdown (`.md`), siehe Einstellungen › Aufnahme › „Transkript speichern als“.
 
 ## Eine Videokonferenz aufnehmen
 
@@ -35,8 +37,9 @@ Nach dem Auflegen endet die Aufnahme von selbst. Alternativ **Call aufnehmen** i
 
 Call-Aufnahmen nehmen das **Mikrofon, das die Call-App benutzt**, und ziehen nach, wenn du es im Call wechselst (das
 Panel zeigt „Mikrofon wie im Call: …“; ein Wechsel kostet bis zu einer Sekunde Ton). Den Ton der anderen nimmt
-Transcriber unabhängig davon auf, ob er über Lautsprecher oder Kopfhörer läuft. Andere Mikrofone als der
-Systemstandard werden ohne Apples Sprachverarbeitung aufgenommen.
+Transcriber unabhängig davon auf, ob er über Lautsprecher oder Kopfhörer läuft. Während eines Calls nimmt Transcriber
+das Mikrofon immer ohne Apples Sprachverarbeitung auf – sonst hört dich z. B. in Zoom niemand mehr (die Call-App
+unterdrückt Rauschen und Echo selbst).
 
 Verschwindet die Mitteilung zu schnell: *Systemeinstellungen › Mitteilungen › Transcriber › Mitteilungsstil: Hinweise*
 – dann bleibt sie stehen, bis du klickst.
@@ -70,6 +73,9 @@ weitergeben. Die Datei ist nicht verschlüsselt. Vor dem Import die eigene Stimm
 2. In ein beliebiges Textfeld klicken, **rechte ⌘ halten**, auf den Ton warten, sprechen, loslassen.
 3. Mit **rechter ⌥** statt ⌘ räumt Apple Intelligence den Text auf (macOS 26).
 
+Diktieren geht auch, während eine Aufnahme läuft, z. B. Notizen im Call: Die anderen hören dich wie sonst, und was du
+diktierst, steht auch im Transkript.
+
 Hinweis: Auf der deutschen Tastatur tippt die rechte ⌥ auch `@` und `€`. Das wird als Tastenkürzel erkannt und
 ignoriert; wer den kurzen Startton dabei stört, wählt in den Einstellungen die rechte ⌃.
 
@@ -80,6 +86,20 @@ ignoriert; wer den kurzen Startton dabei stört, wählt in den Einstellungen die
   `Aufnahmen` gehört der App: Aufnahmen dort transkribiert die App; fehlt einer das Transkript (z. B. „Transkribieren“
   war aus), bietet das Panel es an.
 - **Umbenennen** einer Aufnahme im Panel; im Finder umbenannt oder verschoben, zieht der Wächter das Transkript nach.
+
+## Löschen
+
+Das **Papierkorb-Symbol** neben einem Eintrag im Panel fragt, wie viel weg soll:
+
+- **Nur Aufnahme:** Das Audio kommt in den Papierkorb; Transkript, Stimmen und Eintrag bleiben („Aufnahme gelöscht“).
+  „Namen neu zuordnen“ geht weiter, „Sprecher neu trennen“ nicht mehr.
+- **Alles löschen:** Audio, Transkript und Termin kommen in den Papierkorb; die Stimmen aus diesem Gespräch werden
+  endgültig gelöscht.
+
+Transcriber löscht dabei auch seine Arbeitskopien des Audios (in `~/.local/share/transcriber/cache/`). Im Finder
+gelöscht, räumt Transcriber innerhalb weniger Minuten genauso auf. Eine Notiz in Obsidian löschst du dort selbst.
+**Einstellungen › Aufnahme › „Aufnahmen nach 30 Tagen löschen“** macht „Nur Aufnahme“ automatisch für transkribierte
+Aufnahmen im Aufnahmeordner. Kommandozeile: `transcriber delete DATEI [--audio-only]`.
 
 ## Einstellungen
 

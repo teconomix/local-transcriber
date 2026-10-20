@@ -1,4 +1,4 @@
-"""Stimmreferenzen aus einem bereits benannten Transkript lernen (Markdown mit Zeilen „**[hh:mm:ss] Name:** …“).
+"""Stimmreferenzen aus einem bereits benannten Transkript lernen (.md mit Zeilen „**[hh:mm:ss] Name:** …“ oder .txt mit „[hh:mm:ss] Name: …“).
 
 Die Aufnahme wird neu diarisiert; jedes Cluster bekommt den Namen, der in seiner Sprechzeit überwiegt
 (mindestens 60 % Anteil). Namen mit Zusatz „(vermutlich)“ gelten als unsicher und werden nicht gelernt,
@@ -11,7 +11,7 @@ from pathlib import Path
 from . import audio, config, speakers
 from .i18n import t
 
-ROW = re.compile(r"\*\*\[(\d\d):(\d\d):(\d\d)\] ([^:*]+):\*\*")
+ROW = re.compile(r"(?:\*\*)?\[(\d\d):(\d\d):(\d\d)\] ([^:*]+):")   # .md: **[…] Name:**, .txt: […] Name:
 
 
 def parse_named(md):

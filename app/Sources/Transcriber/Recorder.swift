@@ -20,6 +20,12 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
     private var tap: AnyObject?                 // ProcessTap (macOS 14.2+), wenn „Systemton per Core Audio“ an ist
     private var sysRate = 48000.0
     private var engine: AVAudioEngine?
+    /// Läuft das Mikrofon gerade mit Apple-Sprachverarbeitung (AVAudioEngine) statt roh?
+    var usesVoiceProcessing: Bool { engine != nil }
+    /// Diktat während der Aufnahme: bekommt den Mikrofonton der Aufnahme mit (mono, Float32) – ein zweiter Zugriff
+    /// aufs Mikrofon störte die Sprachverarbeitung (`--dictation-parallel-test`, 2026-10-20).
+    private let feedLock = NSLock()
+    private var micFeed: ((AVAudioPCMBuffer) -> Void)?
     private var writer: AVAssetWriter?
     private var micInput: AVAssetWriterInput?
     private var sysInput: AVAssetWriterInput?
@@ -198,7 +204,7 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
         guard fmt.sampleRate > 0 else { throw NSError(domain: "Recorder", code: 5, userInfo: [NSLocalizedDescriptionKey: String(localized: "kein Eingangsformat")]) }
         inNode.installTap(onBus: 0, bufferSize: 4096, format: fmt) { [weak self] buf, when in
             guard let self, let sb = Self.monoSampleBuffer(buf, hostTime: when.hostTime) else { return }
-            self.queue.async { self.append(sb, to: self.micInput); self.updateLevel(sb) }
+            self.queue.async { self.append(sb, to: self.micInput); self.updateLevel(sb); self.forward(sb) }
         }
         e.prepare()
         do { try e.start() }
@@ -360,6 +366,29 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
     func captureOutput(_ output: AVCaptureOutput, didOutput sb: CMSampleBuffer, from connection: AVCaptureConnection) {
         append(sb, to: micInput)
         updateLevel(sb)
+        forward(sb)
+    }
+
+    /// Diktat an- (Empfänger) oder abmelden (nil). Von jedem Thread aus.
+    func setMicFeed(_ f: ((AVAudioPCMBuffer) -> Void)?) { feedLock.lock(); micFeed = f; feedLock.unlock() }
+
+    private func forward(_ sb: CMSampleBuffer) {
+        feedLock.lock(); let f = micFeed; feedLock.unlock()
+        if let f, let b = Self.pcm(sb) { f(b) }
+    }
+
+    /// Mono-Float-CMSampleBuffer (Mikrofon roh oder monoSampleBuffer) → AVAudioPCMBuffer.
+    static func pcm(_ sb: CMSampleBuffer) -> AVAudioPCMBuffer? {
+        guard let fd = CMSampleBufferGetFormatDescription(sb),
+              let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(fd)?.pointee,
+              asbd.mChannelsPerFrame == 1, asbd.mFormatFlags & kAudioFormatFlagIsFloat != 0, asbd.mBitsPerChannel == 32,
+              let fmt = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: asbd.mSampleRate, channels: 1, interleaved: false),
+              let bb = CMSampleBufferGetDataBuffer(sb) else { return nil }
+        let n = CMSampleBufferGetNumSamples(sb)
+        guard n > 0, let out = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: AVAudioFrameCount(n)) else { return nil }
+        out.frameLength = AVAudioFrameCount(n)
+        guard CMBlockBufferCopyDataBytes(bb, atOffset: 0, dataLength: n * 4, destination: out.floatChannelData![0]) == noErr else { return nil }
+        return out
     }
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sb: CMSampleBuffer, of type: SCStreamOutputType) {

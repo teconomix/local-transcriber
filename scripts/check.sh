@@ -41,7 +41,7 @@ import json, pathlib, sys
 out = pathlib.Path(sys.argv[1])
 doc = json.loads((out / "probe.transcript.json").read_text())
 text = " ".join(w["w"] for w in doc["words"]).lower()
-md = (out / "probe.md").read_text()
+md = (out / "probe.txt").read_text()            # Standard seit 0.8: .txt
 problems = [p for p, ok in [("Wörter fehlen", "test" in text and "spracherkennung" in text),
                             ("kein Sprecher", len(doc["speakers"]) >= 1),
                             ("Statuscode", all(c["status"] in {"sicher", "vermutlich", "unbekannt", "bestätigt"} for c in doc["speakers"])),

@@ -10,6 +10,7 @@ oder Bildschirminhalte irgendwohin. Es gibt keine Telemetrie, keine Analyse, kei
 | Aufnahmen, Transkripte | `~/Transcriber/` | deine Dateien |
 | **Stimmdatenbank** | `~/.local/share/transcriber/speakers.db` | **biometrische Daten** (Stimm-Einbettungen) der benannten Personen; nur für dich lesbar (Dateirechte 0600) |
 | Termin zur Aufnahme | `<Aufnahme>.event.json` neben der Aufnahme | Titel und Teilnehmer (Namen, E-Mail-Adressen) |
+| Arbeitskopien | `~/.local/share/transcriber/cache/` | Audio als WAV und die Spracherkennung, fürs Neu-Auswerten; werden mit der Aufnahme gelöscht (Anleitung › Löschen) |
 | Protokolle | `~/.local/share/transcriber/*.log` | technische Meldungen, keine Inhalte von Diktaten |
 
 ## Was nicht gespeichert wird
@@ -38,3 +39,4 @@ Dateinamen, Termintitel, Namen und E-Mail-Adressen werden durch Platzhalter erse
 Wer Gespräche aufnimmt und Stimmen speichert, verarbeitet personenbezogene – bei Stimmprofilen sogar biometrische –
 Daten anderer. Hol die Einwilligung der Beteiligten ein, bevor du aufnimmst und Stimmen benennst. Einzelne Personen
 und ihre Stimmreferenzen entfernst du im Fenster **Stimmen …** oder mit `transcriber speakers forget NAME`.
+Löschst du eine Aufnahme mit „Alles löschen“, gehen auch die Stimmen aus diesem Gespräch.

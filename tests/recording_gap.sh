@@ -28,10 +28,15 @@ e = np.array([np.sqrt(np.mean(sys_[j:j + 160] ** 2)) for j in range(0, len(sys_)
 onset = np.argmax(e > 1e-3) * 0.01 if (e > 1e-3).any() else None
 s0 = int(gap * 16000); a, m = sys_[s0:s0 + 40000], mic[s0:s0 + 40000]
 lag = (np.argmax(np.correlate(m - m.mean(), a - a.mean(), "full")) - (len(a) - 1)) / 16000
+# Mit Sprachverarbeitung entfernt die Echounterdrückung den Testton fast ganz aus dem Mikrofon (2026-10-20: nur 7 dB
+# über dem Rauschen, oft 0 dB) → Korrelation zufällig (−1,4 s). Ohne Sprachverarbeitung +8–9 dB, Versatz stabil ~0,1 s.
+# Versatz daher nur prüfen, wenn das Mikrofon den Ton mindestens 5 dB über dem Rauschen hört.
+db = lambda x: 10 * np.log10(np.mean(x ** 2) + 1e-12)
+heard = db(m) - db(mic[max(s0 - 80000, 0):max(s0 - 16000, 1)]) >= 5
 print(f"  Lücke {gap:g} s: Spuren {len(mic)/16000:.2f} / {len(sys_)/16000:.2f} s, Ton im Systemton ab {onset} s, "
-      f"Mikrofon {lag:+.3f} s, {fills}× gefüllt")
+      + (f"Mikrofon {lag:+.3f} s" if heard else "Versatz nicht messbar (Mikrofon hört den Ton kaum)") + f", {fills}× gefüllt, Ton +{db(m) - db(mic[max(s0 - 80000, 0):max(s0 - 16000, 1)]):.0f} dB")
 ok = (abs(len(mic) - len(sys_)) < 0.8 * 16000 and onset is not None and onset >= gap - 0.5
-      and 0 <= lag <= 0.3 and fills == 1)
+      and (not heard or 0 <= lag <= 0.3) and fills == 1)
 sys.exit(0 if ok else f"✗ Lücke {gap:g} s: Spuren nicht synchron")
 PY
   local rc=$?; rm -rf "$G"; return $rc

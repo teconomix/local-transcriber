@@ -25,7 +25,7 @@ Oder mit Homebrew: `brew install --cask teconomix/tap/local-transcriber`. Fragen
 - **Kalender** – Termintitel als Dateiname, Teilnehmer als Vorschläge beim Benennen.
 - **Diktat überall** – Taste halten, sprechen, loslassen: Text steht an der Schreibmarke jeder App.
 - **Lokale KI** (macOS 26) – Diktat aufräumen, sprechende Dateinamen – mit Apple Intelligence auf dem Gerät.
-- **Für Profis** – Ordnerwächter, Markdown/JSON/SRT, Glossar, Kommandozeile, MCP-Server für KI-Agenten.
+- **Für Profis** – Ordnerwächter, Text oder Markdown, JSON, SRT, Glossar, Kommandozeile, MCP-Server für KI-Agenten.
 
 Ausführlich: [FUNKTIONEN.md](FUNKTIONEN.md) · Bedienung: [ANLEITUNG.md](ANLEITUNG.md) ·
 Installation: [INSTALLATION.md](INSTALLATION.md) · Datenschutz: [DATENSCHUTZ.md](DATENSCHUTZ.md)

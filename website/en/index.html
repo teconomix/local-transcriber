@@ -19,11 +19,11 @@
   <meta name="color-scheme" content="light dark">
   <meta name="referrer" content="no-referrer">
   <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=0.7-2">
+  <link rel="stylesheet" href="../style.css?v=0.8">
   <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/">
   <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/">
   <link rel="alternate" hreflang="x-default" href="https://transcriber.teconomix.net/">
-  <script src="../script.js?v=0.7-2" defer></script>
+  <script src="../script.js?v=0.8" defer></script>
   <script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Local Transcriber", "operatingSystem": "macOS 14 or newer (Apple Silicon)", "applicationCategory": "BusinessApplication", "description": "Free open-source macOS menu bar tool: meetings, calls and dictation are transcribed locally on your Mac, with speaker recognition – no cloud, no account, no subscription.", "url": "https://transcriber.teconomix.net/en/", "inLanguage": ["de", "en"], "license": "https://opensource.org/licenses/MIT", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}, "author": {"@type": "Person", "name": "Björn Rabethge"}, "softwareVersion": "0.7", "downloadUrl": "https://transcriber.teconomix.net/install.sh"}</script>
 </head>
 <body>
@@ -60,7 +60,7 @@
               <span aria-live="polite">Copy</span>
             </button>
           </div>
-          <p class="install-version">Version <span data-version>0.7</span> · October 14, 2026 · macOS 14 or later</p>
+          <p class="install-version">Version <span data-version>0.8</span> · October 20, 2026 · macOS 14 or later</p>
         </div>
 
         <div class="hero-links">
@@ -180,7 +180,13 @@
         <article class="card">
           <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M7 10l3 2.5L7 15M12.5 15H17"/></svg></div>
           <h3>For power users</h3>
-          <p>Folder watcher (optional): files in <code>~/Transcriber</code> are transcribed automatically. Output as Markdown, JSON and SRT, a glossary for names and technical terms, a command line and an MCP server for AI agents such as Claude.</p>
+          <p>Folder watcher (optional): files in <code>~/Transcriber</code> are transcribed automatically. Output as plain text (or Markdown), JSON and SRT, a glossary for names and technical terms, a command line and an MCP server for AI agents such as Claude.</p>
+        </article>
+        <article class="card wide">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5"/><circle cx="9" cy="13" r="1.6"/><circle cx="15" cy="17" r="1.6"/><path d="M10.4 14l3.2 2"/></svg></div>
+          <h3>For Obsidian</h3>
+          <p>With the plugin <a href="https://github.com/teconomix/obsidian-local-transcriber">Local Transcriber for Obsidian</a>, every recording becomes a note in your vault – with date, calendar event, the participants as links to your people notes, and the transcript. Name speakers right in Obsidian, and transcribe audio files in your vault with a right-click. Whatever you write or correct yourself stays untouched.</p>
+          <p>The plugin has been submitted to Obsidian's plugin directory. Until it is listed there: install it by hand or with BRAT – <a href="https://github.com/teconomix/obsidian-local-transcriber#installation">instructions on GitHub</a>.</p>
         </article>
       </div>
     </div>
@@ -279,11 +285,11 @@
               At the end it asks whether to watch the folder <code>~/Transcriber</code>: <kbd>y</kbd> for yes, just <kbd>↩</kbd> for no.
               <figure class="term" aria-label="What the installation looks like in Terminal">
                 <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i></div>
-<pre><b>Transcriber <span data-version>0.7</span> – Installation</b>
+<pre><b>Transcriber <span data-version>0.8</span> – Installation</b>
 
 <b>▸ Checking requirements</b>
   <em>✓</em> macOS 15.6, Apple Silicon, 212 GB free
-<b>▸ Downloading Transcriber <span data-version>0.7</span></b>
+<b>▸ Downloading Transcriber <span data-version>0.8</span></b>
   <em>✓</em> Checksums verified
 <b>▸ Setting up Python environment (uv, Python 3.12, packages – takes a few minutes)</b>
   <em>✓</em> Python environment ready
@@ -297,7 +303,7 @@
   <em>✓</em> ~/Applications/Transcriber.app
   Watch the folder ~/Transcriber (automatically transcribe audio files dropped there)? [y/N]
 
-<em><b>Done.</b></em> Transcriber <span data-version>0.7</span> is installed.</pre>
+<em><b>Done.</b></em> Transcriber <span data-version>0.8</span> is installed.</pre>
               </figure>
             </li>
             <li><strong>Grant permissions:</strong> Transcriber starts in the menu bar. macOS asks once per feature the first time you use it – click “Allow”.
@@ -362,7 +368,7 @@
 
 <footer class="site-footer">
   <div class="wrap">
-    <span>Local Transcriber <span data-version>0.7</span> · Open source (MIT) · no warranty</span>
+    <span>Local Transcriber <span data-version>0.8</span> · Open source (MIT) · no warranty</span>
     <nav aria-label="Legal and links">
       <a href="legal-notice.html">Legal notice</a>
       <a href="privacy.html">Privacy</a>

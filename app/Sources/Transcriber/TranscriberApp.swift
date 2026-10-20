@@ -28,6 +28,22 @@ struct TranscriberApp: App {
             let folder = URL(fileURLWithPath: CommandLine.arguments[i + 1])
             Task { await VPTest.micSwitch(folder); exit(0) }
         }
+        if let i = CommandLine.arguments.firstIndex(of: "--call-conflict-test"), i + 1 < CommandLine.arguments.count {
+            let folder = URL(fileURLWithPath: CommandLine.arguments[i + 1])
+            Task { await VPTest.callConflict(folder); exit(0) }
+        }
+        if let i = CommandLine.arguments.firstIndex(of: "--call-path-test"), i + 1 < CommandLine.arguments.count {
+            let folder = URL(fileURLWithPath: CommandLine.arguments[i + 1])
+            Task { @MainActor in await VPTest.callPath(folder); exit(0) }
+        }
+        if let i = CommandLine.arguments.firstIndex(of: "--dictation-parallel-test"), i + 1 < CommandLine.arguments.count {
+            let folder = URL(fileURLWithPath: CommandLine.arguments[i + 1])
+            Task { @MainActor in await VPTest.dictationParallel(folder); exit(0) }
+        }
+        if let i = CommandLine.arguments.firstIndex(of: "--mic-probe"), i + 3 < CommandLine.arguments.count {
+            let a = CommandLine.arguments
+            VPTest.micProbe(vp: a[i + 1] == "vp", out: URL(fileURLWithPath: a[i + 2]), seconds: Double(a[i + 3]) ?? 20); exit(0)
+        }
         if CommandLine.arguments.contains("--report-test") {   // Fehlerbericht erstellen, ohne Mail
             Task { @MainActor in
                 let r = await BugReport.create(description: "Selbsttest", redact: true)
@@ -51,11 +67,13 @@ struct TranscriberApp: App {
                     let r = recorder, j = jobs
                     appDelegate.recorder = r; appDelegate.jobs = j
                     dictation.micBusy = { r.isRecording }
+                    dictation.attachToRecording = { r.setMicFeed($0) }
                     calls.isRecording = { r.isRecording }
                     let c = calls
                     calls.startRecording = { Task { try? await Control.start(r, callMic: c.micUID) } }
                     calls.currentMic = { Control.callMic }
                     calls.switchMic = { uid in Control.switchMic(r, uid) }
+                    calls.leaveVoiceProcessing = { Control.leaveVoiceProcessing(r) }
                     calls.stopRecording = { Task { await Control.stop(r, j) } }
                 }
         }
@@ -127,16 +145,33 @@ enum Control {
         let mic = callMic ?? d.string(forKey: "micID") ?? ""
         Self.callMic = callMic
         recorder.warning = nil
+        // Während eines Calls nie Sprachverarbeitung: läuft sie im Transcriber auf demselben Mikrofon wie in Zoom, hört
+        // das Gegenüber einen nicht mehr (Fehlerbericht 2026-10-19, nachgestellt mit Zoom + MacBook-Mikrofon). Die
+        // Call-App macht ihre eigene; die getrennte Auswertung braucht sie nicht (Calls mit USB-Mikrofon, roh).
+        var vp = d.object(forKey: "voiceProcessing") as? Bool ?? true
+        if vp, callMic != nil || CallDetector.activeCall() != nil {
+            vp = false
+            appLog("Call läuft: Aufnahme ohne Sprachverarbeitung")
+        }
         try await recorder.start(deviceID: mic.isEmpty ? nil : mic, systemAudio: d.object(forKey: "systemAudio") as? Bool ?? true,
-                                 voiceProcessing: d.object(forKey: "voiceProcessing") as? Bool ?? true,
-                                 folder: recordingsDir)
+                                 voiceProcessing: vp, folder: recordingsDir)
     }
 
     static func switchMic(_ recorder: Recorder, _ uid: String) {
         guard recorder.isRecording else { return }
-        let vp = UserDefaults.standard.object(forKey: "voiceProcessing") as? Bool ?? true
-        do { try recorder.switchMic(deviceID: uid, voiceProcessing: vp); callMic = uid }
+        // Nur bei Call-Aufnahmen aufgerufen → ohne Sprachverarbeitung (siehe start).
+        do { try recorder.switchMic(deviceID: uid, voiceProcessing: false); callMic = uid }
         catch { appLog("Mikrofonwechsel fehlgeschlagen: \(error)"); callMic = uid }   // nicht jede 2 s erneut versuchen
+    }
+
+    /// Ein Call beginnt während einer Aufnahme mit Sprachverarbeitung → auf dasselbe Mikrofon roh umstellen, sonst hört
+    /// das Gegenüber einen nicht (siehe start). Sprachverarbeitung läuft immer auf dem Standardmikrofon.
+    static func leaveVoiceProcessing(_ recorder: Recorder) {
+        guard recorder.isRecording, recorder.usesVoiceProcessing else { return }
+        let uid = Recorder.defaultInputDevice().flatMap { Recorder.deviceString($0, kAudioDevicePropertyDeviceUID) } ?? ""
+        appLog("Call während der Aufnahme: Sprachverarbeitung aus")
+        do { try recorder.switchMic(deviceID: uid, voiceProcessing: false) }
+        catch { appLog("Umstellen ohne Sprachverarbeitung fehlgeschlagen: \(error)") }
     }
 
     static func stop(_ recorder: Recorder, _ jobs: JobManager) async {
@@ -510,6 +545,10 @@ struct JobRow: View {
                     if job.state == .done { fileLine }
                 }
                 Spacer(minLength: 4)
+                if job.state == .done {                                // Papierkorb = löschen, ✕ = nur aus der Liste
+                    Button { confirmDelete() } label: { Image(systemName: "trash").font(.caption.weight(.semibold)) }
+                        .buttonStyle(.borderless).foregroundStyle(.secondary).help("Löschen … (nur die Aufnahme oder alles)")
+                }
                 if job.state != .running {
                     Button { jobs.hide(job) } label: { Image(systemName: "xmark").font(.caption.weight(.semibold)) }
                         .buttonStyle(.borderless).foregroundStyle(.secondary).help("Aus der Liste entfernen (Dateien bleiben)")
@@ -544,7 +583,11 @@ struct JobRow: View {
     /// Dauer und Dateiaktionen als Text direkt unter dem Titel – erklärt sich ohne Tooltip.
     private var fileLine: some View {
         HStack(spacing: 6) {
-            Text(String(format: "%d:%02d min", Int(job.duration) / 60, Int(job.duration) % 60)).foregroundStyle(.secondary)
+            if job.audioGone {                                         // statt der Dauer – die Zeile ist schon voll
+                Text("Aufnahme gelöscht").foregroundStyle(.secondary)
+            } else {
+                Text(String(format: "%d:%02d min", Int(job.duration) / 60, Int(job.duration) % 60)).foregroundStyle(.secondary)
+            }
             Text("·").foregroundStyle(.tertiary)
             Button("Öffnen") { if let m = job.mdURL { NSWorkspace.shared.open(m) } }.buttonStyle(.link)
             Text("·").foregroundStyle(.tertiary)
@@ -558,6 +601,29 @@ struct JobRow: View {
                 .help("Namen neu zuordnen oder Sprecher neu trennen")
         }
         .font(.caption)
+    }
+
+    /// Eine Rückfrage, zwei Wege (Björn, 2026-10-20): „Nur Aufnahme“ – Audio und seine Kopien weg, Transkript, Stimmen
+    /// und Eintrag bleiben; „Alles löschen“ – auch Transkript und die Stimmen aus diesem Gespräch. Dateien → Papierkorb.
+    private func confirmDelete() {
+        let a = NSAlert()
+        a.messageText = String(localized: "„\(job.source.deletingPathExtension().lastPathComponent)“ löschen?")
+        a.informativeText = (job.audioGone ? "" : String(localized: "Nur die Aufnahme löschen: Das Transkript bleibt.") + "\n")
+            + String(localized: "Alles löschen: Aufnahme, Transkript und die gespeicherten Stimmen aus diesem Gespräch.")
+            + "\n\n" + String(localized: "Die Dateien kommen in den Papierkorb. Eine Notiz in Obsidian löschst du dort selbst.")
+        a.addButton(withTitle: String(localized: "Abbrechen"))           // Standard (Eingabetaste) = nichts passiert
+        if !job.audioGone { a.addButton(withTitle: String(localized: "Nur Aufnahme")) }
+        let all = a.addButton(withTitle: String(localized: "Alles löschen"))
+        all.hasDestructiveAction = true
+        NSApp.activate(ignoringOtherApps: true)
+        let r = a.runModal()
+        let audioOnly: Bool
+        switch r {
+        case .alertSecondButtonReturn where !job.audioGone: audioOnly = true
+        case .alertSecondButtonReturn, .alertThirdButtonReturn: audioOnly = false
+        default: return
+        }
+        Task { job.error = await jobs.delete(job, audioOnly: audioOnly) }
     }
 
     private func renameEditor(_ t: String) -> some View {
@@ -583,6 +649,7 @@ struct JobRow: View {
     /// „Stimmen neu erkennen“ vs. „Neu auswerten mit“ war nicht unterscheidbar.
     private func rerunMenu() {
         let menu = NSMenu()
+        menu.autoenablesItems = false                                // sonst schaltet AppKit isEnabled wieder an
         let names = ClosureMenuItem(title: String(localized: "Namen neu zuordnen")) { Task { await jobs.recheck(job) } }
         let hint = String(localized: "Nur neuer Abgleich mit Stimmdatenbank")
         if #available(macOS 14.4, *) { names.subtitle = hint } else { names.toolTip = hint }
@@ -592,7 +659,9 @@ struct JobRow: View {
         head.isEnabled = false
         menu.addItem(head)
         for (id, title) in [("0", String(localized: "Automatisch"))] + Core.speakerCounts.dropFirst() + (7...10).map({ (String($0), String(localized: "\($0) Personen")) }) {
-            menu.addItem(ClosureMenuItem(title: title) { jobs.rerun(job, speakers: Int(id) ?? 0) })
+            let item = ClosureMenuItem(title: title) { jobs.rerun(job, speakers: Int(id) ?? 0) }
+            if job.audioGone { item.isEnabled = false }               // braucht das Audio
+            menu.addItem(item)
         }
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
     }

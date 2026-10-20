@@ -15,6 +15,7 @@ import os
 import socket
 import socketserver
 import sys
+import threading
 import time
 
 import numpy as np
@@ -56,7 +57,7 @@ def transcribe(samples, language="de"):
         import mlx_whisper
         r = mlx_whisper.transcribe(a, path_or_hf_repo=asr.REPO, language=language, verbose=None,
                                    condition_on_previous_text=False)
-        text = " ".join(s["text"].strip() for s in r["segments"] if s["text"].strip())
+        text = " ".join(s["text"].strip() for s in r["segments"] if s["text"].strip()).replace("\ufffd", "")  # halbe Zeichen
         if text.lower().strip(" .!").startswith(PHANTOM) and len(text) < 60:
             text = ""
         text = _glossary(text)
@@ -119,6 +120,15 @@ def serve():
         srv = socketserver.UnixStreamServer(str(SOCK), Handler)
     finally:
         os.umask(old)
+    # Endet mit der App: wurde sie beendet (auch per kill, Absturz, Installer-Update), blieb der Dienst verwaist
+    # (Eltern-PID 1) mit altem Code zurück, und die neue App nahm ihn weiter (2026-10-20: knapp 6 Tage alt).
+    parent = os.getppid()
+    def watch():
+        while os.getppid() == parent:
+            time.sleep(5)
+        print(t("App beendet – Diktat-Dienst endet", "App quit – dictation service stops"), file=sys.stderr, flush=True)
+        srv.shutdown()
+    threading.Thread(target=watch, daemon=True).start()
     try:
         srv.serve_forever()                   # bewusst einzeln nacheinander: ein Modell, eine GPU-Warteschlange
     finally:

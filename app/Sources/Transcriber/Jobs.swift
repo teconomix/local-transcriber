@@ -31,6 +31,25 @@ enum Core {
     /// Personenzahl im Panel: „0“ = automatisch, sonst genau so viele (an pyannote als num_speakers).
     static let speakerCounts: [(String, String)] = [("0", String(localized: "Automatisch")), ("1", String(localized: "1 Person"))]
         + (2...6).map { (String($0), String(localized: "\($0) Personen")) }
+    /// Lesbares Transkript als „txt“ (reiner Text, Standard) oder „md“ (Markdown). Steht in config.json (text_format), damit auch
+    /// Ordnerwächter, Kommandozeile und MCP es kennen; die App liest und schreibt nur diesen einen Schlüssel.
+    static var textFormat: String {
+        get { (configJSON()["text_format"] as? String) == "md" ? "md" : "txt" }
+        set {
+            var cfg = configJSON()
+            cfg["text_format"] = newValue == "md" ? "md" : "txt"
+            guard let out = try? JSONSerialization.data(withJSONObject: cfg, options: [.prettyPrinted, .sortedKeys]) else { return }
+            do {
+                try FileManager.default.createDirectory(at: data, withIntermediateDirectories: true)
+                try out.write(to: data.appendingPathComponent("config.json"), options: .atomic)
+            } catch { appLog("config.json nicht geschrieben: \(error.localizedDescription)") }
+        }
+    }
+    private static func configJSON() -> [String: Any] {
+        guard let d = try? Data(contentsOf: data.appendingPathComponent("config.json")),
+              let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return [:] }
+        return o
+    }
     /// Welche davon im Panel zur Auswahl stehen (UserDefaults „languages“, Codes mit Komma).
     static let defaultLanguages = "de,en,es,fr"
     static func languages(_ enabled: String) -> [(String, String)] {
@@ -90,6 +109,7 @@ final class Job: ObservableObject, Identifiable {
     @Published var error: String?
     @Published var attendees: [String] = []      // Kalender: andere Teilnehmer (Vorschläge beim Benennen)
     @Published var duration: Double = 0
+    @Published var audioGone = false              // Aufnahme gelöscht (Nur Aufnahme, 30-Tage-Regel, Finder), Transkript da
     var language = "de"                          // Sprache dieses Transkripts (für „Neu auswerten“)
 
     init(id: String, source: URL, started: Date) { self.id = id; self.source = source; self.started = started }
@@ -139,6 +159,40 @@ final class JobManager: ObservableObject {
         RunLoop.main.add(t, forMode: .common)   // .common: läuft auch, solange das Menüleistenfenster offen ist
         timer = t
         scan()
+        // Aufräumen: nach Löschen im Finder, und Aufnahmen nach 30 Tagen (Einstellung) – kurz nach dem Start, dann alle 10 min.
+        let c = Timer(timeInterval: 600, repeats: true) { [weak self] _ in Task { @MainActor in await self?.cleanup() } }
+        RunLoop.main.add(c, forMode: .common)
+        cleanupTimer = c
+        Task { try? await Task.sleep(nanoseconds: 20_000_000_000); await cleanup() }
+    }
+    private var cleanupTimer: Timer?
+
+    /// `transcriber cleanup`: im Finder Gelöschtes aufräumen (Zwischenspeicher, Stimmdatenbank, Eintrag); mit der
+    /// Einstellung „Aufnahmen nach 30 Tagen löschen“ auch das Audio alter, fertig transkribierter Aufnahmen.
+    func cleanup() async {
+        guard !frozen else { return }
+        let days = UserDefaults.standard.bool(forKey: "audioRetention") ? ["--audio-days", "30"] : []
+        let (ok, out) = await Core.run(["cleanup", "--json"] + days)
+        guard ok, let line = out.split(separator: "\n").last, let d = line.data(using: .utf8),
+              let r = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else {
+            appLog("Aufräumen fehlgeschlagen: \(out.suffix(300))"); return
+        }
+        let forgotten = r["forgotten"] as? Int ?? 0, audio = (r["audio_deleted"] as? [String])?.count ?? 0
+        if forgotten > 0 || audio > 0 { appLog("Aufgeräumt: \(forgotten) im Finder gelöschte Aufnahmen, \(audio) Aufnahmen älter als 30 Tage") }
+    }
+
+    /// Löschen (`transcriber delete`): audioOnly = nur die Aufnahme, Transkript und Stimmen bleiben. Sonst alles; der
+    /// Eintrag verschwindet mit seinen Statusdateien. Liefert nil bei Erfolg, sonst die Fehlermeldung.
+    func delete(_ job: Job, audioOnly: Bool) async -> String? {
+        let target = job.jsonURL ?? job.source
+        let (ok, out) = await Core.run(["delete", target.path, "--json"] + (audioOnly ? ["--audio-only"] : []))
+        guard ok else {
+            appLog("Löschen fehlgeschlagen: \(out)")
+            return out.split(separator: "\n").last.map(String.init) ?? String(localized: "Löschen fehlgeschlagen")
+        }
+        appLog(audioOnly ? "Aufnahme gelöscht, Transkript bleibt" : "Aufnahme samt Transkript gelöscht")
+        if audioOnly { job.audioGone = true } else { jobs.removeAll { $0.id == job.id } }
+        return nil
     }
 
     var running: [Job] { jobs.filter { $0.state == .running } }
@@ -200,6 +254,8 @@ final class JobManager: ObservableObject {
             }()
             job.progress = s["progress"] as? Double ?? 0
             job.message = s["message"] as? String ?? ""
+            let gone = state == .done && !FileManager.default.fileExists(atPath: job.source.path)
+            if job.audioGone != gone { job.audioGone = gone }
             if job.state != state {
                 let wasRunning = job.state == .running
                 job.state = state

@@ -34,11 +34,18 @@ final class Dictation: ObservableObject {
     var screenContext: Bool { UserDefaults.standard.object(forKey: "dictationScreenContext") as? Bool ?? true }
     var language: String { UserDefaults.standard.string(forKey: "language") ?? "de" }
     /// Standard aus: Apples Sprachverarbeitung braucht ~1 s zum Starten (gemessen 670–1076 ms gegenüber ~160 ms).
-    var voiceProcessing: Bool { UserDefaults.standard.object(forKey: "dictationVP") as? Bool ?? false }
+    /// Während eines Calls nie: Sprachverarbeitung schaltet einer Call-App, die das Mikrofon roh liest, den Ton ab
+    /// (`--call-conflict-test`, 2026-10-19).
+    var voiceProcessing: Bool {
+        (UserDefaults.standard.object(forKey: "dictationVP") as? Bool ?? false) && CallDetector.activeCall() == nil
+    }
     var sound: Bool { UserDefaults.standard.object(forKey: "dictationSound") as? Bool ?? true }
     var showIndicator: Bool { UserDefaults.standard.object(forKey: "dictationIndicator") as? Bool ?? true }
-    /// Gesetzt von außen: während einer Meeting-Aufnahme ist das Mikrofon belegt.
+    /// Gesetzt von außen: läuft eine Aufnahme? Dann diktiert man aus deren Mikrofonton mit (attachToRecording) statt
+    /// das Mikrofon ein zweites Mal zu öffnen – das störte bei Sprachverarbeitung Aufnahme und Diktat. Was man
+    /// diktiert, hören die anderen im Call und es steht im Transkript (Björns Wunsch, 2026-10-20).
     var micBusy: () -> Bool = { false }
+    var attachToRecording: (((AVAudioPCMBuffer) -> Void)?) -> Void = { _ in }
 
     private var monitors: [Any] = []
     private var pressedAt: Date?
@@ -140,7 +147,7 @@ final class Dictation: ObservableObject {
 
     private func keyDown(_ code: UInt16, clean: Bool) {
         guard pressedAt == nil, state == .idle else { return }
-        guard !micBusy() else { NSSound.beep(); lastError = String(localized: "Mikrofon belegt (Meeting-Aufnahme läuft)"); return }
+        let shared = micBusy()
         pressedAt = Date(); cancelled = false; lastError = nil; activeKey = code; cleaning = clean
         // Bildschirmtext jetzt lesen (parallel zur Aufnahme), solange noch das Fenster vorn ist, in das diktiert wird.
         screenTask = clean && screenContext && DictationCleanup.unavailableReason == nil ? Task { await ScreenContext.capture() } : nil
@@ -148,11 +155,12 @@ final class Dictation: ObservableObject {
         if showIndicator { indicator.show() }
 
         let t0 = Date()
-        capture.start(voiceProcessing: voiceProcessing,
+        capture.start(voiceProcessing: voiceProcessing, shared: shared ? attachToRecording : nil,
                       onFirstBuffer: { [weak self] in
                           Task { @MainActor in
                               guard let self, self.state == .starting else { return }
-                              appLog(String(format: "Diktat: erster Puffer nach %.0f ms", Date().timeIntervalSince(t0) * 1000))
+                              appLog(String(format: "Diktat: erster Puffer nach %.0f ms", Date().timeIntervalSince(t0) * 1000)
+                                     + (shared ? " (aus der laufenden Aufnahme)" : ""))
                               self.state = .recording
                               if self.sound { NSSound(named: "Tink")?.play() }   // jetzt sprechen
                           }
@@ -335,6 +343,7 @@ final class DictationCapture: @unchecked Sendable {
     private var all: [Float] = []
     private var onFirst: (() -> Void)?
     private let outFmt = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16000, channels: 1, interleaved: false)!
+    private var detach: ((((AVAudioPCMBuffer) -> Void)?) -> Void)?   // nur auf ctl: Ton kommt aus der Aufnahme
 
     /// Engine aufbauen, ohne das Mikrofon einzuschalten.
     func prepare(voiceProcessing: Bool) {
@@ -377,7 +386,10 @@ final class DictationCapture: @unchecked Sendable {
         if let e = engine { e.inputNode.removeTap(onBus: 0); e.stop(); engine = nil }
     }
 
-    func start(voiceProcessing: Bool, onFirstBuffer: @escaping () -> Void, onError: @escaping (String) -> Void) {
+    /// shared: Aufnahme läuft → deren Mikrofonton nehmen (Funktion zum An-/Abmelden), kein eigener Mikrofonzugriff.
+    func start(voiceProcessing: Bool, shared: ((((AVAudioPCMBuffer) -> Void)?) -> Void)? = nil,
+               onFirstBuffer: @escaping () -> Void, onError: @escaping (String) -> Void) {
+        if let shared { return startShared(shared, onFirstBuffer: onFirstBuffer, onError: onError) }
         ctl.async { [self] in
             // Selten kommt nach dem Start kein einziger Puffer (Latenztest 2026-10-10): dann einmal neu aufbauen.
             for attempt in 0..<2 {
@@ -396,6 +408,33 @@ final class DictationCapture: @unchecked Sendable {
             }
             onError(String(localized: "Mikrofon liefert keinen Ton"))
         }
+    }
+
+    private func startShared(_ attach: @escaping (((AVAudioPCMBuffer) -> Void)?) -> Void,
+                             onFirstBuffer: @escaping () -> Void, onError: @escaping (String) -> Void) {
+        ctl.async { [self] in
+            lock.lock()
+            all = []; gotBuffer = false; converter = nil
+            onFirst = onFirstBuffer; active = true
+            lock.unlock()
+            detach = attach
+            attach { [weak self] buf in self?.handleShared(buf) }
+            for _ in 0..<20 { if hasBuffer() { return }; Thread.sleep(forTimeInterval: 0.05) }
+            guard isActive() else { return }
+            onError(String(localized: "Mikrofon liefert keinen Ton"))
+        }
+    }
+
+    /// Puffer aus der Aufnahme (mono, meist 48 kHz); der Konverter entsteht beim ersten.
+    private func handleShared(_ buf: AVAudioPCMBuffer) {
+        lock.lock()
+        guard active else { lock.unlock(); return }
+        if converter == nil { converter = AVAudioConverter(from: buf.format, to: outFmt) }
+        let first = !gotBuffer; gotBuffer = true
+        all += convert(buf, end: false)
+        let fb = onFirst
+        lock.unlock()
+        if first { fb?() }
     }
 
     private func handle(_ buf: AVAudioPCMBuffer, mono m: AVAudioFormat) {
@@ -433,7 +472,7 @@ final class DictationCapture: @unchecked Sendable {
     func stop() async -> [Float] {
         await withCheckedContinuation { cont in
             ctl.async { [self] in
-                engine?.pause()
+                if let d = detach { d(nil); detach = nil } else { engine?.pause() }
                 lock.lock()
                 if active { all += convert(nil, end: true) }
                 let result = all

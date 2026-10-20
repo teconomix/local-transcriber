@@ -14,7 +14,9 @@ DEFAULTS = {
     "ui_language": None,           # Ausgabesprache de|en; None = macOS-Sprache (i18n.py), App setzt TRANSCRIBER_UI_LANG
     "watch_dir": "~/Transcriber",
     "watch_exclude": ["Aufnahmen", "Recordings"],   # Aufnahmeordner der App: dort startet die App selbst (watch.py)
-    "formats": ["md", "json"],     # zusätzlich möglich: "srt"
+    "formats": ["md", "json"],     # zusätzlich möglich: "srt"; „md“ = lesbares Transkript, Endung nach text_format
+    "text_format": "txt",          # txt = reiner Text (Standard seit 0.8) | md = Markdown; App: Einstellungen › Aufnahme
+                                   # (.md öffnet je nach Mac in irgendeinem Programm; Markdown fürs Obsidian-Plugin)
     "min_speakers": 2,
     "max_speakers": 15,            # großzügig: zu viele Cluster führt die Stimmdatenbank wieder zusammen, zu wenige
                                    # mischen Personen unumkehrbar (2026-10-12: 9 Personen, Grenze 6 → zwei in einem Cluster)
@@ -30,9 +32,11 @@ DEFAULTS = {
     "carry_sim": 0.9,              # Neuauswertung: Bestätigung übernehmen ab dieser Ähnlichkeit zur alten Referenz
     # Zwei Tonspuren (App: Mikrofon + Systemton): auto = getrennt auswerten, außer die Spuren sind Kopien desselben
     # Raumklangs (Handy mit zwei Mikrofonen: ≥ copy_share der Fenster korreliert) → gemischt. Siehe bench/SPUREN.md.
+    "language_check": True,        # eindeutig andere Sprache als eingestellt (asr.detect_language) → die erkannte nehmen
     "track_mode": "auto",          # auto | getrennt | gemischt
     "copy_share": 0.9,
     "merge_sim": 0.6,              # Cluster einer Spur ab dieser Stimmähnlichkeit zusammenlegen
+    "merge_sim_call": 0.7,         # dasselbe auf der Call-Spur (Codec: verschiedene Stimmen bis 0,63 ähnlich)
 }
 
 

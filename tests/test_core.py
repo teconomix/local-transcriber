@@ -8,6 +8,7 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 import unicodedata
 import unittest
 from pathlib import Path
@@ -69,6 +70,15 @@ class Render(unittest.TestCase):
 
     def test_markdown_en(self):
         self.golden("en")
+
+    def test_language_detected_line(self):
+        """Sprache automatisch umgestellt → Kopfzeile nennt erkannte und eingestellte Sprache; sonst keine Angabe."""
+        set_lang("de")
+        doc = sample()
+        doc["language"], doc["language_set"] = "de", "en"
+        self.assertIn("Sprache: de (erkannt, eingestellt war en)", render.markdown(doc, "x.transcript.json", plain=True))
+        doc["language_set"] = None
+        self.assertNotIn("Sprache:", render.markdown(doc, "x.transcript.json", plain=True))
 
     def test_srt_speaker_labels(self):
         set_lang("en")
@@ -136,7 +146,7 @@ class StatusCodes(unittest.TestCase):
         # Referenzen nur ab min_enroll_s (15 s): Kim (31 s) ja, Sam (8 s) nicht – die Person entsteht trotzdem
         refs = {r["name"]: r["n"] for r in speakers.persons(db)}
         self.assertEqual(refs, {"Kim Beispiel": 1, "Sam Probe": 0})
-        self.assertTrue((tmp / "beispiel.md").exists())
+        self.assertTrue((tmp / "beispiel.txt").exists())   # Standard seit 0.8: Text
 
     def test_recheck_matches_open_voices_against_newer_references(self):
         """Neu erkennen: eine seither (in einer anderen Aufnahme) benannte Stimme wird erkannt, Bestätigte bleiben."""
@@ -210,8 +220,8 @@ class Rename(unittest.TestCase):
         doc["source"] = str(audio)
         jp = tmp / f"{old}.transcript.json"
         jp.write_text(json.dumps(doc, ensure_ascii=False))
-        for ext in (".md", ".srt"):
-            (tmp / f"{old}{ext}").write_text("alt")
+        (tmp / f"{old}.md").write_text(render.markdown(doc, jp.name))     # eigenes Transkript (Kopf „Quelle: …“)
+        (tmp / f"{old}.srt").write_text("alt")
         (tmp / f"{old}.event.json").write_text(json.dumps(doc["event"]))
         db = fresh_db()
         db.execute("INSERT INTO jobs VALUES(?,?,?,?,?)", (doc["job_id"], str(audio), str(jp), "m", 0))
@@ -248,8 +258,8 @@ class Rename(unittest.TestCase):
         doc["source"], doc["job_id"] = str(audio), pipeline.job_id(audio)
         jp = audio.with_name("alt.transcript.json")
         jp.write_text(json.dumps(doc, ensure_ascii=False))
-        for ext in (".md", ".event.json"):
-            audio.with_name("alt" + ext).write_text("alt")
+        audio.with_name("alt.md").write_text(render.markdown(doc, jp.name))
+        audio.with_name("alt.event.json").write_text("alt")
         db = fresh_db()
         db.execute("INSERT INTO jobs VALUES(?,?,?,?,?)", (doc["job_id"], str(audio), str(jp), "m", 0))
         db.commit()
@@ -282,6 +292,232 @@ class Rename(unittest.TestCase):
             pipeline.rename(jp, "y")
 
 
+class Delete(unittest.TestCase):
+    """Löschen (ganz / nur Audio) und Aufräumen nach Löschen im Finder bzw. nach N Tagen."""
+
+    def setUp(self):
+        set_lang("de")
+        self.tmp = Path(tempfile.mkdtemp(dir=_DATA))
+        self.trash = self.tmp / "Papierkorb"
+        os.environ["TRANSCRIBER_TRASH"] = str(self.trash)       # nie in den echten Papierkorb
+        self.rec = self.tmp / "Transcriber" / "Aufnahmen"
+        self.rec.mkdir(parents=True)
+        config.CONFIG.write_text(json.dumps({"watch_dir": str(self.tmp / "Transcriber")}))
+        self.db = fresh_db()
+        config.JOBS.mkdir(parents=True, exist_ok=True)
+        for f in config.JOBS.glob("*.json"):
+            f.unlink()
+
+    def tearDown(self):
+        os.environ.pop("TRANSCRIBER_TRASH", None)
+
+    def make(self, name, jid, named=True):
+        from transcriber import cleanup                          # noqa: F401  (Import prüfen)
+        audio = self.rec / f"{name}.m4a"
+        audio.write_bytes(b"\0" * 16)
+        doc = sample()
+        doc["source"], doc["job_id"] = str(audio), jid
+        jp = self.rec / f"{name}.transcript.json"
+        jp.write_text(json.dumps(doc, ensure_ascii=False))
+        (self.rec / f"{name}.txt").write_text(render.markdown(doc, jp.name, plain=True))
+        (self.rec / f"{name}.event.json").write_text("{}")
+        (config.CACHE / jid).mkdir(parents=True, exist_ok=True)
+        (config.CACHE / jid / "audio.wav").write_bytes(b"\0")
+        v = np.ones(4, np.float32).tobytes()
+        self.db.execute("INSERT INTO jobs VALUES(?,?,?,?,?)", (jid, str(audio), str(jp), "m", 0))
+        self.db.execute("INSERT INTO clusters VALUES(?,?,?,?,?,?,?)", (jid, "SPEAKER_00", v, 70, None, None, None))
+        if named:
+            pid = speakers.person_id(self.db, f"Person {jid}")
+            self.db.execute("INSERT INTO embeddings(person_id, vec, speech_s, job_id, label, source) VALUES(?,?,?,?,?,?)",
+                            (pid, v, 70, jid, "SPEAKER_00", str(audio)))
+        self.db.commit()
+        (config.JOBS / f"{jid}.json").write_text(json.dumps({"source": str(audio), "state": "done"}))
+        return audio, jp
+
+    def count(self, table, jid):
+        return self.db.execute(f"SELECT count(*) FROM {table} WHERE {'id' if table == 'jobs' else 'job_id'}=?", (jid,)).fetchone()[0]
+
+    def test_delete_all_and_audio_only(self):
+        from transcriber import cleanup
+        audio, jp = self.make("Gespräch A", "aaa1")
+        (self.rec / "Gespräch A.md").write_text("eigene Notiz, nicht von Transcriber")   # fremde Datei gleichen Namens
+        r = cleanup.delete(audio)
+        self.assertEqual(sorted(p.name for p in self.rec.iterdir()), ["Gespräch A.md"])   # fremde bleibt
+        self.assertEqual(len(list(self.trash.iterdir())), 4)                              # Audio, json, txt, event
+        self.assertFalse((config.CACHE / "aaa1").exists())
+        self.assertEqual((r["voices"], self.count("jobs", "aaa1"), self.count("clusters", "aaa1")), (1, 0, 0))
+        self.assertIsNone(self.db.execute("SELECT id FROM persons WHERE name='Person aaa1'").fetchone())
+        # Person nur mit kurzer Sprechzeit (keine Referenz, nur bestätigter Sprecher einer anderen Aufnahme) bleibt
+        pid = speakers.person_id(self.db, "Kurz Sprechende")
+        self.db.execute("INSERT INTO clusters VALUES(?,?,?,?,?,?,?)", ("zzz0", "SPEAKER_01", np.ones(4, np.float32).tobytes(), 9, pid, 1.0, "bestätigt"))
+        self.db.commit()
+        self.assertFalse((config.JOBS / "aaa1.json").exists())
+
+        audio, jp = self.make("Gespräch B", "bbb2")
+        a3, j3 = self.make("Gespräch C", "ccc0", named=False)
+        cleanup.delete(a3)
+        self.assertIsNotNone(self.db.execute("SELECT id FROM persons WHERE name='Kurz Sprechende'").fetchone())
+        cleanup.delete(jp, audio_only=True)
+        self.assertFalse(audio.exists())
+        self.assertTrue(jp.exists() and (self.rec / "Gespräch B.txt").exists())
+        self.assertFalse((config.CACHE / "bbb2").exists())
+        self.assertEqual((self.count("embeddings", "bbb2"), self.count("clusters", "bbb2")), (1, 1))   # Stimmen bleiben
+        self.assertTrue((config.JOBS / "bbb2.json").exists())                                          # Eintrag bleibt
+
+    def test_running_transcription_is_not_deleted(self):
+        from transcriber import cleanup
+        audio, jp = self.make("Läuft", "ccc3")
+        (self.rec / "Läuft.lock").write_text("1")
+        with self.assertRaises(RuntimeError):
+            cleanup.delete(audio)
+        self.assertTrue(audio.exists())
+
+    def test_cleanup_after_finder(self):
+        from transcriber import cleanup
+        a1, j1 = self.make("Nur Audio weg", "ddd4")
+        a1.unlink()                                                  # im Finder: nur Audio gelöscht
+        a2, j2 = self.make("Alles weg", "eee5")
+        for p in self.rec.glob("Alles weg*"):
+            p.unlink()                                               # im Finder: alles gelöscht
+        a3, j3 = self.make("Verschoben", "fff6")
+        sub = self.rec.parent / "Archiv"; sub.mkdir()
+        for p in self.rec.glob("Verschoben*"):
+            p.rename(sub / p.name)                                   # im Finder verschoben (Wächter noch nicht dran)
+        gone_drive = Path("/Volumes/nicht-da-xyz/Aufnahme.m4a")      # Laufwerk abgemeldet: nichts anfassen
+        self.db.execute("INSERT INTO jobs VALUES(?,?,?,?,?)", ("ggg7", str(gone_drive), str(gone_drive) + ".json", "m", 0))
+        self.db.commit()
+        r = cleanup.cleanup()
+        self.assertFalse((config.CACHE / "ddd4").exists())
+        self.assertEqual(self.count("embeddings", "ddd4"), 1)        # Transkript noch da → Stimmen bleiben
+        self.assertEqual((self.count("jobs", "eee5"), self.count("embeddings", "eee5")), (0, 0))
+        self.assertFalse((config.JOBS / "eee5.json").exists())
+        self.assertEqual(self.count("embeddings", "fff6"), 1)
+        self.assertEqual(self.db.execute("SELECT transcript FROM jobs WHERE id='fff6'").fetchone()[0],
+                         str(sub / "Verschoben.transcript.json"))
+        self.assertEqual(self.count("jobs", "ggg7"), 1)
+        self.assertEqual((r["forgotten"], r["relinked"]), (1, 1))
+
+    def test_audio_after_days(self):
+        from transcriber import cleanup
+        old, jo = self.make("Alt", "hhh8")
+        new, jn = self.make("Neu", "iii9")
+        untranscribed = self.rec / "Ohne Transkript.m4a"
+        untranscribed.write_bytes(b"\0")
+        t40 = time.time() - 40 * 86400
+        for p in (old, untranscribed):
+            os.utime(p, (t40, t40))
+        r = cleanup.cleanup(audio_days=30)
+        self.assertEqual(r["audio_deleted"], [str(old)])
+        self.assertFalse(old.exists())
+        self.assertTrue(jo.exists() and new.exists() and untranscribed.exists())
+        self.assertEqual(self.count("embeddings", "hhh8"), 1)
+
+
+class TextFormat(unittest.TestCase):
+    """Lesbares Transkript als .md oder .txt (Einstellung text_format); fremde Dateien gleichen Namens bleiben unberührt."""
+
+    def setUp(self):
+        set_lang("de")
+        self.tmp = Path(tempfile.mkdtemp(dir=_DATA))
+        self.audio = self.tmp / "Gespräch.m4a"
+        self.audio.write_bytes(b"\0" * 16)
+        self.doc = sample()
+        self.doc["source"] = str(self.audio)
+
+    def tearDown(self):
+        config.CONFIG.unlink(missing_ok=True)
+
+    def test_plain_text_has_no_markdown(self):
+        txt = render.markdown(self.doc, "x.transcript.json", plain=True)
+        self.assertNotIn("**", txt)
+        self.assertNotIn("|", txt)
+        self.assertNotIn("`", txt)
+        self.assertFalse(txt.startswith("#"))
+        self.assertRegex(txt, r"\n\[00:00:\d\d\] [^:]+: ")
+        self.assertTrue(render.is_ours_text(txt, self.audio.name))
+
+    def test_default_is_txt(self):
+        config.CONFIG.unlink(missing_ok=True)
+        self.assertEqual(render.write(self.doc, self.tmp / "Gespräch", ["md", "json"])["md"].name, "Gespräch.txt")
+
+    def test_setting_txt_writes_txt(self):
+        config.CONFIG.write_text(json.dumps({"text_format": "txt"}))
+        paths = render.write(self.doc, self.tmp / "Gespräch", ["md", "json"])
+        self.assertEqual(paths["md"].name, "Gespräch.txt")
+        self.assertFalse((self.tmp / "Gespräch.md").exists())
+        # Benennen/Neu auswerten behält das Format, auch wenn die Einstellung inzwischen anders ist
+        config.CONFIG.write_text(json.dumps({"text_format": "md"}))
+        self.assertEqual(render.write(self.doc, self.tmp / "Gespräch", ["md", "json"])["md"].name, "Gespräch.txt")
+
+    def test_foreign_file_is_never_overwritten(self):
+        config.CONFIG.write_text(json.dumps({"text_format": "md"}))
+        foreign = self.tmp / "Gespräch.md"
+        foreign.write_text("Notendatei eines anderen Programms")
+        paths = render.write(self.doc, self.tmp / "Gespräch", ["md", "json"])
+        self.assertEqual(foreign.read_text(), "Notendatei eines anderen Programms")
+        self.assertEqual(paths["md"].name, "Gespräch.transcript.md")
+        self.assertEqual(pipeline.load_doc(paths["md"])[1].name, "Gespräch.transcript.json")
+
+    def test_rename_keeps_txt_and_foreign_files(self):
+        config.CONFIG.write_text(json.dumps({"text_format": "txt"}))
+        fresh_db()
+        jp = render.write(self.doc, self.tmp / "Gespräch", ["md", "json"])["json"]
+        (self.tmp / "Gespräch.md").write_text("fremd")              # gleichnamige fremde Datei
+        config.CONFIG.write_text(json.dumps({"text_format": "md"}))
+        pipeline.rename(jp, "Neu")
+        self.assertEqual(sorted(p.name for p in self.tmp.iterdir()),
+                         ["Gespräch.md", "Neu.m4a", "Neu.transcript.json", "Neu.txt"])
+        self.assertEqual((self.tmp / "Gespräch.md").read_text(), "fremd")
+
+    def test_enroll_reads_txt(self):
+        from transcriber import enroll
+        f = self.tmp / "benannt.txt"
+        f.write_text(render.markdown(self.doc, "x.transcript.json", plain=True))
+        self.assertTrue(enroll.parse_named(f))
+
+
+class Hallucinations(unittest.TestCase):
+    """drop_hallucinations: in Stille erfundene Phrasen weg, echte (auch leise) Wörter im Gespräch bleiben."""
+
+    def test_rules(self):
+        import soundfile as sf
+        sr, n = 16000, 100
+        rng = np.random.default_rng(0)
+        a = np.full(sr * n, 0.0005, dtype=np.float32) * rng.standard_normal(sr * n).astype(np.float32)
+        loud = lambda s, e: a.__setitem__(slice(int(s * sr), int(e * sr)), 0.1 * rng.standard_normal(int((e - s) * sr)).astype(np.float32))
+        loud(0, 20); loud(39, 42); loud(59, 62); loud(69, 92)          # Gespräch, Geräusch bei 40, echtes Ende, Klopfen
+        a[int(12 * sr):int(12.4 * sr)] *= 0.01                          # leises echtes Wort mitten im Gespräch
+        wav = Path(tempfile.mkdtemp(dir=_DATA)) / "a.wav"
+        sf.write(str(wav), a, sr)
+        W = lambda t, w, d=0.4: {"w": w, "start": t, "end": t + d, "speaker": "S"}
+        words = [W(x / 2, "wort") for x in range(0, 24)] + [W(12.0, "leise")] + [W(x / 2, "wort") for x in range(26, 40)]
+        words += [W(25, "Kauderwelsch"),                                # (a) allein, leise, außerhalb
+                  W(40, "Vielen"), W(40.4, "Dank."),                    # (c) Floskel außerhalb erkannter Sprache (Geräusch)
+                  W(60, "Vielen"), W(60.4, "Dank."),                    # echt: Floskel, laut, in erkannter Sprache → bleibt
+                  W(70, "Ja."), W(80, "Ja."), W(90, "Ja.")]             # (b) dreimal gleich allein → weg, obwohl laut
+        unsure = lambda t, w: dict(W(t, w), p=0.05)
+        words += [unsure(30 + i * 0.5, f"salat{i}") for i in range(8)]  # (d) lang, unsicher, außerhalb → weg
+        words += [unsure(15.1, "nuschel")]                             # unsicher, aber im Gespräch → bleibt
+        words.sort(key=lambda w: w["start"])
+        segs = [{"start": 0, "end": 11.5, "speaker": "S"}, {"start": 12.5, "end": 20, "speaker": "S"},
+                {"start": 59.5, "end": 61.5, "speaker": "S"}] + [{"start": t - 0.5, "end": t + 1, "speaker": "S"} for t in (70, 80, 90)]
+        kept, dropped = pipeline.drop_hallucinations(words, segs, wav)
+        gone = {d["text"]: d["why"] for d in dropped}
+        self.assertEqual(gone.get("Kauderwelsch"), "a")
+        self.assertIn("c", gone.get("Vielen Dank.", ""))
+        self.assertEqual(sum(1 for d in dropped if d["text"] == "Ja."), 3)
+        texts = [w["w"] for w in kept]
+        self.assertIn("leise", texts)                                   # leise, aber mitten im Gespräch
+        self.assertEqual([w["start"] for w in kept if w["w"] == "Vielen"], [60])   # das echte „Vielen Dank“ bleibt
+        self.assertEqual(gone.get(" ".join(f"salat{i}" for i in range(8))), "d")
+        self.assertIn("nuschel", texts)
+        self.assertEqual(len(kept), len(words) - 1 - 2 - 3 - 8)
+
+    def test_nothing_without_diarization(self):
+        w = [{"w": "x", "start": 0, "end": 1}]
+        self.assertEqual(pipeline.drop_hallucinations(w, [], "egal.wav"), (w, []))
+
+
 class Tracks(unittest.TestCase):
     """Zwei Spuren: wo gleichzeitig gesprochen wird bzw. wo die Mischung Wörter verschluckt hat."""
 
@@ -307,6 +543,41 @@ class Tracks(unittest.TestCase):
         self.assertFalse(pipeline._both_speaking(a * 0.01, b, 0, 2))          # Mikrofon 40 dB leiser
         echo = (0.5 * np.concatenate([np.zeros(320, np.float32), b[:-320]])).astype(np.float32)
         self.assertFalse(pipeline._both_speaking(echo, b, 0, 2))              # Mikrofon = Echo der Call-Spur
+
+    def test_merge_similar_keeps_expected_count(self):
+        """Ähnliche Cluster werden zusammengelegt, aber nie unter `keep` (Call-Spur: erwartete Zahl anderer Personen)."""
+        e = lambda *v: np.array(v + (0,) * (256 - len(v)), dtype=np.float32)
+        mk = lambda: [{"label": "T2:A", "speech_s": 1000, "embedding": e(1, 0)},
+                      {"label": "T2:B", "speech_s": 500, "embedding": e(0.8, 0.6)}]   # Ähnlichkeit 0,8
+        segs = [{"start": 0, "end": 1, "speaker": "T2:B"}]
+        self.assertEqual(len(pipeline._merge_similar(mk(), segs, [], 0.7)), 1)
+        self.assertEqual(segs[0]["speaker"], "T2:A")
+        segs = [{"start": 0, "end": 1, "speaker": "T2:B"}]
+        self.assertEqual(len(pipeline._merge_similar(mk(), segs, [], 0.7, keep=2)), 2)
+        self.assertEqual(segs[0]["speaker"], "T2:B")
+
+    def test_absorb_fragments(self):
+        """Call-Spur: Cluster aus Bruchstücken (Ø < 1 s) auflösen – Wörter während eigener Sprache an einen selbst,
+        sonst an die ähnlichste echte Stimme; echte kurze Stimmen und sicher erkannte Personen bleiben."""
+        fresh_db()
+        seg = lambda s, e, spk: {"start": s, "end": e, "speaker": spk}
+        w = lambda t, spk: {"w": "x", "start": t, "end": t + 0.2, "speaker": spk}
+        e = lambda *v: np.array(v + (0,) * (256 - len(v)), dtype=np.float32)
+        clusters = [{"label": "T2:J", "speech_s": 600, "embedding": e(1, 0, 0)},
+                    {"label": "T2:G", "speech_s": 300, "embedding": e(0, 1, 0)},
+                    {"label": "T2:F", "speech_s": 8, "embedding": e(0.2, 0.9, 0.1)}]       # Bruchstücke, eher G
+        segs = ([seg(i * 10, i * 10 + 4, "T2:J") for i in range(150)] + [seg(5, 8, "T2:G")] * 100
+                + [seg(20 + i, 20.4 + i, "T2:F") for i in range(20)])
+        mine = [seg(30, 32, "T1:A")]
+        words = [w(20.1, "T2:F"), w(30.5, "T2:F"), w(1, "T2:J")]
+        n = pipeline._absorb_fragments(clusters, segs, words, mine, "T1:A", config.load())
+        self.assertEqual(n, 1)
+        self.assertEqual([x["speaker"] for x in words], ["T2:G", "T1:A", "T2:J"])
+        # Ø 3 s je Abschnitt: echte (kurze) Stimme → bleibt
+        words = [w(20.1, "T2:F")]
+        long_ = [seg(20 + i * 3, 23 + i * 3, "T2:F") for i in range(3)]
+        self.assertEqual(pipeline._absorb_fragments(clusters, segs[:250] + long_, words, mine, "T1:A", config.load()), 0)
+        self.assertEqual(words[0]["speaker"], "T2:F")
 
 
 class VoiceDatabase(unittest.TestCase):
