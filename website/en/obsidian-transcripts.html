@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meeting transcripts in Obsidian – local, with speaker names as links | Local Transcriber</title>
+  <meta name="description" content="Turn recorded meetings, calls and interviews into Obsidian notes: transcribed on your Mac, speakers linked to your people notes, no cloud and no account. Free and open source.">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Local Transcriber">
+  <meta property="og:title" content="Meeting transcripts in Obsidian – local, with speaker names as links">
+  <meta property="og:description" content="Recordings become Obsidian notes, transcribed locally on your Mac – free and open source.">
+  <meta property="og:url" content="https://transcriber.teconomix.net/en/obsidian-transcripts.html">
+  <meta property="og:image" content="https://transcriber.teconomix.net/assets/og-en.png">
+  <meta property="og:locale" content="en_US">
+  <meta name="color-scheme" content="light dark">
+  <meta name="referrer" content="no-referrer">
+  <link rel="canonical" href="https://transcriber.teconomix.net/en/obsidian-transcripts.html">
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../style.css?v=0.8.1">
+  <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/obsidian-transkripte.html">
+  <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/obsidian-transcripts.html">
+  <script src="../script.js?v=0.8.1" defer></script>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="../assets/icon.svg" alt="" width="28" height="28">Local Transcriber</a>
+    <nav class="nav" aria-label="Main navigation"><a class="opt" href="./?k=seo-obsidian-en">Home</a><a class="lang" href="../de/obsidian-transkripte.html" hreflang="de" lang="de">Deutsch</a></nav>
+  </div>
+</header>
+
+<main class="legal article wrap">
+  <h1>Meeting transcripts in Obsidian – local, with speaker names as links</h1>
+  <p class="article-lead">If your notes live in Obsidian, transcripts belong there too: one note per conversation, with date, calendar event and the participants as links to your people notes. Local Transcriber records and transcribes on your Mac; the plugin <em>Local Transcriber for Obsidian</em> turns each transcript into a note. Nothing is uploaded, and no account is needed.</p>
+
+  <h2>What ends up in your vault</h2>
+  <ul>
+    <li><strong>One note per recording</strong> in a folder of your choice (default <code>Transcriber</code>), with the properties <code>date</code>, <code>duration</code>, <code>participants</code> (as <code>[[links]]</code>), <code>event</code>, <code>transcript</code> and the tag <code>transcript</code>.</li>
+    <li><strong>The transcript, by speaker</strong> – with the names Local Transcriber recognized from its local voice database.</li>
+    <li><strong>Names you assign later</strong> reach the note, also a re-analysis or the descriptive file name the app gives a recording.</li>
+    <li><strong>Audio files already in your vault:</strong> right-click › <em>Transcribe</em>. The note embeds the audio, so you can play it in Obsidian.</li>
+  </ul>
+
+  <h2>Your own notes stay yours</h2>
+  <p>The plugin only updates the transcript section between two hidden markers. What you write above or below it is never touched. If you edit the transcript itself – say, to fix a misheard word – the plugin stops updating it and tells you. Renamed or moved notes are found again; deleted notes are not recreated. Changes travel one way only: from Local Transcriber to Obsidian.</p>
+
+  <h2>Name speakers in Obsidian</h2>
+  <p>In a transcript note, the command palette offers <em>Name a speaker</em>: pick the speaker, type a name – suggestions come from the calendar attendees and, optionally, a people folder. Local Transcriber's voice database learns the voice and recognizes it in future recordings. <em>Confirm all speaker matches</em> does the rest in one step.</p>
+
+  <h2>Summaries – with whatever you like</h2>
+  <p>The plugin itself sends nothing anywhere: no network use, no telemetry. If you want summaries, use the AI plugin of your choice on the note – local or not is then up to you.</p>
+
+  <h2>Honestly: the limits</h2>
+  <p>Macs with Apple Silicon only (macOS 14+), and Obsidian on the desktop – the plugin reads the transcript files on that Mac. It has been submitted to Obsidian's plugin directory; until it is listed there, it is installed by hand or with BRAT. If your vault is synced (Obsidian Sync, iCloud, Syncthing …), the transcript notes are synced too – choose the notes folder accordingly. And getting everyone's consent before recording is up to you.</p>
+
+  <h2>Install</h2>
+  <p>1. Local Transcriber: open Terminal (<kbd>⌘</kbd> + <kbd>Space</kbd>, “Terminal”) and paste – the installer does the rest in about ten minutes:</p>
+  <div class="cmd">
+    <pre id="install-cmd-a">curl -fsSL https://transcriber.teconomix.net/k/seo-obsidian-en/install.sh | bash</pre>
+    <button class="copy-btn" type="button" data-copied="Copied" data-copy="install-cmd-a" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>
+      <span aria-live="polite">Copy</span>
+    </button>
+  </div>
+  <p>Or with Homebrew: <code>brew install --cask teconomix/tap/local-transcriber</code>. Guide with pictures and a 70-second video: <a href="./?k=seo-obsidian-en#installation">home page</a>.</p>
+  <p>2. The plugin: <a href="https://github.com/teconomix/obsidian-local-transcriber#installation">installation instructions on GitHub</a> (by hand or with BRAT). Source code of both: open source (MIT).</p>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Local Transcriber · Open source (MIT) · no warranty</span>
+    <nav aria-label="Legal and links">
+      <a href="legal-notice.html">Legal notice</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="counseling.html">For counseling &amp; supervision</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

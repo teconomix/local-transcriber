@@ -59,6 +59,7 @@ class Progress:
                 old.unlink(missing_ok=True)
         self.path = config.JOBS / f"{int(time.time() * 1000)}-{os.getpid()}.json"
         self._stop = threading.Event()
+        self._lock = threading.Lock()  # _tick-Thread und Hauptthread schreiben dieselbe .tmp (2026-10-23: replace → FileNotFoundError)
         threading.Thread(target=self._tick, daemon=True).start()
 
     def start(self, stage, expected_s=None, msg=""):
@@ -73,9 +74,10 @@ class Progress:
 
     def _emit(self, frac, msg):
         frac = round(min(frac, 1.0), 3)
-        self.status.update(stage=self.stage, progress=frac, message=msg, updated=time.time())
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(self.status, ensure_ascii=False)); tmp.replace(self.path)
+        with self._lock:
+            self.status.update(stage=self.stage, progress=frac, message=msg, updated=time.time())
+            tmp = self.path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(self.status, ensure_ascii=False)); tmp.replace(self.path)
         if self.cb:
             self.cb(self.stage, frac, msg)
 

@@ -694,5 +694,27 @@ class Language(unittest.TestCase):
         self.assertEqual(i18n.status("sicher"), "sicher")
 
 
+class ProgressStatus(unittest.TestCase):
+    def test_concurrent_emit(self):
+        """Hauptthread und _tick schreiben dieselbe Statusdatei – darf nicht mit FileNotFoundError scheitern (2026-10-23)."""
+        import threading
+        P = pipeline.Progress(None, Path(_DATA) / "x.m4a")
+        P.start("asr", expected_s=60)
+        errors = []
+
+        def hammer():
+            try:
+                for _ in range(300):
+                    P._emit(0.5, "x")
+            except Exception as e:
+                errors.append(e)
+        ts = [threading.Thread(target=hammer) for _ in range(4)]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+        P.done({})
+        self.assertEqual(errors, [])
+        self.assertEqual(json.loads(P.path.read_text())["state"], "done")
+
+
 if __name__ == "__main__":
     unittest.main()
