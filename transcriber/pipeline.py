@@ -585,6 +585,20 @@ def run(src, out_dir=None, formats=None, num_speakers=None, progress=None, cfg=N
         raise
     finally:
         lock.unlink(missing_ok=True)
+        free_gpu()
+
+
+def free_gpu():
+    """GPU-Zwischenspeicher von MLX (Whisper) und PyTorch/MPS (pyannote) nach jedem Auftrag freigeben. Langlebige
+    Prozesse (Wächter, MCP-Server) behielten sonst je Auftrag ~10 GB und wuchsen mit wechselnden Längen weiter: Wächter
+    2026-10-24 nach ~20 Dateien 57 GB → Speicher voll → Kernel-Panic (Watchdog). `ps` zeigt das nicht (IOAccelerator),
+    `footprint -p PID` schon. Gemessen: 12 GB → 2,6 GB."""
+    import gc
+    gc.collect()
+    if "mlx.core" in sys.modules:
+        sys.modules["mlx.core"].clear_cache()
+    if "torch" in sys.modules and sys.modules["torch"].backends.mps.is_available():
+        sys.modules["torch"].mps.empty_cache()
 
 
 def _run(src, language, out_dir, formats, num_speakers, cfg, terms, rules, P, t):
