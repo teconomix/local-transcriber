@@ -5,10 +5,12 @@ JSON dazu und hängt die ZIP-Datei an eine Mail an info@teconomix.net (2026-10-1
 Unkenntlich (Standard): Dateinamen aus ~/Transcriber, Termintitel und Teilnehmer aus .event.json, Namen aus der
 Stimmdatenbank, E-Mail-Adressen, Benutzername und Home-Pfad werden durch Platzhalter ersetzt (‹Datei 3›, ‹Person 2› …).
 Gleicher Name → gleicher Platzhalter, damit Abläufe im Protokoll lesbar bleiben."""
+import contextlib
 import json
 import platform
 import re
 import shutil
+import sqlite3
 import subprocess
 import sys
 import time
@@ -78,13 +80,22 @@ def _names(red, watch_dir):
         pass
     # Auch Titel gelöschter oder umbenannter Aufnahmen, die nur noch im Protokoll stehen
     pats = [(r"Aufnahme benannt in [\d.]+ s: (.+?)\.\w+$", "Datei"), (r"Termin zur Aufnahme: (.+) \(\d+ Teilnehmer\)$", "Termin"),
-            (r"Aufnahme (?:gestartet|beendet): (.+?)\.m4a", "Datei"), (r"→ (.+?)\.\w+$", "Datei"), (r"fertig: (.+?)\.(?:md|txt) ", "Datei")]
+            (r"Aufnahme (?:gestartet|beendet): (.+?)\.m4a", "Datei"), (r"→ (.+?)\.\w+$", "Datei"), (r"fertig: (.+?)\.(?:md|txt) ", "Datei"),
+            (r"gelöscht(?:, Transkript bleibt)?: (.+?)\.\w+$", "Datei"),   # seit 2026-10-20 mit Namen; Datei gibt es nicht mehr
+            (r"↪ (.+?)\.\w+: ", "Datei"), (r"(?:FEHLER, siehe|ERROR, see) (.+?)\.error\.txt", "Datei")]
     for name in LOGS:
         t = _tail(config.DATA / name) or ""
         for line in t.splitlines():
             for p, kind in pats:
                 if m := re.search(p, line):
                     red.add(m.group(1), kind)
+    # Aufträge außerhalb des Wächterordners (CLI, MCP) stehen nur in den Statusdateien bzw. der Datenbank
+    for f in config.JOBS.glob("*.json") if config.JOBS.exists() else []:
+        with contextlib.suppress(OSError, ValueError):
+            red.add(Path(json.loads(f.read_text()).get("source") or "").stem, "Datei")
+    with contextlib.suppress(Exception):
+        for (src,) in sqlite3.connect(f"file:{config.DB}?mode=ro", uri=True).execute("SELECT source FROM jobs"):
+            red.add(Path(src or "").stem, "Datei")
     user = getpass.getuser()
     if red.enabled:
         red.map[home] = "~"

@@ -190,7 +190,8 @@ final class JobManager: ObservableObject {
             appLog("Löschen fehlgeschlagen: \(out)")
             return out.split(separator: "\n").last.map(String.init) ?? String(localized: "Löschen fehlgeschlagen")
         }
-        appLog(audioOnly ? "Aufnahme gelöscht, Transkript bleibt" : "Aufnahme samt Transkript gelöscht")
+        // Mit Namen: 2026-10-20 ließ sich sonst nicht nachvollziehen, welcher Eintrag gelöscht worden war.
+        appLog((audioOnly ? "Aufnahme gelöscht, Transkript bleibt: " : "Aufnahme samt Transkript gelöscht: ") + job.source.lastPathComponent)
         if audioOnly { job.audioGone = true } else { jobs.removeAll { $0.id == job.id } }
         return nil
     }

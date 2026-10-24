@@ -43,6 +43,7 @@ final class CallDetector: NSObject, ObservableObject, UNUserNotificationCenterDe
     private var pendingMic: String?    // neues Call-Mikrofon, einmal gesehen
     private var switches: [Date] = []  // Mikrofonwechsel der letzten Minute
     private var gaveUp = false
+    private var lastDevices = ""        // zuletzt protokollierte Geräteliste der Call-App
 
     override init() {
         super.init()
@@ -62,6 +63,12 @@ final class CallDetector: NSObject, ObservableObject, UNUserNotificationCenterDe
         if let call = Self.activeCall() {
             let app = call.app
             current = app; lastSeen = now
+            // Jede Änderung der Geräteliste protokollieren (Teams meldete beim Start zwei Mikrofone, 2026-10-20 –
+            // mit Zeitstempeln sieht man, ob das nur die Vorschau vor dem Beitreten ist).
+            if asked {
+                let devs = Self.callDeviceReport()
+                if devs != lastDevices { lastDevices = devs; appLog("Call-Geräte: \(devs)") }
+            }
             if isRecording() { leaveVoiceProcessing() }    // kein Mikrofon-Konflikt mit der Call-App
             micName = call.micName
             if call.micUID != micUID { micUID = call.micUID }
@@ -89,7 +96,8 @@ final class CallDetector: NSObject, ObservableObject, UNUserNotificationCenterDe
             if !asked, !isRecording(), now.timeIntervalSince(since!) >= Self.askAfter {
                 asked = true
                 notify(String(localized: "Call in \(app) erkannt"), String(localized: "Aufnehmen? Mikrofon und Call-Ton werden getrennt aufgenommen."), category: "CALL")
-                appLog("Call erkannt: \(app) – Geräte: \(Self.callDeviceReport())")
+                lastDevices = Self.callDeviceReport()
+                appLog("Call erkannt: \(app) – Geräte: \(lastDevices)")
             }
         } else if let l = lastSeen, now.timeIntervalSince(l) >= Self.endAfter {
             if startedByCall && isRecording() {
@@ -98,6 +106,7 @@ final class CallDetector: NSObject, ObservableObject, UNUserNotificationCenterDe
                 appLog("Call beendet: Aufnahme gestoppt")
             }
             current = nil; since = nil; lastSeen = nil; asked = false; startedByCall = false; micUID = nil; micName = nil
+            lastDevices = ""
             pendingMic = nil; switches = []; gaveUp = false
         }
     }

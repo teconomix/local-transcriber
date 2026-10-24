@@ -181,6 +181,32 @@ class Report(unittest.TestCase):
         self.assertEqual(out, "‹Person 1› im Termin ‹Termin 1› und ‹Termin 2›; Kurzfassung bleibt, ‹Name 1› nicht; mail ‹E-Mail›")
         self.assertEqual(report.Redactor(enabled=False)("Kim Beispiel"), "Kim Beispiel")
 
+    def test_report_redacts_deleted_and_outside_files(self):
+        """Gelöschte Aufnahmen (nur noch im Protokoll) und Aufträge außerhalb des Wächterordners werden geschwärzt."""
+        import zipfile
+        from transcriber import report
+        tmp = Path(tempfile.mkdtemp(dir=_DATA))
+        (tmp / "Transcriber").mkdir()
+        config.CONFIG.write_text(json.dumps({"watch_dir": str(tmp / "Transcriber")}))
+        (config.DATA / "app.log").write_text("2026-10-20T21:00:00Z Aufnahme samt Transkript gelöscht: 2026-10-14 Geheimes Projekt.m4a\n")
+        (config.DATA / "watch.log").write_text("22:55:54 ↪ Alt verschoben.m4a: umbenannt, Transkript nachgezogen\n"
+                                               "   FEHLER, siehe Kaputt geheim.error.txt\n")
+        config.JOBS.mkdir(parents=True, exist_ok=True)
+        (config.JOBS / "extern.json").write_text(json.dumps({"source": "/anderswo/Vertrauliche Runde.m4a", "state": "done"}))
+        try:
+            out = tmp / "bericht.zip"
+            report.build(out, "x")
+            with zipfile.ZipFile(out) as z:
+                text = "\n".join(z.read(n).decode() for n in z.namelist())
+            for secret in ("Geheimes Projekt", "Alt verschoben", "Kaputt geheim", "Vertrauliche Runde"):
+                self.assertNotIn(secret, text)
+            self.assertIn("gelöscht: ‹Datei", text)
+        finally:
+            config.CONFIG.unlink(missing_ok=True)
+            for n in ("app.log", "watch.log"):
+                (config.DATA / n).unlink(missing_ok=True)
+            (config.JOBS / "extern.json").unlink(missing_ok=True)
+
     def test_report_zip_has_no_recordings_and_redacts_titles(self):
         import zipfile
         from transcriber import report

@@ -102,7 +102,7 @@ recordings in the recordings folder. Command line: `transcriber delete FILE [--a
 
 | Tab | Contents |
 |---|---|
-| General | version, data folder, check for updates once a day (optional) |
+| General | version, data folder, open at login, check for updates once a day (optional); when a new version is available, “Copy update command” puts the right command on the clipboard – paste it in Terminal and press Return |
 | Recording | Record system audio, voice processing, transcribe/name after recording, detect calls, languages to choose from |
 | Dictation | on/off, keys (verbatim / with AI), screen text as context, audio, icon at the cursor, voice processing |
 | Calendar | use calendar events, choice of calendars |

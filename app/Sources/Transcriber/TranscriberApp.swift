@@ -619,11 +619,16 @@ struct JobRow: View {
         a.informativeText = (job.audioGone ? "" : String(localized: "Nur die Aufnahme löschen: Das Transkript bleibt.") + "\n")
             + String(localized: "Alles löschen: Aufnahme, Transkript und die gespeicherten Stimmen aus diesem Gespräch.")
             + "\n\n" + String(localized: "Die Dateien kommen in den Papierkorb. Eine Notiz in Obsidian löschst du dort selbst.")
-        a.addButton(withTitle: String(localized: "Abbrechen"))           // Standard (Eingabetaste) = nichts passiert
+        let esc = a.addButton(withTitle: String(localized: "Abbrechen"))   // Eingabetaste und Escape = nichts passiert
         if !job.audioGone { a.addButton(withTitle: String(localized: "Nur Aufnahme")) }
         let all = a.addButton(withTitle: String(localized: "Alles löschen"))
         all.hasDestructiveAction = true
         NSApp.activate(ignoringOtherApps: true)
+        let monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
+            if e.keyCode == 53 { esc.performClick(nil); return nil }      // Escape → Abbrechen
+            return e
+        }
+        defer { if let monitor { NSEvent.removeMonitor(monitor) } }
         let r = a.runModal()
         let audioOnly: Bool
         switch r {

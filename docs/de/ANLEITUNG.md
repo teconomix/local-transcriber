@@ -105,7 +105,7 @@ Aufnahmen im Aufnahmeordner. Kommandozeile: `transcriber delete DATEI [--audio-o
 
 | Reiter | Inhalt |
 |---|---|
-| Allgemein | Version, Datenordner, einmal täglich nach Updates suchen (optional) |
+| Allgemein | Version, Datenordner, bei Anmeldung starten, einmal täglich nach Updates suchen (optional); gibt es eine neue Version, legt „Update-Befehl kopieren“ den passenden Befehl in die Zwischenablage – im Terminal einfügen und Return drücken |
 | Aufnahme | Systemton mitschneiden, Sprachverarbeitung, nach der Aufnahme transkribieren/benennen, Calls erkennen, Sprachen zur Auswahl |
 | Diktat | ein/aus, Tasten (wörtlich / mit KI), Bildschirmtext als Kontext, Ton, Symbol, Sprachverarbeitung |
 | Kalender | Termine nutzen, Auswahl der Kalender |
