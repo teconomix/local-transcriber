@@ -2,18 +2,40 @@ import EventKit
 import ServiceManagement
 import SwiftUI
 
-/// Einstellungen (eigenes Fenster): Allgemein · Aufnahme · Diktat · Kalender · Stimmen. Das Panel enthält nur, was man im
+/// Einstellungen (eigenes Fenster, Navigation links): Allgemein · Aufnahme · Diktat · Kalender · Glossar · KI · Stimmen. Das Panel enthält nur, was man im
 /// Alltag braucht.
 struct SettingsView: View {
+    @AppStorage("settingsTab") private var tab = "allgemein"   // „ki“: vom Eintrag aus direkt dorthin
+    /// Navigation links wie in den macOS-Systemeinstellungen: Mit „KI“ passten sieben Reiter nicht mehr in die Leiste –
+    /// macOS 26 versteckte sie hinter einem »-Menü (Björn, 2026-10-24).
+    static let pages: [(id: String, title: LocalizedStringKey, icon: String)] = [
+        ("allgemein", "Allgemein", "gearshape"), ("aufnahme", "Aufnahme", "record.circle"), ("diktat", "Diktat", "mic"),
+        ("kalender", "Kalender", "calendar"), ("glossar", "Glossar", "character.book.closed"), ("ki", "KI", "sparkles"),
+        ("stimmen", "Stimmen", "person.wave.2"),
+    ]
+
     var body: some View {
-        TabView {
-            GeneralSettings().tabItem { Label("Allgemein", systemImage: "gearshape") }
-            RecordingSettings().tabItem { Label("Aufnahme", systemImage: "record.circle") }
-            DictationSettings().tabItem { Label("Diktat", systemImage: "mic") }
-            CalendarSettings().tabItem { Label("Kalender", systemImage: "calendar") }
-            VoicesView().tabItem { Label("Stimmen", systemImage: "person.wave.2") }
+        NavigationSplitView {
+            List(Self.pages, id: \.id, selection: Binding(get: { tab }, set: { if let v = $0 { tab = v } })) { p in
+                Label(p.title, systemImage: p.icon).tag(p.id)
+            }
+            .navigationSplitViewColumnWidth(170)
+            .toolbar(removing: .sidebarToggle)
+        } detail: {
+            Group {
+                switch tab {
+                case "aufnahme": RecordingSettings()
+                case "diktat": DictationSettings()
+                case "kalender": CalendarSettings()
+                case "glossar": GlossarySettings()
+                case "ki": AISettings()
+                case "stimmen": VoicesView()
+                default: GeneralSettings()
+                }
+            }
+            .navigationTitle(Self.pages.first { $0.id == tab }?.title ?? "Einstellungen")
         }
-        .frame(width: 640, height: 480)
+        .frame(width: 800, height: 520)
     }
 }
 
@@ -165,6 +187,10 @@ struct DictationSettings: View {
                         Button("Einstellungen öffnen") { Dictation.openAccessibilitySettings() }
                     }
                 }
+            } footer: {
+                // Gemessen 2026-10-24: Diktat-Dienst 2,6 GB (2,5 GB GPU), nach dem Ausschalten 2,4 GB frei.
+                Text("Bei eingeschaltetem Diktat können bis zu 2,5 GB Arbeitsspeicher belegt sein – damit der Text sofort da ist.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Tasten") {
                 Picker("Wörtlich", selection: $dictationKey) {
@@ -249,5 +275,106 @@ struct CalendarSettings: View {
             if on { excluded.remove(id) } else { excluded.insert(id) }
             CalendarContext.excluded = excluded
         })
+    }
+}
+
+/// Glossar (vocab.txt, Format siehe transcriber/glossary.py): Begriff = Schreibweisen, die nach der Erkennung ersetzt
+/// werden. Dieselbe Datei wie `transcriber vocab` – Kommentarzeilen am Anfang bleiben, Kommentare hinter Einträgen nicht.
+struct GlossarySettings: View {
+    struct Entry: Identifiable, Equatable {
+        let id = UUID()
+        var term: String
+        var variants: String
+    }
+    @State private var entries: [Entry] = []
+    @State private var header: [String] = []
+    @State private var loaded: [Entry] = []          // nur nach echter Änderung schreiben (Öffnen ändert nichts)
+    @FocusState private var focused: UUID?
+
+    private static var url: URL { Core.data.appendingPathComponent("vocab.txt") }
+
+    // Kein Form: das gruppierte Formular richtet Textfelder rechtsbündig aus und setzt eigene Breiten – für eine
+    // Tabelle zum Tippen ungeeignet. Aufbau wie dort: Kopf mit Erklärung, Kasten, Fußzeile.
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Glossar").font(.headline)
+                    Text("""
+                        Namen und Fachbegriffe, die die Spracherkennung falsch schreibt, werden danach ersetzt – auch in \
+                        Wörtern mit Bindestrich („Kali-Strategie“ → „KI-Strategie“). Gilt für neue Transkripte und das Diktat; \
+                        für vorhandene: „Neu auswerten“ › „Glossar anwenden“.
+                        """)
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 10)
+                VStack(alignment: .leading, spacing: 8) {
+                    Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 6) {
+                        GridRow {
+                            Text("Richtig geschrieben").font(.caption).foregroundStyle(.secondary)
+                            Text("Wird erkannt als (mit Komma getrennt)").font(.caption).foregroundStyle(.secondary)
+                            Color.clear.frame(width: 16, height: 1)
+                        }
+                        ForEach($entries) { $e in
+                            GridRow {
+                                TextField(text: $e.term, prompt: Text("z. B. KI")) { EmptyView() }
+                                    .focused($focused, equals: e.id)
+                                    .frame(width: 170)
+                                TextField(text: $e.variants, prompt: Text("z. B. Kali, K.I.")) { EmptyView() }
+                                Button { entries.removeAll { $0.id == e.id } } label: { Image(systemName: "minus.circle") }
+                                    .buttonStyle(.borderless).help("Eintrag entfernen")
+                            }
+                        }
+                    }
+                    .textFieldStyle(.roundedBorder)
+                    Button { let e = Entry(term: "", variants: ""); entries.append(e); focused = e.id } label: {
+                        Label("Begriff hinzufügen", systemImage: "plus")
+                    }
+                    .buttonStyle(.borderless)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.08)))
+                Text("Vorsicht bei echten Wörtern als Schreibweise: Sie werden überall ersetzt. Ohne Schreibweise bleibt der Begriff nur als Schreibvorgabe fürs KI-Aufräumen im Diktat.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 10)
+            }
+            .padding(20)
+        }
+        .onAppear(perform: load)
+        .onChange(of: entries) { _, _ in save() }
+    }
+
+    private func load() {
+        let text = (try? String(contentsOf: Self.url, encoding: .utf8)) ?? ""
+        var head: [String] = [], list: [Entry] = []
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
+            let body = line.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? ""
+            if body.trimmingCharacters(in: .whitespaces).isEmpty {
+                if list.isEmpty && line.hasPrefix("#") { head.append(line) }
+                continue
+            }
+            let parts = body.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            list.append(Entry(term: parts[0].trimmingCharacters(in: .whitespaces),
+                              variants: parts.count > 1 ? parts[1].trimmingCharacters(in: .whitespaces) : ""))
+        }
+        header = head.isEmpty ? ["# Glossar für transcriber – Format: Begriff = Schreibweise1, Schreibweise2 (werden nach der Erkennung ersetzt)"] : head
+        entries = list; loaded = list
+    }
+
+    private func save() {
+        guard entries != loaded else { return }
+        // Halbe Eingaben (leerer Begriff) nicht schreiben, aber in der Liste lassen; „#“ und „=“ würden das Format brechen.
+        let clean = { (s: String) in s.replacingOccurrences(of: "#", with: "").trimmingCharacters(in: .whitespaces) }
+        let lines = entries.compactMap { e -> String? in
+            let t = clean(e.term).replacingOccurrences(of: "=", with: "")
+            guard !t.isEmpty else { return nil }
+            let v = clean(e.variants).split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+            return v.isEmpty ? t : t + " = " + v.joined(separator: ", ")
+        }
+        do {
+            try FileManager.default.createDirectory(at: Self.url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try (header + lines).joined(separator: "\n").appending("\n").write(to: Self.url, atomically: true, encoding: .utf8)
+        } catch { appLog("Glossar speichern: \(error)") }
     }
 }

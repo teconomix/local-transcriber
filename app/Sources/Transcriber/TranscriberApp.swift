@@ -51,6 +51,15 @@ struct TranscriberApp: App {
                 exit(0)
             }
         }
+        if let i = CommandLine.arguments.firstIndex(of: "--share-format-test"), i + 2 < CommandLine.arguments.count {
+            // Teilen als formatierter Text: <name>.summary.md → RTF (zum Ansehen, ohne Teilen-Menü)
+            let a = CommandLine.arguments
+            if let sum = SummaryInfo.load(json: URL(fileURLWithPath: a[i + 1])) {
+                let rtf = SummaryShare.formatted(sum)
+                try? rtf.rtf(from: NSRange(location: 0, length: rtf.length))?.write(to: URL(fileURLWithPath: a[i + 2]))
+            }
+            exit(0)
+        }
         if let i = CommandLine.arguments.firstIndex(of: "--title-test") {
             let files = CommandLine.arguments[(i + 1)...].map { URL(fileURLWithPath: $0) }
             Task { await VPTest.titles(files); exit(0) }
@@ -86,7 +95,7 @@ struct TranscriberApp: App {
         Window("Fehler melden", id: "report") { ReportView() }
             .windowResizability(.contentSize)
         Window("Einstellungen", id: "settings") {
-            SettingsView().environmentObject(dictation).environmentObject(calls).environmentObject(updates)
+            SettingsView().environmentObject(dictation).environmentObject(calls).environmentObject(updates).environmentObject(jobs)
         }
         .windowResizability(.contentSize)
     }
@@ -329,6 +338,8 @@ struct PanelView: View {
         }
         .padding(14)
         .frame(width: 440)
+        // Zu 80 % deckender Grund statt reinem Glas (90 % war zu viel): blaue Links waren vor blauem Schreibtischbild kaum lesbar (Björn, 2026-10-24).
+        .background(Color(nsColor: .windowBackgroundColor).opacity(0.8).ignoresSafeArea())
     }
 
     /// Leiste unten, bündig mit den Kästen darüber (Variante „E3“ aus den Mockups, Björn 2026-10-14): Ordner und
@@ -506,6 +517,16 @@ final class ClosureMenuItem: NSMenuItem {
     @objc private func fire() { handler() }
 }
 
+/// Kernpunkte/Aufgaben der Zusammenfassung: Symbol schmal und auf Höhe der ersten Zeile.
+struct SummaryLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            configuration.icon.frame(width: 10)
+            configuration.title.foregroundStyle(.secondary)
+        }
+    }
+}
+
 /// Einfaches Fließlayout: Elemente nebeneinander, Umbruch, wenn die Zeile voll ist (Namensvorschläge).
 struct FlowRow: Layout {
     var spacing: CGFloat = 4
@@ -536,7 +557,8 @@ struct JobRow: View {
     @State private var names: [String: String] = [:]
     @State private var editing: Set<String> = []     // Sprecher, deren Namensfeld per ✎ geöffnet wurde
     @State private var hovered: String?
-    @State private var newTitle: String?              // Umbenennen: Feld offen, solange nicht nil
+    @State private var newTitle: String?              // Umbenennen: Titel wird zum Feld, solange nicht nil
+    @FocusState private var titleFocused: Bool
     @Environment(\.openWindow) private var openWindow
 
     init(job: Job, editing: Set<String> = []) {        // editing vorbelegt nur für den Foto-Test (--ui-test)
@@ -546,12 +568,9 @@ struct JobRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(job.source.deletingPathExtension().lastPathComponent)
-                        .lineLimit(1).truncationMode(.middle).font(.callout.weight(.medium))
-                    if job.state == .done { fileLine }
-                }
+                if newTitle != nil { titleEditor } else { titleLabel }
                 Spacer(minLength: 4)
                 if job.state == .done {                                // Papierkorb = löschen, ✕ = nur aus der Liste
                     Button { confirmDelete() } label: { Image(systemName: "trash").font(.caption.weight(.semibold)) }
@@ -562,7 +581,8 @@ struct JobRow: View {
                         .buttonStyle(.borderless).foregroundStyle(.secondary).help("Aus der Liste entfernen (Dateien bleiben)")
                 }
             }
-            if let t = newTitle { renameEditor(t) }
+            if job.state == .done { fileLine }             // volle Breite: neben den Symbolen brach „Zusammenfassen“ um
+            }
             switch job.state {
             case .running:
                 ProgressView(value: job.progress) { Text(job.message).font(.caption) }
@@ -581,11 +601,14 @@ struct JobRow: View {
                         .buttonStyle(.link).font(.caption)
                         .help("Alle automatischen Zuordnungen bestätigen – verbessert die Erkennung künftiger Aufnahmen")
                 }
+                summarySection
                 if let e = job.error { Text(e).font(.caption).foregroundStyle(.red) }
+                if let n = job.notice { Text(n).font(.caption).foregroundStyle(.secondary) }
             }
         }
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.08)))
+        .task { if job.state == .done && jobs.templates.isEmpty { await jobs.loadTemplates() } }
     }
 
     /// Dauer und Dateiaktionen als Text direkt unter dem Titel – erklärt sich ohne Tooltip.
@@ -602,13 +625,148 @@ struct JobRow: View {
             Button("Im Finder") { if let m = job.mdURL ?? job.jsonURL { NSWorkspace.shared.activateFileViewerSelecting([m]) } }
                 .buttonStyle(.link)
             Text("·").foregroundStyle(.tertiary)
-            Button("Umbenennen") { newTitle = job.source.deletingPathExtension().lastPathComponent }.buttonStyle(.link)
-                .help("Aufnahme und Transkript umbenennen – im Finder umbenannt würde die Aufnahme neu transkribiert")
-            Text("·").foregroundStyle(.tertiary)
-            Button("Neu auswerten …") { rerunMenu() }.buttonStyle(.link)
+            Button("Neu auswerten") { rerunMenu() }.buttonStyle(.link)
                 .help("Namen neu zuordnen oder Sprecher neu trennen")
+            if job.summary == nil && job.summarizing == nil {
+                Text("·").foregroundStyle(.tertiary)
+                Button("Zusammenfassen") { templateMenu() }.buttonStyle(.link)
+                    .help("Mit einem Sprachmodell zusammenfassen (Einstellungen › KI)")
+            }
         }
         .font(.caption)
+    }
+
+    /// Titel anklicken = umbenennen (statt eines eigenen Links in der Zeile darunter, Björn 2026-10-24).
+    private var titleLabel: some View {
+        Button { newTitle = job.source.deletingPathExtension().lastPathComponent; titleFocused = true } label: {
+            Text(job.source.deletingPathExtension().lastPathComponent)
+                .lineLimit(1).truncationMode(.middle).font(.callout.weight(.medium))
+        }
+        .buttonStyle(.plain)
+        .disabled(job.state != .done)
+        .help("Klicken zum Umbenennen von Aufnahme und Transkript – im Finder umbenannt würde die Aufnahme neu transkribiert")
+    }
+
+    private var titleEditor: some View {
+        TextField("Neuer Name", text: Binding(get: { newTitle ?? "" }, set: { newTitle = $0 }))
+            .textFieldStyle(.plain).font(.callout.weight(.medium))
+            .padding(.horizontal, 4).padding(.vertical, 1)
+            .background(RoundedRectangle(cornerRadius: 4).strokeBorder(Color.accentColor.opacity(0.7)))
+            .focused($titleFocused)
+            .onSubmit { submitRename() }
+            .onExitCommand { newTitle = nil }                       // Escape = abbrechen
+            .onChange(of: titleFocused) { _, f in if !f && newTitle != nil { submitRename() } }   // Klick daneben = übernehmen
+            .onAppear { titleFocused = true }
+    }
+
+    // MARK: Zusammenfassung
+
+    @ViewBuilder private var summarySection: some View {
+        if let since = job.summarizing {
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.mini)
+                TimelineView(.periodic(from: since, by: 1)) { ctx in
+                    let s = Int(ctx.date.timeIntervalSince(since))
+                    Text("Zusammenfassung wird erstellt · \(AI.isLocal() ? String(localized: "lokal") : String(localized: "Cloud")) · \(s / 60):\(String(format: "%02d", s % 60))")
+                }
+                .foregroundStyle(.secondary)
+                Spacer()
+                Button("Abbrechen") { jobs.cancelSummary(job) }.buttonStyle(.link)
+            }
+            .font(.caption)
+            .padding(.top, 4)
+        } else if let sum = job.summary {
+            VStack(alignment: .leading, spacing: 3) {
+                Divider().padding(.vertical, 2)
+                HStack(spacing: 6) {
+                    Text(sum.name).font(.caption.weight(.semibold))
+                    Text(sum.local ? "lokal" : "Cloud").font(.caption2).foregroundStyle(.secondary)
+                        .padding(.horizontal, 4).overlay(RoundedRectangle(cornerRadius: 3).strokeBorder(.tertiary))
+                        .help(sum.model)
+                    Spacer()
+                    Button("Öffnen") { NSWorkspace.shared.open(sum.url) }.buttonStyle(.link)
+                    Text("·").foregroundStyle(.tertiary)
+                    Button("Kopieren") { copySummary(sum) }.buttonStyle(.link)
+                    Text("·").foregroundStyle(.tertiary)
+                    Button { SummaryShare.show(sum, title: job.source.deletingPathExtension().lastPathComponent, asFile: false) } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                    .buttonStyle(.link).help("Teilen – Mail, Nachrichten, Notizen …")
+                    Text("·").foregroundStyle(.tertiary)
+                    Button { summaryMenu(sum) } label: { Image(systemName: "ellipsis") }.buttonStyle(.link)
+                        .help("Andere Vorlage, neu erzeugen, weiterarbeiten in …")
+                }
+                .font(.caption)
+                ForEach(sum.points, id: \.self) { t in
+                    Label { Text(t).lineLimit(2) } icon: { Image(systemName: "circle.fill").font(.system(size: 4)) }
+                }
+                ForEach(sum.tasks, id: \.self) { t in
+                    Label { Text(t).lineLimit(2) } icon: { Image(systemName: "square").foregroundStyle(.secondary) }
+                }
+            }
+            .font(.caption)
+            .labelStyle(SummaryLabelStyle())
+        }
+    }
+
+    private func copySummary(_ sum: SummaryInfo) {
+        let text = (try? String(contentsOf: sum.url, encoding: .utf8))?.split(separator: "\n", maxSplits: 1).last.map(String.init) ?? ""
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text.trimmingCharacters(in: .whitespacesAndNewlines), forType: .string)
+        job.notice = String(localized: "Zusammenfassung kopiert")
+        Task { try? await Task.sleep(for: .seconds(3)); if job.notice == String(localized: "Zusammenfassung kopiert") { job.notice = nil } }
+    }
+
+    /// Vorlagen zur Wahl; die für die Automatik eingestellte steht oben. Ohne Modell: Weg in die Einstellungen.
+    private func templateMenu() {
+        let menu = NSMenu()
+        guard AI.configured else {
+            menu.addItem(ClosureMenuItem(title: String(localized: "Erst ein Modell einstellen …")) { openSettings() })
+            menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil); return
+        }
+        let ts = jobs.templates.sorted { ($0.id == AI.autoTemplate ? 0 : 1) < ($1.id == AI.autoTemplate ? 0 : 1) }
+        for (i, t) in ts.enumerated() {
+            let item = ClosureMenuItem(title: t.name) { Task { await jobs.summarize(job, template: t.id) } }
+            if #available(macOS 14.4, *) { item.subtitle = t.description } else { item.toolTip = t.description }
+            menu.addItem(item)
+            if i == 0 && ts.count > 1 { menu.addItem(.separator()) }
+        }
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    private func summaryMenu(_ sum: SummaryInfo) {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        let other = NSMenuItem(title: String(localized: "Andere Vorlage"), action: nil, keyEquivalent: "")
+        let sub = NSMenu()
+        for t in jobs.templates { sub.addItem(ClosureMenuItem(title: t.name) { Task { await jobs.summarize(job, template: t.id) } }) }
+        other.submenu = sub
+        menu.addItem(other)
+        let current = jobs.templates.first { $0.name == sum.name }?.id
+        menu.addItem(ClosureMenuItem(title: String(localized: "Neu erzeugen")) { Task { await jobs.summarize(job, template: current) } })
+        menu.addItem(ClosureMenuItem(title: String(localized: "Als Datei teilen …")) {
+            SummaryShare.show(sum, title: job.source.deletingPathExtension().lastPathComponent, asFile: true)
+        })
+        let targets = AI.handoff ? AI.Target.allCases.filter(AI.installed) : []
+        if !targets.isEmpty {
+            menu.addItem(.separator())
+            let head = NSMenuItem(title: String(localized: "Weiterarbeiten in"), action: nil, keyEquivalent: "")
+            head.isEnabled = false
+            menu.addItem(head)
+            for t in targets {
+                menu.addItem(ClosureMenuItem(title: AI.title(t)) {
+                    AI.handoff(t, title: job.source.deletingPathExtension().lastPathComponent, summary: sum.url, transcript: job.mdURL)
+                })
+            }
+        }
+        menu.addItem(.separator())
+        menu.addItem(ClosureMenuItem(title: String(localized: "Zusammenfassung löschen")) { jobs.deleteSummary(job) })
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    private func openSettings() {
+        UserDefaults.standard.set("ki", forKey: "settingsTab")
+        openWindow(id: "settings"); NSApp.activate(ignoringOtherApps: true)
     }
 
     /// Eine Rückfrage, zwei Wege (Björn, 2026-10-20): „Nur Aufnahme“ – Audio und seine Kopien weg, Transkript, Stimmen
@@ -639,17 +797,6 @@ struct JobRow: View {
         Task { job.error = await jobs.delete(job, audioOnly: audioOnly) }
     }
 
-    private func renameEditor(_ t: String) -> some View {
-        HStack(spacing: 6) {
-            TextField("Neuer Name", text: Binding(get: { newTitle ?? t }, set: { newTitle = $0 }))
-                .textFieldStyle(.roundedBorder).font(.caption)
-                .onSubmit { submitRename() }
-            Button("Umbenennen") { submitRename() }.controlSize(.small)
-            Button { newTitle = nil } label: { Image(systemName: "xmark.circle") }
-                .buttonStyle(.borderless).foregroundStyle(.secondary).help("Abbrechen")
-        }
-    }
-
     private func submitRename() {
         let n = (newTitle ?? "").trimmingCharacters(in: .whitespaces)
         newTitle = nil
@@ -657,7 +804,7 @@ struct JobRow: View {
         Task { job.error = await jobs.rename(job, to: n) }
     }
 
-    /// Namen neu zuordnen (nur Abgleich mit der Datenbank, sofort) oder Sprecher neu trennen mit fester Personenzahl
+    /// Namen neu zuordnen (nur Abgleich mit der Datenbank, sofort), Glossar anwenden oder Sprecher neu trennen mit fester Personenzahl
     /// (Sprechertrennung neu, Spracherkennung aus dem Zwischenspeicher). Benennung nach Rückfrage 2026-10-12:
     /// „Stimmen neu erkennen“ vs. „Neu auswerten mit“ war nicht unterscheidbar.
     private func rerunMenu() {
@@ -667,6 +814,10 @@ struct JobRow: View {
         let hint = String(localized: "Nur neuer Abgleich mit Stimmdatenbank")
         if #available(macOS 14.4, *) { names.subtitle = hint } else { names.toolTip = hint }
         menu.addItem(names)
+        let gloss = ClosureMenuItem(title: String(localized: "Glossar anwenden")) { Task { await jobs.applyGlossary(job) } }
+        let glossHint = String(localized: "Ersetzungen aus Einstellungen › Glossar, ohne neu zu rechnen")
+        if #available(macOS 14.4, *) { gloss.subtitle = glossHint } else { gloss.toolTip = glossHint }
+        menu.addItem(gloss)
         menu.addItem(.separator())
         let head = NSMenuItem(title: String(localized: "Sprecher neu trennen:"), action: nil, keyEquivalent: "")
         head.isEnabled = false

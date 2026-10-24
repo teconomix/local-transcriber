@@ -14,7 +14,9 @@ func appLog(_ msg: String) {
 
 enum Core {
     static let data = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/share/transcriber")
-    static let exe = data.appendingPathComponent("venvs/app/bin/transcriber")
+    /// TRANSCRIBER_CORE: anderer Kern zum Ausprobieren (Feature-Zweig mit eigener Umgebung, per LSEnvironment im Testbau).
+    static let exe = ProcessInfo.processInfo.environment["TRANSCRIBER_CORE"].map { URL(fileURLWithPath: $0) }
+        ?? data.appendingPathComponent("venvs/app/bin/transcriber")
     static let jobsDir = data.appendingPathComponent("jobs")
     /// Sprache der Oberfläche („de“ oder „en“, folgt macOS bzw. der Einstellung je App); geht als TRANSCRIBER_UI_LANG
     /// an den Kern, damit Transkript-Kopf, Fortschritt und Meldungen dieselbe Sprache sprechen.
@@ -45,10 +47,20 @@ enum Core {
             } catch { appLog("config.json nicht geschrieben: \(error.localizedDescription)") }
         }
     }
-    private static func configJSON() -> [String: Any] {
+    static func configJSON() -> [String: Any] {
         guard let d = try? Data(contentsOf: data.appendingPathComponent("config.json")),
               let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return [:] }
         return o
+    }
+    /// Einen Schlüssel in config.json setzen (nil = entfernen), die übrigen bleiben.
+    static func setConfig(_ key: String, _ value: Any?) {
+        var cfg = configJSON()
+        cfg[key] = value
+        guard let out = try? JSONSerialization.data(withJSONObject: cfg, options: [.prettyPrinted, .sortedKeys]) else { return }
+        do {
+            try FileManager.default.createDirectory(at: data, withIntermediateDirectories: true)
+            try out.write(to: data.appendingPathComponent("config.json"), options: .atomic)
+        } catch { appLog("config.json nicht geschrieben: \(error.localizedDescription)") }
     }
     /// Welche davon im Panel zur Auswahl stehen (UserDefaults „languages“, Codes mit Komma).
     static let defaultLanguages = "de,en,es,fr"
@@ -57,7 +69,7 @@ enum Core {
         return allLanguages.filter { on.contains($0.0) }
     }
 
-    static func process(_ args: [String]) -> Process {
+    static func process(_ args: [String], env extra: [String: String] = [:]) -> Process {
         let p = Process()
         p.executableURL = exe
         p.arguments = args
@@ -65,20 +77,21 @@ enum Core {
         // ffmpeg: vom Installer unter DATA/bin, sonst Homebrew; ein Finder-Start hat beides nicht im PATH
         env["PATH"] = data.appendingPathComponent("bin").path + ":/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
         env["TRANSCRIBER_UI_LANG"] = uiLanguage
+        env.merge(extra) { _, new in new }
         p.environment = env
         return p
     }
 
     /// Kurzer Aufruf (benennen, bestätigen); liefert Erfolg und Ausgabe.
-    static func run(_ args: [String]) async -> (Bool, String) {
+    static func run(_ args: [String], env: [String: String] = [:], started: ((Process) -> Void)? = nil) async -> (Bool, String) {
         await withCheckedContinuation { cont in
-            let p = process(args)
+            let p = process(args, env: env)
             let out = Pipe(); p.standardOutput = out; p.standardError = out
             p.terminationHandler = { pr in
                 let s = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
                 cont.resume(returning: (pr.terminationStatus == 0, s))
             }
-            do { try p.run() } catch { cont.resume(returning: (false, error.localizedDescription)) }
+            do { try p.run(); started?(p) } catch { cont.resume(returning: (false, error.localizedDescription)) }
         }
     }
 }
@@ -107,12 +120,21 @@ final class Job: ObservableObject, Identifiable {
     @Published var mdURL: URL?
     @Published var jsonURL: URL?
     @Published var error: String?
+    @Published var notice: String?               // kurze Rückmeldung (z. B. Glossar angewendet), verschwindet von selbst
     @Published var attendees: [String] = []      // Kalender: andere Teilnehmer (Vorschläge beim Benennen)
     @Published var duration: Double = 0
     @Published var audioGone = false              // Aufnahme gelöscht (Nur Aufnahme, 30-Tage-Regel, Finder), Transkript da
+    @Published var summary: SummaryInfo?         // <name>.summary.md, falls vorhanden
+    @Published var summarizing: Date?            // Zusammenfassung läuft seit …
+    var summaryProcess: Process?
     var language = "de"                          // Sprache dieses Transkripts (für „Neu auswerten“)
 
     init(id: String, source: URL, started: Date) { self.id = id; self.source = source; self.started = started }
+
+    func loadSummary() {
+        let s = SummaryInfo.load(json: jsonURL)
+        if s != summary { summary = s }
+    }
 
     func loadSpeakers() {
         guard let j = jsonURL, let d = try? Data(contentsOf: j),
@@ -132,6 +154,7 @@ final class Job: ObservableObject, Identifiable {
                            status: s["status"] as? String ?? "", score: s["score"] as? Double,
                            speechMin: (s["speech_s"] as? Double ?? 0) / 60, candidates: cands)
         }.sorted { $0.speechMin > $1.speechMin }
+        loadSummary()                            // Benennen ersetzt die Namen auch dort (summarize.refresh_names)
     }
 }
 
@@ -144,6 +167,8 @@ final class JobManager: ObservableObject {
     /// Aufnahmen im Aufnahmeordner ohne Transkript (der Wächter lässt diesen Ordner aus – die App startet dort selbst).
     /// Entsteht, wenn „Transkribieren“ aus ist oder ein Start scheiterte (Absturz zwischen Stopp und Auftrag).
     @Published var untranscribed: [URL] = []
+    /// Vorlagen für Zusammenfassungen (`transcriber summarize --templates`), mitgelieferte und eigene.
+    @Published var templates: [SummaryTemplate] = []
     private var ticks = 0
     /// Nur Demo-Bild (--ui-test --demo): Liste nicht aus den Statusdateien neu einlesen.
     var frozen = false
@@ -278,15 +303,19 @@ final class JobManager: ObservableObject {
                                 job.jsonURL = p["json"].map { URL(fileURLWithPath: $0) }
                             }
                             notify(job)
+                            await autoSummary(job)
                         }
                     } else {
                         notify(job)
+                        if state == .done { Task { await autoSummary(job) } }
                     }
                 }
             } else if state == .done && job.jsonURL == nil, let r = s["result"] as? [String: String] {
                 job.mdURL = r["md"].map { URL(fileURLWithPath: $0) }
                 job.jsonURL = r["json"].map { URL(fileURLWithPath: $0) }
                 job.loadSpeakers()
+            } else if state == .done && ticks % 5 == 0 && job.summarizing == nil {
+                job.loadSummary()                // auch von CLI/MCP erzeugte oder im Finder gelöschte Zusammenfassungen
             }
         }
         jobs.removeAll { !seen.contains($0.id) }
@@ -366,6 +395,20 @@ final class JobManager: ObservableObject {
         if ok { job.loadSpeakers() } else { job.error = out }
     }
 
+    /// Glossar auf das fertige Transkript anwenden (`transcriber vocab --apply`, ohne neu zu rechnen).
+    func applyGlossary(_ job: Job) async {
+        guard let j = job.jsonURL else { return }
+        let (ok, out) = await Core.run(["vocab", "--apply", j.path])
+        // Zeile „Anzahl<Tab>Pfad“; stderr (Warnungen) landet in derselben Ausgabe
+        guard ok, let n = out.split(separator: "\n").compactMap({ $0.contains("\t") ? Int($0.split(separator: "\t")[0]) : nil }).last else {
+            job.error = out; return
+        }
+        job.notice = n == 0 ? String(localized: "Keine Glossar-Treffer") : String(localized: "Glossar: \(n) ersetzt")
+        let shown = job.notice
+        try? await Task.sleep(for: .seconds(6))
+        if job.notice == shown { job.notice = nil }
+    }
+
     /// Aufnahme samt Transkript umbenennen (`transcriber rename`: Audio, .transcript.json, .md, .srt, .event.json,
     /// Stimmdatenbank, Statusdateien). Im Finder umbenannt fände der Wächter eine Datei ohne Transkript und
     /// transkribierte sie neu. Liefert nil bei Erfolg, sonst die Fehlermeldung.
@@ -380,7 +423,57 @@ final class JobManager: ObservableObject {
         if let s = p["source"] { job.source = URL(fileURLWithPath: s) }
         job.mdURL = p["md"].map { URL(fileURLWithPath: $0) }
         job.jsonURL = p["json"].map { URL(fileURLWithPath: $0) }
+        job.loadSummary()
         return nil
+    }
+
+    // MARK: Zusammenfassung (feature/ki-nachbearbeitung)
+
+    func loadTemplates() async {
+        let (ok, out) = await Core.run(["summarize", "--templates", "--json"])
+        guard ok, let line = out.split(separator: "\n").last, let d = line.data(using: .utf8),
+              let arr = try? JSONSerialization.jsonObject(with: d) as? [[String: Any]] else {
+            appLog("Vorlagen nicht gelesen: \(out.suffix(300))"); return
+        }
+        templates = arr.map { SummaryTemplate(id: $0["id"] as? String ?? "", name: $0["name"] as? String ?? "",
+                                              description: $0["description"] as? String ?? "", custom: $0["custom"] as? Bool ?? false,
+                                              builtin: $0["builtin"] as? Bool ?? false, path: $0["path"] as? String ?? "") }
+    }
+
+    /// Nach jeder fertigen Transkription, wenn eingeschaltet. Cloud-Anbieter nur mit „cloud_auto“ (der Kern prüft es
+    /// mit --auto ebenfalls) – sonst bleibt es beim Knopf.
+    private func autoSummary(_ job: Job) async {
+        guard AI.auto, AI.configured, job.summary == nil, AI.isLocal() || AI.cloudAuto else { return }
+        await summarize(job, auto: true)
+    }
+
+    /// `transcriber summarize`: Ergebnis <name>.summary.md, der Eintrag zeigt Kernpunkte und Aufgaben.
+    func summarize(_ job: Job, template: String? = nil, auto: Bool = false) async {
+        guard let j = job.jsonURL, job.summarizing == nil else { return }
+        guard AI.configured else { job.error = String(localized: "Erst ein Modell einstellen: Einstellungen › KI"); return }
+        job.error = nil
+        job.summarizing = Date()
+        let args = ["summarize", j.path, "--json"] + (template.map { ["--template", $0] } ?? []) + (auto ? ["--auto"] : [])
+        let (ok, out) = await Core.run(args, env: AI.env) { p in job.summaryProcess = p }
+        let cancelled = job.summaryProcess?.terminationReason == .uncaughtSignal
+        job.summaryProcess = nil
+        job.summarizing = nil
+        if ok {
+            job.loadSummary()
+        } else if !cancelled {
+            let msg = out.split(separator: "\n").last.map(String.init) ?? ""
+            appLog("Zusammenfassung fehlgeschlagen: \(out.suffix(500))")
+            job.error = String(localized: "Zusammenfassung fehlgeschlagen: \(msg)")
+        }
+    }
+
+    func cancelSummary(_ job: Job) { job.summaryProcess?.terminate() }
+
+    /// Zusammenfassung in den Papierkorb (wie die übrigen sichtbaren Dateien).
+    func deleteSummary(_ job: Job) {
+        guard let s = job.summary else { return }
+        do { try FileManager.default.trashItem(at: s.url, resultingItemURL: nil) } catch { job.error = error.localizedDescription }
+        job.loadSummary()
     }
 
     func confirm(_ job: Job) async {

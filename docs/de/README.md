@@ -24,6 +24,8 @@ Oder mit Homebrew: `brew install --cask teconomix/tap/local-transcriber`. Fragen
 - **Videokonferenzen** – erkennt Teams, Zoom, Meet & Co., bietet die Aufnahme an und beendet sie mit dem Call.
 - **Kalender** – Termintitel als Dateiname, Teilnehmer als Vorschläge beim Benennen.
 - **Diktat überall** – Taste halten, sprechen, loslassen: Text steht an der Schreibmarke jeder App.
+- **Auswerten mit KI** – Protokoll mit Aufgaben, Kurzfassung, Auftrag im 5-Punkte-Schema und mehr, mit lokalem Modell
+  (Ollama, LM Studio, MTPLX) oder einem Cloud-Anbieter deiner Wahl – nur auf Klick, Namen durch Platzhalter ersetzt.
 - **Lokale KI** (macOS 26) – Diktat aufräumen, sprechende Dateinamen – mit Apple Intelligence auf dem Gerät.
 - **Für Profis** – Ordnerwächter, Text oder Markdown, JSON, SRT, Glossar, Kommandozeile, MCP-Server für KI-Agenten.
 
@@ -33,7 +35,8 @@ Installation: [INSTALLATION.md](INSTALLATION.md) · Datenschutz: [DATENSCHUTZ.md
 ## Voraussetzungen
 
 Mac mit Apple Silicon (M1 oder neuer), macOS 14 Sonoma oder neuer (KI-Funktionen: macOS 26 mit Apple Intelligence),
-ca. 8 GB freier Speicher, 16 GB Arbeitsspeicher empfohlen. Internet nur für die Installation.
+ca. 8 GB freier Speicher, 16 GB Arbeitsspeicher empfohlen. Internet nur für die Installation (und für ein
+Cloud-Modell, falls du eines wählst). Für die lokale KI-Auswertung: ein lokales Sprachmodell, z. B. in Ollama oder LM Studio.
 
 ## Aufbau
 

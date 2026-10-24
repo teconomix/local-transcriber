@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Local Transcriber – Meetings, Calls und Diktate transkribiert auf deinem Mac</title>
-  <meta name="description" content="Local Transcriber ist ein kostenloses Open-Source-Werkzeug für die macOS-Menüleiste: Meetings, Calls und Diktate werden lokal auf dem Mac transkribiert – ohne Cloud, ohne Konto, ohne Abo.">
+  <meta name="description" content="Local Transcriber ist ein kostenloses Open-Source-Werkzeug für die macOS-Menüleiste: Meetings, Calls und Diktate werden lokal auf dem Mac transkribiert und auf Wunsch mit KI ausgewertet – auch mit lokaler KI. Ohne Cloud, ohne Konto, ohne Abo.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Local Transcriber">
   <meta property="og:title" content="Local Transcriber – Meetings, Calls und Diktate transkribiert auf deinem Mac">
@@ -19,12 +19,12 @@
   <meta name="color-scheme" content="light dark">
   <meta name="referrer" content="no-referrer">
   <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=0.8.4">
+  <link rel="stylesheet" href="../style.css?v=0.9">
   <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/">
   <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/">
   <link rel="alternate" hreflang="x-default" href="https://transcriber.teconomix.net/">
-  <script src="../script.js?v=0.8.4" defer></script>
-  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Local Transcriber", "operatingSystem": "macOS 14 oder neuer (Apple Silicon)", "applicationCategory": "BusinessApplication", "description": "Kostenloses Open-Source-Werkzeug für die macOS-Menüleiste: Meetings, Calls und Diktate werden lokal auf dem Mac transkribiert, mit Sprechererkennung – ohne Cloud, ohne Konto, ohne Abo.", "url": "https://transcriber.teconomix.net/de/", "inLanguage": ["de", "en"], "license": "https://opensource.org/licenses/MIT", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}, "author": {"@type": "Person", "name": "Björn Rabethge"}, "softwareVersion": "0.8.4", "downloadUrl": "https://transcriber.teconomix.net/install.sh"}</script>
+  <script src="../script.js?v=0.9" defer></script>
+  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Local Transcriber", "operatingSystem": "macOS 14 oder neuer (Apple Silicon)", "applicationCategory": "BusinessApplication", "description": "Kostenloses Open-Source-Werkzeug für die macOS-Menüleiste: Meetings, Calls und Diktate werden lokal auf dem Mac transkribiert, mit Sprechererkennung – ohne Cloud, ohne Konto, ohne Abo.", "url": "https://transcriber.teconomix.net/de/", "inLanguage": ["de", "en"], "license": "https://opensource.org/licenses/MIT", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}, "author": {"@type": "Person", "name": "Björn Rabethge"}, "softwareVersion": "0.9", "downloadUrl": "https://transcriber.teconomix.net/install.sh"}</script>
 </head>
 <body>
 <a class="skip" href="#inhalt">Zum Inhalt springen</a>
@@ -49,7 +49,7 @@
       <div>
         <span class="eyebrow">Kostenlos · Open Source · für macOS</span>
         <h1 id="hero-title">Local Transcriber</h1>
-        <p class="lead"><strong>Meetings, Calls und Diktate – transkribiert auf deinem Mac. Ohne Cloud.</strong> Ein kleines, hilfreiches Werkzeug in der Menüleiste, das zuhört, mitschreibt und weiß, wer was gesagt hat.</p>
+        <p class="lead"><strong>Meetings, Calls und Diktate – transkribiert auf deinem Mac. Ohne Cloud.</strong> Ein kleines, hilfreiches Werkzeug in der Menüleiste, das zuhört, mitschreibt, weiß, wer was gesagt hat – und auf Wunsch mit KI ein Protokoll mit Aufgaben daraus macht, auch mit lokaler KI.</p>
 
         <div class="install-box">
           <span class="install-label" id="install-label">Installieren – im Terminal einfügen:</span>
@@ -60,7 +60,7 @@
               <span aria-live="polite">Kopieren</span>
             </button>
           </div>
-          <p class="install-version">Version <span data-version>0.8.4</span> · 24. Oktober 2026 · macOS 14 oder neuer</p>
+          <p class="install-version">Version <span data-version>0.9</span> · 24. Oktober 2026 · macOS 14 oder neuer</p>
         </div>
 
         <div class="hero-links">
@@ -71,6 +71,8 @@
           </a>
         </div>
 
+        <a class="announce" href="#ki">Neu in 0.9: Gespräche mit KI auswerten – lokal, oder in der Cloud mit geschützten Namen →</a>
+
         <ul class="facts">
           <li>Mac mit Apple Silicon</li>
           <li>Rund 100 Sprachen</li>
@@ -80,7 +82,7 @@
 
       <!-- Nachbau des Menüleisten-Fensters mit Beispielnamen -->
       <div class="panel-stage">
-        <div class="panel" role="img" aria-label="Das Transcriber-Fenster in der Menüleiste: Knöpfe zum Aufnehmen und Transkribieren, darunter zwei Transkriptionen mit erkannten Sprechern.">
+        <div class="panel" role="img" aria-label="Das Transcriber-Fenster in der Menüleiste: Knöpfe zum Aufnehmen und Transkribieren, darunter zwei Transkriptionen mit erkannten Sprechern, bei der ersten eine lokal erstellte Zusammenfassung mit Aufgabe.">
           <div class="p-head">
             <span class="p-title">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 10v4M7 7v10M11 4v16M15 8v8M19 10v4"/></svg>
@@ -106,14 +108,19 @@
           <div class="p-card">
             <h4>2026-10-10 14-03 Budgetplanung Q4</h4>
             <span class="p-x" aria-hidden="true">✕</span>
-            <div class="p-meta">42:18 min · <span class="l">Öffnen</span> · <span class="l">Im Finder</span> · <span class="l">Umbenennen</span> · <span class="l">Neu auswerten …</span></div>
+            <div class="p-meta">42:18 min · <span class="l">Öffnen</span> · <span class="l">Im Finder</span> · <span class="l">Neu auswerten</span></div>
             <div class="p-spk"><span class="k">A</span><b>Alex Beispiel</b><span class="m">12,4 min</span><span class="ok">sicher</span><span class="pen">✎</span></div>
             <div class="p-spk"><span class="k">B</span><b>Sam Muster (?)</b><span class="m">3,1 min</span><span class="l">✓ übernehmen</span><span class="pen">✎</span></div>
+            <div class="p-sum">
+              <div class="p-sum-head"><b>Protokoll</b><span class="p-badge">lokal</span><span class="p-sp"></span><span class="l">Öffnen</span> · <span class="l">Kopieren</span> · <span class="l">⋯</span></div>
+              <div class="p-pt">Budget Q4 bleibt auf Vorjahresniveau</div>
+              <div class="p-task">Sam Muster: Entwurf bis 07.11.</div>
+            </div>
           </div>
           <div class="p-card">
             <h4>2026-10-10 11-30 Kundengespräch Website-Relaunch</h4>
             <span class="p-x" aria-hidden="true">✕</span>
-            <div class="p-meta">27:05 min · <span class="l">Öffnen</span> · <span class="l">Im Finder</span> · <span class="l">Umbenennen</span> · <span class="l">Neu auswerten …</span></div>
+            <div class="p-meta">27:05 min · <span class="l">Öffnen</span> · <span class="l">Im Finder</span> · <span class="l">Neu auswerten</span> · <span class="l">Zusammenfassen</span></div>
             <div class="p-spk"><span class="k">A</span><b>Kim Exempel</b><span class="m">9,8 min</span><span class="ok">bestätigt</span><span class="pen">✎</span></div>
             <div class="p-spk"><span class="k">B</span><b>Sprecher B</b><span class="m">7,2 min</span><span class="pen">✎</span></div>
           </div>
@@ -128,14 +135,14 @@
     <div class="wrap">
       <div class="section-head">
         <h2 id="funktionen-title">Was Local Transcriber kann</h2>
-        <p>Aufnehmen, verschriftlichen, Sprecher zuordnen, diktieren – alles auf deinem Mac, nichts in fremden Rechenzentren.</p>
+        <p>Aufnehmen, verschriftlichen, Sprecher zuordnen, auswerten, diktieren – alles auf deinem Mac, nichts in fremden Rechenzentren, solange du es nicht ausdrücklich anders willst.</p>
       </div>
 
       <div class="features">
         <article class="card highlight">
           <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3M12 15v2"/></svg></div>
           <h3>Alles lokal &amp; privat</h3>
-          <p>Aufnahme, Spracherkennung und Sprechererkennung laufen vollständig auf dem Mac. Keine Cloud, kein Konto, kein Abo, kein Lizenzserver. Audio verlässt den Rechner nie.</p>
+          <p>Aufnahme, Spracherkennung und Sprechererkennung laufen vollständig auf dem Mac. Keine Cloud, kein Konto, kein Abo, kein Lizenzserver. Audio verlässt den Rechner nie – und auch die KI-Auswertung geht lokal.</p>
         </article>
 
         <article class="card">
@@ -143,6 +150,25 @@
           <h3>Meetings aufnehmen</h3>
           <p>Ein Klick in der Menüleiste. Mikrofon und Systemton – also die anderen im Call – landen als getrennte Spuren.</p>
           <p>Transkribiert wird mit Whisper large-v3-turbo auf der Apple-Silicon-GPU: eine Stunde Audio samt Sprechererkennung in rund drei bis vier Minuten.</p>
+        </article>
+
+        <article class="card wide highlight-ki" id="ki">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M18.5 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg></div>
+          <span class="new-tag">Neu in 0.9</span>
+          <h3>Auswerten mit KI – lokal oder in der Cloud, du entscheidest</h3>
+          <p>Nach dem Transkribieren macht ein Sprachmodell aus dem Gespräch, was du brauchst: ein <strong>Protokoll</strong> mit Entscheidungen und Aufgaben, eine <strong>Kurzfassung</strong>, einen <strong>Auftrag nach dem 5-Punkte-Schema</strong>, eine <strong>Supervisionsnotiz</strong>, <strong>Kernaussagen mit Zitaten</strong> oder eine <strong>E-Mail zum Nachfassen</strong>. Die Vorlagen kannst du anpassen oder eigene anlegen; auf Wunsch läuft die Auswertung nach jeder Aufnahme von selbst.</p>
+          <p><strong>Lokal:</strong> mit Ollama, LM Studio oder jedem anderen Server nach OpenAI-Art auf deinem Mac – das Gespräch verlässt den Rechner nicht. Ein 25-Minuten-Gespräch ist mit einem aktuellen lokalen Modell in rund einer halben Minute zusammengefasst. <strong>Cloud:</strong> OpenAI, Anthropic, Mistral oder OpenRouter mit deinem eigenen Schlüssel – nur auf Klick und mit Namensschutz.</p>
+          <div class="name-guard">
+            <h4>Namen bleiben bei dir</h4>
+            <p>Bevor ein Gespräch an ein Cloud-Modell geht, ersetzt Transcriber die Namen aller Beteiligten – Sprecher und Termin-Teilnehmende, auch nur mit Vornamen – durch Platzhalter. Die fertige Zusammenfassung kommt mit Platzhaltern zurück, und erst auf deinem Mac setzt Transcriber die Namen wieder ein. Der Anbieter erfährt nicht, wer gesprochen hat.</p>
+            <div class="ng-steps">
+              <div><span>1 · Im Transkript</span><code><b>Anna Beispiel</b>: Den Bericht schicke ich bis Freitag, <b>Tom</b>.</code></div>
+              <div><span>2 · An die Cloud</span><code><b>[P1]</b>: Den Bericht schicke ich bis Freitag, <b>[P2]</b>.</code></div>
+              <div><span>3 · Zurück auf deinem Mac</span><code>☐ <b>Anna Beispiel</b>: Bericht an <b>Tom</b> bis Freitag</code></div>
+            </div>
+            <p class="ng-note">Voreingestellt und abschaltbar. Geschützt sind die Namen der Beteiligten; was sonst im Gespräch steht, geht mit. Für Vertrauliches bleibt ein lokales Modell die beste Wahl.</p>
+          </div>
+          <p>Mit einem Klick weiterarbeiten in Claude oder Codex; über den MCP-Server holen sich KI-Agenten Transkripte und Zusammenfassungen selbst.</p>
         </article>
 
         <article class="card">
@@ -180,12 +206,12 @@
         <article class="card">
           <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M7 10l3 2.5L7 15M12.5 15H17"/></svg></div>
           <h3>Für Profis</h3>
-          <p>Ordner-Wächter (optional): Dateien in <code>~/Transcriber</code> werden automatisch transkribiert. Ausgabe als Text (oder Markdown), JSON und SRT, Glossar für Namen und Fachbegriffe, Kommandozeile und MCP-Server für KI-Agenten wie Claude.</p>
+          <p>Ordner-Wächter (optional): Dateien in <code>~/Transcriber</code> werden automatisch transkribiert. Ausgabe als Text (oder Markdown), JSON und SRT, Glossar für Namen und Fachbegriffe, Kommandozeile und MCP-Server für KI-Agenten wie Claude – samt den Auswertungs-Vorlagen als Befehle.</p>
         </article>
         <article class="card wide">
           <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5"/><circle cx="9" cy="13" r="1.6"/><circle cx="15" cy="17" r="1.6"/><path d="M10.4 14l3.2 2"/></svg></div>
           <h3>Für Obsidian</h3>
-          <p>Mit dem Plugin <a href="https://github.com/teconomix/obsidian-local-transcriber">Local Transcriber für Obsidian</a> wird jede Aufnahme zur Notiz in deiner Vault – mit Datum, Termin, den Teilnehmenden als Links auf deine Personen-Notizen und dem Transkript. Sprecher benennst du direkt in Obsidian, Audiodateien aus der Vault lassen sich per Rechtsklick transkribieren. Was du selbst schreibst oder korrigierst, bleibt unangetastet.</p>
+          <p>Mit dem Plugin <a href="https://github.com/teconomix/obsidian-local-transcriber">Local Transcriber für Obsidian</a> wird jede Aufnahme zur Notiz in deiner Vault – mit Datum, Termin, den Teilnehmenden als Links auf deine Personen-Notizen, der Zusammenfassung samt abhakbaren Aufgaben und dem Transkript. Sprecher benennst du direkt in Obsidian, Zusammenfassungen startest du per Befehl, Audiodateien aus der Vault lassen sich per Rechtsklick transkribieren. Was du selbst schreibst oder korrigierst, bleibt unangetastet.</p>
           <p>Das Plugin ist für das Plugin-Verzeichnis von Obsidian eingereicht. Bis es dort steht: Installation von Hand oder mit BRAT – <a href="https://github.com/teconomix/obsidian-local-transcriber#installation">Anleitung auf GitHub</a>.</p>
         </article>
       </div>
@@ -241,9 +267,9 @@
           <figcaption>Diktat</figcaption>
         </figure>
         <figure>
-          <img src="../assets/ui-kalender.png" width="520" height="472" loading="lazy" decoding="async"
-               alt="Kalender-Einstellungen: Termin zur Aufnahme nutzen (Titel, Teilnehmer) und Auswahl der zu berücksichtigenden Kalender.">
-          <figcaption>Kalender</figcaption>
+          <img src="../assets/ui-ki.png" width="520" height="472" loading="lazy" decoding="async"
+               alt="KI-Einstellungen: nach jeder Transkription automatisch zusammenfassen, Vorlage wählen, Anbieter (lokal mit Ollama, LM Studio oder MTPLX, oder ein Cloud-Anbieter), Modell und Verbindung testen.">
+          <figcaption>KI</figcaption>
         </figure>
       </div>
     </div>
@@ -264,7 +290,8 @@
             <li><strong>macOS 14 Sonoma</strong> oder neuer – für KI-Funktionen wie Aufräumen und Dateinamen: macOS 26 mit Apple Intelligence</li>
             <li><strong>ca. 8 GB freier Speicher</strong> (das Spracherkennungsmodell allein ~3 GB)</li>
             <li><strong>16 GB Arbeitsspeicher</strong> empfohlen</li>
-            <li><strong>Internet</strong> nur für die Installation</li>
+            <li><strong>Internet</strong> nur für die Installation (und für ein Cloud-Modell, falls du eines wählst)</li>
+            <li><strong>Optional für KI-Auswertung:</strong> ein lokales Sprachmodell in Ollama oder LM Studio (mehr Arbeitsspeicher hilft: ab 32 GB laufen gute Modelle) – oder ein Schlüssel für einen Cloud-Anbieter</li>
           </ul>
         </div>
         <div class="card">
@@ -285,11 +312,11 @@
               Zum Schluss fragt er, ob er den Ordner <code>~/Transcriber</code> überwachen soll: <kbd>j</kbd> für ja, nur <kbd>↩</kbd> für nein.
               <figure class="term" aria-label="So sieht die Installation im Terminal aus">
                 <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i></div>
-<pre><b>Transcriber <span data-version>0.8.4</span> – Installation</b>
+<pre><b>Transcriber <span data-version>0.9</span> – Installation</b>
 
 <b>▸ Voraussetzungen prüfen</b>
   <em>✓</em> macOS 15.6, Apple Silicon, 212 GB frei
-<b>▸ Transcriber <span data-version>0.8.4</span> laden</b>
+<b>▸ Transcriber <span data-version>0.9</span> laden</b>
   <em>✓</em> Prüfsummen stimmen
 <b>▸ Python-Umgebung einrichten (uv, Python 3.12, Pakete – dauert ein paar Minuten)</b>
   <em>✓</em> Python-Umgebung bereit
@@ -303,7 +330,7 @@
   <em>✓</em> ~/Applications/Transcriber.app
   Ordner ~/Transcriber überwachen (abgelegte Audiodateien automatisch transkribieren)? [j/N]
 
-<em><b>Fertig.</b></em> Transcriber <span data-version>0.8.4</span> ist installiert.</pre>
+<em><b>Fertig.</b></em> Transcriber <span data-version>0.9</span> ist installiert.</pre>
               </figure>
             </li>
             <li><strong>Freigaben erteilen:</strong> Transcriber startet in der Menüleiste. macOS fragt beim ersten Gebrauch je Funktion einmal nach – auf „Erlauben“ klicken.
@@ -349,7 +376,11 @@
         </details>
         <details>
           <summary>Braucht es Internet?</summary>
-          <p>Nur für die Installation. Danach funktioniert alles offline; Aufnahmen und Transkripte bleiben auf deinem Mac. Auf Wunsch fragt die App einmal täglich die aktuelle Versionsnummer ab, um auf Updates hinzuweisen – sonst nichts.</p>
+          <p>Nur für die Installation. Danach funktioniert alles offline; Aufnahmen und Transkripte bleiben auf deinem Mac. Auf Wunsch fragt die App einmal täglich die aktuelle Versionsnummer ab, um auf Updates hinzuweisen. Und wenn du für die KI-Auswertung ausdrücklich ein Cloud-Modell einstellst, geht das Transkript zu diesem Anbieter – sonst nichts.</p>
+        </details>
+        <details>
+          <summary>Welche KI wertet meine Gespräche aus?</summary>
+          <p>Die, die du in den Einstellungen unter „KI“ wählst. Am vertraulichsten ist ein lokales Modell, z. B. mit <a href="https://ollama.com">Ollama</a> oder <a href="https://lmstudio.ai">LM Studio</a> – dann bleibt alles auf dem Mac. Wählst du einen Cloud-Anbieter, schickt die App das Transkript nur auf deinen Klick dorthin (außer du schaltest die Automatik ausdrücklich auch dafür ein) und ersetzt Namen vorher durch Platzhalter, wenn du das willst. Ohne eingestelltes Modell bleibt die Auswertung einfach aus.</p>
         </details>
         <details>
           <summary>Welche Sprachen werden unterstützt?</summary>
@@ -371,7 +402,7 @@
 
 <footer class="site-footer">
   <div class="wrap">
-    <span>Local Transcriber <span data-version>0.8.4</span> · Open Source (MIT) · ohne Gewähr</span>
+    <span>Local Transcriber <span data-version>0.9</span> · Open Source (MIT) · ohne Gewähr</span>
     <nav aria-label="Rechtliches und Links">
       <a href="impressum.html">Impressum</a>
       <a href="datenschutz.html">Datenschutz</a>

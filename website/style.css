@@ -262,6 +262,15 @@ kbd {
 .p-spk .ok { color: #8d9097; font-size: 12px; }
 .p-spk .l { color: var(--p-link); font-size: 12px; }
 .p-spk .pen { color: var(--p-muted); font-size: 12px; }
+/* Zusammenfassung im Eintrag (KI-Auswertung, seit 0.9) */
+.p-sum { border-top: 1px solid var(--p-line); margin-top: 6px; padding-top: 6px; font-size: 12px; }
+.p-sum-head { display: flex; align-items: baseline; gap: 6px; color: var(--p-muted); }
+.p-sum-head b { color: inherit; color: var(--p-text, inherit); font-weight: 650; }
+.p-sum-head .l { color: var(--p-link); }
+.p-badge { border: 1px solid var(--p-line); border-radius: 4px; padding: 0 4px; font-size: 10.5px; }
+.p-pt, .p-task { color: var(--p-muted); padding: 2px 0 0 4px; }
+.p-pt::before { content: "•"; display: inline-block; width: 14px; }
+.p-task::before { content: "☐"; display: inline-block; width: 14px; }
 
 /* ---------- Abschnitte ---------- */
 section { padding: 88px 0; }
@@ -284,7 +293,7 @@ section { padding: 88px 0; }
 }
 .card p { color: var(--muted); margin: 0; font-size: .98rem; }
 .card p + p { margin-top: .6em; }
-.card.highlight {
+.card.highlight, .card.highlight-ki {
   background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 12%, var(--surface)), var(--surface) 60%);
   border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
 }
@@ -419,3 +428,19 @@ section { padding: 88px 0; }
   color: var(--text); font-size: .95rem;
 }
 .ph { background: color-mix(in srgb, #f5a524 22%, transparent); color: var(--text); padding: 0 .25em; border-radius: 4px; font-weight: 600; }
+
+/* KI-Auswertung (0.9): Ankündigung, Namensschutz */
+.new-tag { display: inline-block; font-size: .75rem; font-weight: 700; color: var(--accent); background: var(--accent-soft);
+  padding: 2px 10px; border-radius: 999px; margin-bottom: 8px; }
+.announce { display: inline-block; margin-top: 18px; color: var(--accent); font-weight: 600; text-decoration: none; }
+.announce:hover { text-decoration: underline; }
+.name-guard { margin-top: 16px; border: 1px solid var(--border); background: var(--surface-2); border-radius: 14px; padding: 14px 16px; }
+.name-guard h4 { margin: 0 0 6px; font-size: 1rem; }
+.ng-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0 10px; }
+@media (max-width: 760px) { .ng-steps { grid-template-columns: 1fr; } }
+.ng-steps div { display: flex; flex-direction: column; gap: 6px; }
+.ng-steps span { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.ng-steps code { font-family: var(--mono); font-size: .82rem; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 8px 10px; color: var(--text); white-space: normal; }
+.ng-steps code b { color: var(--accent); font-weight: 600; }
+.name-guard .ng-note { font-size: .88rem; }

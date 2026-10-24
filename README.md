@@ -24,6 +24,8 @@ Or with Homebrew: `brew install --cask teconomix/tap/local-transcriber`. Questio
 - **Video calls** – detects Teams, Zoom, Meet & co., offers to record and stops the recording when the call ends.
 - **Calendar** – event title as file name, attendees as suggestions when naming speakers.
 - **Dictation everywhere** – hold a key, speak, release: the text appears at the cursor in any app.
+- **Evaluate with AI** – minutes with action items, short summary, five-paragraph order and more, with a local model
+  (Ollama, LM Studio, MTPLX) or a cloud provider of your choice – only on click, names replaced with placeholders.
 - **Local AI** (macOS 26) – dictation cleanup, meaningful file names – with Apple Intelligence on the device.
 - **For power users** – folder watcher, plain text or Markdown, JSON, SRT, glossary, command line, MCP server for AI agents.
 
@@ -33,7 +35,8 @@ Installation: [docs/INSTALLATION.md](docs/INSTALLATION.md) · Privacy: [docs/PRI
 ## Requirements
 
 Mac with Apple Silicon (M1 or newer), macOS 14 Sonoma or newer (AI features: macOS 26 with Apple Intelligence),
-about 8 GB of free disk space, 16 GB of memory recommended. Internet only for installation.
+about 8 GB of free disk space, 16 GB of memory recommended. Internet only for installation (and for a cloud model, if
+you choose one). For local AI evaluation: a local language model, e.g. in Ollama or LM Studio.
 
 ## Structure
 

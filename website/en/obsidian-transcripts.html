@@ -16,10 +16,10 @@
   <meta name="referrer" content="no-referrer">
   <link rel="canonical" href="https://transcriber.teconomix.net/en/obsidian-transcripts.html">
   <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=0.8.4">
+  <link rel="stylesheet" href="../style.css?v=0.9">
   <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/obsidian-transkripte.html">
   <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/obsidian-transcripts.html">
-  <script src="../script.js?v=0.8.4" defer></script>
+  <script src="../script.js?v=0.9" defer></script>
 </head>
 <body>
 <header class="site-header">
@@ -37,6 +37,7 @@
   <ul>
     <li><strong>One note per recording</strong> in a folder of your choice (default <code>Transcriber</code>), with the properties <code>date</code>, <code>duration</code>, <code>participants</code> (as <code>[[links]]</code>), <code>event</code>, <code>transcript</code> and the tag <code>transcript</code>.</li>
     <li><strong>The transcript, by speaker</strong> – with the names Local Transcriber recognized from its local voice database.</li>
+    <li><strong>The summary</strong>, if Local Transcriber created one – as its own section above the transcript, with action items as checkboxes. Checked items stay checked.</li>
     <li><strong>Names you assign later</strong> reach the note, also a re-analysis or the descriptive file name the app gives a recording.</li>
     <li><strong>Audio files already in your vault:</strong> right-click › <em>Transcribe</em>. The note embeds the audio, so you can play it in Obsidian.</li>
   </ul>
@@ -47,8 +48,8 @@
   <h2>Name speakers in Obsidian</h2>
   <p>In a transcript note, the command palette offers <em>Name a speaker</em>: pick the speaker, type a name – suggestions come from the calendar attendees and, optionally, a people folder. Local Transcriber's voice database learns the voice and recognizes it in future recordings. <em>Confirm all speaker matches</em> does the rest in one step.</p>
 
-  <h2>Summaries – with whatever you like</h2>
-  <p>The plugin itself sends nothing anywhere: no network use, no telemetry. If you want summaries, use the AI plugin of your choice on the note – local or not is then up to you.</p>
+  <h2>Summaries – with local AI too</h2>
+  <p>Local Transcriber summarizes conversations itself if you like: as minutes with action items, a short summary, an order in the five-paragraph format, a supervision note or with your own template. You choose the model in the app – a local one (Ollama, LM Studio) or a cloud provider. In Obsidian, start it with the command <em>Summarize</em>, or let the app do it after every recording. The plugin itself sends nothing anywhere: no network use, no telemetry.</p>
 
   <h2>Honestly: the limits</h2>
   <p>Macs with Apple Silicon only (macOS 14+), and Obsidian on the desktop – the plugin reads the transcript files on that Mac. It has been submitted to Obsidian's plugin directory; until it is listed there, it is installed by hand or with BRAT. If your vault is synced (Obsidian Sync, iCloud, Syncthing …), the transcript notes are synced too – choose the notes folder accordingly. And getting everyone's consent before recording is up to you.</p>

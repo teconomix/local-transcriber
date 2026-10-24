@@ -22,9 +22,10 @@ DEFAULTS = {
                                    # mischen Personen unumkehrbar (2026-10-12: 9 Personen, Grenze 6 → zwei in einem Cluster)
     "vocab_file": str(DATA / "vocab.txt"),  # Glossar, Format siehe glossary.py
     "glossary_prompt": False,      # Glossar zusätzlich als Whisper-Prompt (gemessen: schadet, siehe asr.py)
+    "repair_flat": True,           # Stellen ohne Satzzeichen einzeln neu erkennen, nur bei Prüfung übernehmen (asr.repair)
     # Stimmenabgleich (Kosinus). Gemessen 2026-10-08: gleiche Person 0,75–0,93, verschiedene ≤ 0,42.
     "match_sure": 0.75,            # ab 60 s; war 0,65 – falsche Personen kamen bis 0,65, richtige ab 0,80 (bench/SCHWELLEN.md)
-    "match_maybe": 0.50,
+    "match_maybe": 0.60,           # war 0,50 – Unbekannte bekamen bei 0,51 und 0,596 falsche Namen „(?)“ (bench/SCHWELLEN.md, 2026-10-24)
     "min_speech_s": 60,            # darunter gilt die strengere Schwelle match_sure_short
     "match_sure_short": 0.75,      # 15–60 s Sprechzeit: sicher erst ab dieser Ähnlichkeit (speakers.sure_match)
     "min_sure_s": 15,              # darunter nie „sicher“

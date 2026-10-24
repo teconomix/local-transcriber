@@ -8,6 +8,7 @@ import os
 import sys
 import threading
 import time
+import unicodedata
 from pathlib import Path
 
 from . import asr, audio, config, glossary, render, speakers
@@ -26,22 +27,32 @@ def job_id(path):
     return h.hexdigest()[:12]
 
 
-def _asr(wav, language, terms):
+def _asr(wav, language, terms, repair=True):
     """Spracherkennung mit Zwischenspeicher neben der WAV: Eine Neuauswertung (andere Sprecherzahl, „Neu auswerten“
     in der App) rechnet dann nur die Sprechertrennung neu. Gültig für dieselbe Aufnahme (Ordner = Inhalts-Hash),
-    Sprache, Modell und Prompt; die Glossar-Ersetzungen laufen danach immer frisch."""
+    Sprache, Modell und Prompt; die Glossar-Ersetzungen laufen danach immer frisch.
+    Danach auffällige Stellen neu erkennen (asr.repair, config „repair_flat“). Das Ergebnis liegt getrennt vom
+    Rohergebnis im Zwischenspeicher (Fassung asr.REPAIR): ältere Zwischenspeicher bekommen nur die Nachbesserung,
+    keine neue Spracherkennung. Die geprüften Stellen stehen in r["repaired"]."""
     f = Path(wav).with_name(f"asr-{language}.json")
     key = {"model": asr.MODEL, "terms": terms}
+    c, dirty = None, False
     with contextlib.suppress(OSError, ValueError, KeyError):
         c = json.loads(f.read_text())
-        if c["key"] == key:
-            return c["result"]
-    r = asr.transcribe(wav, terms=terms, language=language)
-    with contextlib.suppress(OSError):
-        tmp = f.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"key": key, "result": r}, ensure_ascii=False))
-        tmp.replace(f)
-    return r
+        if c["key"] != key:
+            c = None
+    if c is None:
+        c, dirty = {"key": key, "result": asr.transcribe(wav, terms=terms, language=language)}, True
+    if repair and c.get("repair", {}).get("version") != asr.REPAIR:
+        r = json.loads(json.dumps(c["result"]))          # Rohergebnis bleibt unverändert im Zwischenspeicher
+        spans = asr.repair(wav, r, language)
+        c["repair"], dirty = {"version": asr.REPAIR, "spans": spans, "result": r}, True
+    if dirty:
+        with contextlib.suppress(OSError):
+            tmp = f.with_suffix(".tmp")
+            tmp.write_text(json.dumps(c, ensure_ascii=False))
+            tmp.replace(f)
+    return dict(c["repair"]["result"], repaired=c["repair"]["spans"]) if repair else c["result"]
 
 
 class Progress:
@@ -126,7 +137,7 @@ def _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, du
     x = [sf.read(str(w), dtype="float32")[0] for w in tracks]
 
     P.start("asr", dur / RTFX["asr"], tr("Spracherkennung", "Speech recognition"))
-    t0 = time.time(); r = _asr(wav, language, terms if cfg["glossary_prompt"] else None)
+    t0 = time.time(); r = _asr(wav, language, terms if cfg["glossary_prompt"] else None, cfg.get("repair_flat", True))
     t["asr"] = time.time() - t0
     replaced = glossary.apply(r["words"], rules)
     mixed = r["words"]
@@ -219,7 +230,7 @@ def _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, du
     used = {w["speaker"] for w in words}
     clusters = [c for _, cl in per for c in cl if c["label"] in used]
     t["words_track1"], t["words_track2"] = len(by[1]), len(by[2])
-    return words, sorted(per[0][0] + per[1][0], key=lambda s: s["start"]), clusters, replaced, spans
+    return words, sorted(per[0][0] + per[1][0], key=lambda s: s["start"]), clusters, replaced, spans, r.get("repaired", [])
 
 
 def _overlaps(segs1, segs2, echo=(), min_s=1.0, join_s=1.0, pad=0.3):
@@ -499,6 +510,39 @@ def drop_hallucinations(words, segs, wav, gap=3.0, rel=0.10, maxd=0.3, max_p=0.2
     return kept, dropped
 
 
+def drop_loops(words, min_rep=10, keep=1):
+    """Wiederholungsschleifen von Whisper kürzen: dieselbe Folge aus 1–4 Wörtern ≥ min_rep× unmittelbar hintereinander →
+    `keep`× bleibt, der Rest fällt weg (mit 3 blieb „Happy Happy Happy“ als Unsinn stehen). Gemessen 2026-10-24 an 57 Transkripten (bench/NEUDEKODIEREN.md):
+    ab 10× nur Schleifen („Happy“ 223× in 2,6 s, „mail“ 216×, „Ja, ja“ 113×, „to“ 24×); echte Wiederholungen
+    („Ja, ja, ja, ja, ja.“, „Quack“ 7×) bleiben darunter. Liefert (behaltene, entfernte) wie drop_hallucinations."""
+    key = lambda w: w["w"].lower().strip(PUNCT_LOOP)
+    kept, dropped, i = [], [], 0
+    while i < len(words):
+        best = None
+        for n in (1, 2, 3, 4):
+            g = [key(w) for w in words[i:i + n]]
+            if len(g) < n:
+                break
+            r = 1
+            while [key(w) for w in words[i + r * n:i + (r + 1) * n]] == g:
+                r += 1
+            if r >= min_rep and (best is None or r * n > best[0] * best[1]):
+                best = (r, n)
+        if not best:
+            kept.append(words[i]); i += 1
+            continue
+        r, n = best
+        kept += words[i:i + keep * n]
+        gone = words[i + keep * n:i + r * n]
+        dropped.append({"start": round(gone[0]["start"], 2), "end": round(gone[-1]["end"], 2),
+                        "text": " ".join(w["w"] for w in gone), "why": "e"})
+        i += r * n
+    return kept, dropped
+
+
+PUNCT_LOOP = ".,;:!?…-\"'“”„»«()"
+
+
 def assign_words(words, segs):
     """Jedes Wort dem Sprecher zuordnen, dessen Segment die Wortmitte enthält (sonst nächstes Segment ≤ 1 s,
     sonst wie das vorige Wort). Danach kurze Einsprengsel (≤ 2 Wörter, < 1 s) zwischen gleichem Sprecher glätten."""
@@ -638,11 +682,11 @@ def _run(src, language, out_dir, formats, num_speakers, cfg, terms, rules, P, t)
     overlaps = []                        # Bereiche gleichzeitigen Sprechens (nur getrennte Spuren) – für die Ausgabe
     if mode == "getrennt":
         cfg = dict(cfg, _others=others)
-        words, segs, clusters, replaced, overlaps = _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, dur)
+        words, segs, clusters, replaced, overlaps, repaired = _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, dur)
     else:
         P.start("asr", dur / RTFX["asr"], tr("Spracherkennung", "Speech recognition"))
-        t0 = time.time(); r = _asr(wav, language, terms if cfg["glossary_prompt"] else None); t["asr"] = time.time() - t0
-        replaced = glossary.apply(r["words"], rules)
+        t0 = time.time(); r = _asr(wav, language, terms if cfg["glossary_prompt"] else None, cfg.get("repair_flat", True)); t["asr"] = time.time() - t0
+        replaced, repaired = glossary.apply(r["words"], rules), r.get("repaired", [])
 
         P.start("diarize", dur / RTFX["diarize"], tr("Sprechertrennung", "Speaker separation"))
         from . import diarize
@@ -651,7 +695,9 @@ def _run(src, language, out_dir, formats, num_speakers, cfg, terms, rules, P, t)
         t["diarize"] = time.time() - t0
         words = assign_words(r["words"], segs)
 
+    words, loops = drop_loops(words)
     words, dropped = drop_hallucinations(words, segs, wav)
+    dropped = sorted(loops + dropped, key=lambda d: d["start"])
     if dropped:
         t["dropped_words"] = sum(len(d["text"].split()) for d in dropped)
 
@@ -669,7 +715,8 @@ def _run(src, language, out_dir, formats, num_speakers, cfg, terms, rules, P, t)
            "track_relation": relation, "timing_s": {k: round(v, 1) for k, v in t.items()},
            "glossary": terms, "glossary_replacements": replaced, "speakers": [{k: v for k, v in c.items() if k != "embedding"} for c in clusters],
            "words": words, "diarization": segs, "overlaps": [[round(s, 2), round(e, 2)] for s, e in overlaps],
-           "dropped": dropped}   # von Whisper in Stille erfundene Phrasen (drop_hallucinations) – nachvollziehbar, nicht stumm weg
+           "dropped": dropped,   # erfundene Phrasen und Schleifen (drop_hallucinations, drop_loops) – nachvollziehbar, nicht stumm weg
+           "repaired": repaired}  # neu erkannte Stellen ohne Satzzeichen (asr.repair), auch abgelehnte
     db.execute("DELETE FROM clusters WHERE job_id=?", (jid,))
     speakers.save_job(db, jid, src, f"{stem}.transcript.json", asr.MODEL, clusters)
     paths = render.write(doc, stem, formats)
@@ -710,8 +757,24 @@ def find_cluster(doc, who):
 
 
 def rerender(doc, json_path, formats=None):
+    from . import summarize
     stem = Path(json_path).with_name(Path(json_path).name.removesuffix(".transcript.json"))
-    return render.write(doc, stem, formats or config.load()["formats"])
+    paths = render.write(doc, stem, formats or config.load()["formats"])
+    summarize.refresh_names(json_path, doc)     # neue Namen auch in der Zusammenfassung, ohne neuen Modellaufruf
+    return paths
+
+
+def apply_glossary(path):
+    """Glossar nachträglich auf ein fertiges Transkript anwenden (ohne neu zu rechnen): neue Einträge wirken so auch
+    auf ältere Aufnahmen. Ersetzt nur, nimmt nichts zurück. Liefert die Zahl der Ersetzungen; nur dann neu geschrieben."""
+    doc, jp = load_doc(path)
+    terms, rules = glossary.load(Path(config.load()["vocab_file"]).expanduser())
+    n = glossary.apply(doc["words"], rules)
+    if n:
+        doc["glossary"] = list(dict.fromkeys((doc.get("glossary") or []) + terms))
+        doc["glossary_replacements"] = (doc.get("glossary_replacements") or 0) + n
+        rerender(doc, jp)
+    return n
 
 
 def name_speaker(path, who, name):
@@ -756,7 +819,8 @@ def recheck(path):
     return changed
 
 
-SIDECARS = (".srt", ".error.txt", ".event.json")   # das lesbare Transkript (.md/.txt) behandelt render.find_readable
+SIDECARS = (".srt", ".error.txt", ".event.json", ".summary.md")   # das lesbare Transkript (.md/.txt) behandelt render.find_readable
+MOVED = (".error.txt", ".event.json", ".summary.md")   # werden beim Umbenennen mitgenommen, die übrigen neu geschrieben
 
 
 def clean_stem(name):
@@ -780,8 +844,13 @@ def rename(path, new_stem):
         raise ValueError(tr("leerer Name", "empty name"))
     folder = old_src.parent if old_src.exists() else jp.parent
     old_stem = jp.name.removesuffix(".transcript.json")
-    if stem == old_stem:
+    nfc = lambda x: unicodedata.normalize("NFC", x)
+    if nfc(stem) == nfc(old_stem):           # Namen vom Handy liegen als NFD vor – gleich aussehend = nichts zu tun
         return {"json": jp, "source": old_src}
+    if nfc(stem).casefold() == nfc(old_stem).casefold():
+        # Nur Groß-/Kleinschreibung geändert: macOS unterscheidet sie in Dateinamen nicht. Direkt umbenannt hielt die
+        # Suche nach einem freien Namen die Datei selbst für belegt („… 2“, 2026-10-24) – über einen Zwischennamen.
+        return rename(rename(jp, stem + " ~")["json"], stem)
     if (jp.parent / (old_stem + ".lock")).exists() or old_src.with_name(old_src.stem + ".lock").exists():
         raise RuntimeError(tr("Transkription dieser Datei läuft noch", "transcription of this file is still running"))
     base, n = stem, 2
@@ -801,7 +870,7 @@ def rename(path, new_stem):
     for ext in SIDECARS + (".transcript.json",):
         old = jp.parent / (old_stem + ext)
         if old.exists() and old != paths.get("json"):
-            if ext in (".error.txt", ".event.json"):
+            if ext in MOVED:
                 old.rename(jp.parent / (stem + ext))
             else:
                 old.unlink()
@@ -864,7 +933,7 @@ def adopt(src, jid=None):
     for ext in SIDECARS + (".transcript.json",):
         old = jp.parent / (old_stem + ext)
         if old.exists() and old != paths.get("json"):
-            if ext in (".error.txt", ".event.json"):
+            if ext in MOVED:
                 old.rename(dest.with_name(dest.name + ext))
             else:
                 old.unlink()

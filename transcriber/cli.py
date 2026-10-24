@@ -11,7 +11,10 @@
   transcriber enroll AUDIO BENANNTES.md       Stimmreferenzen aus einem benannten Transkript lernen
   transcriber watch [ORDNER]                  Ordner überwachen
   transcriber vocab [EINTRAG…]                Glossar zeigen oder ergänzen, z. B. 'ACME = Akme'
+  transcriber vocab --apply TRANSKRIPT…       Glossar auf fertige Transkripte anwenden (ohne neu zu rechnen)
   transcriber rename TRANSKRIPT NEUER-NAME     Aufnahme samt Transkript umbenennen (Verweise werden mitgezogen)
+  transcriber summarize TRANSKRIPT [--template ID] [--auto]   Zusammenfassung mit Sprachmodell → <name>.summary.md
+  transcriber summarize --templates | --models  Vorlagen bzw. Modelle des eingestellten Servers zeigen
   transcriber dictate-server                  Diktat-Dienst (startet die App; Modell bleibt geladen)
   transcriber dictate AUDIO [--language en]   Testdiktat über den laufenden Dienst
   transcriber report ZIP [--description DATEI] [--keep-names]   Fehlerbericht (ohne Aufnahmen/Transkripte)
@@ -37,7 +40,10 @@ USAGE_EN = """Command line.
   transcriber enroll AUDIO NAMED.md           learn voice references from a named transcript
   transcriber watch [FOLDER]                  watch a folder
   transcriber vocab [ENTRY…]                  show or extend the glossary, e.g. 'ACME = Akme'
+  transcriber vocab --apply TRANSCRIPT…       apply the glossary to finished transcripts (no recomputation)
   transcriber rename TRANSCRIPT NEW-NAME      rename recording and transcript (references are updated)
+  transcriber summarize TRANSCRIPT [--template ID] [--auto]   summary by a language model → <name>.summary.md
+  transcriber summarize --templates | --models  show templates or the models of the configured server
   transcriber dictate-server                  dictation service (started by the app; model stays loaded)
   transcriber dictate AUDIO [--language en]   test dictation via the running service
   transcriber report ZIP [--description FILE] [--keep-names]   bug report (no recordings/transcripts)
@@ -175,6 +181,11 @@ def cmd_watch(a):
 
 
 def cmd_vocab(a):
+    if a.apply:                          # Ausgabe je Datei: Anzahl Ersetzungen <Tab> Pfad (die App liest die Zahl)
+        from . import pipeline
+        for p in a.apply:
+            print(f"{pipeline.apply_glossary(p)}\t{p}")
+        return
     f = Path(config.load()["vocab_file"]).expanduser()
     if a.terms:
         f.parent.mkdir(parents=True, exist_ok=True)
@@ -187,6 +198,36 @@ def cmd_rename(a):
     from . import pipeline
     paths = pipeline.rename(a.transcript, a.name)
     print(json.dumps({k: str(v) for k, v in paths.items()}, ensure_ascii=False) if a.json else paths["source"])
+
+
+def cmd_summarize(a):
+    from . import summarize
+    if a.templates:
+        ts = summarize.templates()
+        if a.json:
+            print(json.dumps([{k: v for k, v in x.items() if k != "body"} for x in ts.values()], ensure_ascii=False))
+        else:
+            for x in ts.values():
+                print(f"{x['id']:14s} {x['name']}" + (t("  (eigene)", "  (custom)") if x["custom"] else "") + f"\n{'':14s} {x['description']}")
+        return
+    if a.models:                         # zugleich Verbindungstest für die App
+        s = summarize.settings()
+        ms = summarize.models(s)
+        print(json.dumps({"base_url": s["base_url"], "local": summarize.is_local(s["base_url"]), "models": ms}, ensure_ascii=False)
+              if a.json else "\n".join(ms))
+        return
+    if not a.transcript:
+        print(t("Aufruf: summarize TRANSKRIPT [--template ID]", "usage: summarize TRANSCRIPT [--template ID]"), file=sys.stderr); return 2
+    cfg = config.load()
+    allow_cloud = not a.auto or summarize.settings(cfg)["cloud_auto"]
+    out, meta = summarize.run(a.transcript, a.template, cfg, allow_cloud=allow_cloud,
+                              progress=None if a.json else lambda m: print("  " + m, file=sys.stderr, flush=True))
+    if a.json:
+        print(json.dumps({"summary": str(out), **meta, **summarize.preview(out)}, ensure_ascii=False))
+    else:
+        print(out)
+        print(f"  {meta['model']} · {meta['seconds']} s · " + t("Tokens ein/aus", "tokens in/out") + f" {meta['tokens'][0]}/{meta['tokens'][1]}",
+              file=sys.stderr)
 
 
 def cmd_delete(a):
@@ -256,9 +297,16 @@ def main(argv=None):
     p = sp.add_parser("enroll", help=t("Stimmen aus benanntem Transkript lernen", "learn voices from a named transcript")); p.add_argument("audio"); p.add_argument("named")
     p.add_argument("--dry-run", action="store_true"); p.set_defaults(f=cmd_enroll)
     p = sp.add_parser("watch", help=t("Ordner überwachen", "watch a folder")); p.add_argument("dir", nargs="?"); p.set_defaults(f=cmd_watch)
-    p = sp.add_parser("vocab", help=t("Glossar (Namen/Fachbegriffe, optional mit Ersetzungen)", "glossary (names/terms, optionally with replacements)")); p.add_argument("terms", nargs="*"); p.set_defaults(f=cmd_vocab)
+    p = sp.add_parser("vocab", help=t("Glossar (Namen/Fachbegriffe, optional mit Ersetzungen)", "glossary (names/terms, optionally with replacements)")); p.add_argument("terms", nargs="*")
+    p.add_argument("--apply", nargs="+", metavar="TRANSKRIPT", help=t("Glossar auf fertige Transkripte anwenden", "apply the glossary to finished transcripts")); p.set_defaults(f=cmd_vocab)
     p = sp.add_parser("rename", help=t("Aufnahme samt Transkript umbenennen", "rename recording and transcript")); p.add_argument("transcript"); p.add_argument("name")
     p.add_argument("--json", action="store_true", help=t("neue Pfade als JSON", "new paths as JSON")); p.set_defaults(f=cmd_rename)
+    p = sp.add_parser("summarize", help=t("Zusammenfassung mit Sprachmodell (Einstellungen › KI)", "summary by a language model (Settings › AI)"))
+    p.add_argument("transcript", nargs="?"); p.add_argument("--template", metavar="ID", help=t("Vorlage (Standard: auto_template)", "template (default: auto_template)"))
+    p.add_argument("--auto", action="store_true", help=t("automatischer Lauf: Cloud nur mit cloud_auto", "automatic run: cloud only with cloud_auto"))
+    p.add_argument("--templates", action="store_true", help=t("Vorlagen zeigen", "list templates"))
+    p.add_argument("--models", action="store_true", help=t("Modelle des Servers zeigen (Verbindungstest)", "list the server's models (connection test)"))
+    p.add_argument("--json", action="store_true"); p.set_defaults(f=cmd_summarize)
     p = sp.add_parser("report", help=t("Fehlerbericht als ZIP (ohne Aufnahmen/Transkripte)", "bug report as ZIP (no recordings/transcripts)"))
     p.add_argument("out"); p.add_argument("--description", metavar=t("DATEI", "FILE")); p.add_argument("--app-info", metavar=t("DATEI", "FILE"))
     p.add_argument("--keep-names", action="store_true", help=t("Dateinamen/Termintitel nicht unkenntlich machen", "do not redact file names/event titles"))

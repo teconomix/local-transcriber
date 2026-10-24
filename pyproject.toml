@@ -1,6 +1,6 @@
 [project]
 name = "transcriber"
-version = "0.8.4"
+version = "0.9"
 description = "Lokale Transkription mit Sprechererkennung (MacLion)"
 requires-python = ">=3.12,<3.14"
 license = "MIT"

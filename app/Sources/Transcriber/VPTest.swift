@@ -408,15 +408,19 @@ enum VPTest {
         let running = Job(id: UUID().uuidString, source: URL(fileURLWithPath: en ? "/demo/2026-10-14 16-00 Team meeting.m4a" : "/demo/2026-10-14 16-00 Teamrunde.m4a"),
                           started: Date())
         running.progress = 0.62; running.message = en ? "Speaker separation" : "Sprechertrennung"
+        let budget = job(en ? "2026-10-14 14-03 Q4 budget planning" : "2026-10-14 14-03 Budgetplanung Q4", 42.3, 3600,
+                         [("A", "Alex Beispiel", "sicher", 12.4, nil), ("B", "Kim Exempel", "bestätigt", 9.8, nil),
+                          ("C", "Sam Muster (?)", "vermutlich", 3.1, "Sam Muster")])
+        budget.summary = SummaryInfo(url: URL(fileURLWithPath: "/demo/x.summary.md"), name: en ? "Minutes" : "Protokoll", local: true,
+                                     model: "qwen3.8-27b", points: en ? ["Q4 budget stays at last year's level", "Travel costs move to the projects"]
+                                                                      : ["Budget Q4 bleibt auf Vorjahresniveau", "Reisekosten wandern in die Projekte"],
+                                     tasks: en ? ["Kim Exempel: draft by 7 Nov", "Alex Beispiel: ask finance for the figures"]
+                                               : ["Kim Exempel: Entwurf bis 07.11.", "Alex Beispiel: Zahlen bei der Buchhaltung anfragen"])
+        let client = job(en ? "2026-10-14 11-30 Client call website relaunch" : "2026-10-14 11-30 Kundengespräch Website-Relaunch", 27.1, 7200,
+                         [("A", "Alex Beispiel", "sicher", 11.0, nil), ("B", en ? "Speaker B" : "Sprecher B", "unbekannt", 7.2, nil)])
+        client.summarizing = Date().addingTimeInterval(-34)
         jobs.frozen = true
-        jobs.jobs = [
-            running,
-            job(en ? "2026-10-14 14-03 Q4 budget planning" : "2026-10-14 14-03 Budgetplanung Q4", 42.3, 3600,
-                [("A", "Alex Beispiel", "sicher", 12.4, nil), ("B", "Kim Exempel", "bestätigt", 9.8, nil),
-                 ("C", "Sam Muster (?)", "vermutlich", 3.1, "Sam Muster")]),
-            job(en ? "2026-10-14 11-30 Client call website relaunch" : "2026-10-14 11-30 Kundengespräch Website-Relaunch", 27.1, 7200,
-                [("A", "Alex Beispiel", "sicher", 11.0, nil), ("B", en ? "Speaker B" : "Sprecher B", "unbekannt", 7.2, nil)]),
-        ]
+        jobs.jobs = [running, budget, client]
     }
 
     /// Oberfläche ansehen ohne Mausklick: `open -n ~/Applications/Transcriber.app --args --ui-test`
@@ -424,19 +428,30 @@ enum VPTest {
     @MainActor
     static func ui(recorder: Recorder, jobs: JobManager, dictation: Dictation, calls: CallDetector, updates: UpdateCheck) async {
         await jobs.loadNames()                                    // vor dem Bau der Ansichten (Exportblatt braucht die Namen)
+        await jobs.loadTemplates()
         if CommandLine.arguments.contains("--demo") { demo(jobs) }
         let views: [(String, AnyView)] = [
             ("panel", AnyView(PanelView().environmentObject(recorder).environmentObject(jobs).environmentObject(dictation).environmentObject(calls)
                 .environmentObject(updates))),
             ("eintrag", AnyView(Group {
                 if let j = jobs.jobs.first(where: { $0.state == .done && $0.speakers.count > 1 }) {
-                    JobRow(job: j, editing: [j.speakers[0].letter]).environmentObject(jobs).frame(width: 412).padding(14)
+                    // Kopie ohne Zusammenfassung: zeigt die Zeile mit „Zusammenfassen“
+                    let plain = Job(id: j.id + "-plain", source: j.source, started: j.started)
+                    let _ = { plain.state = .done; plain.duration = j.duration; plain.speakers = j.speakers }()
+                    JobRow(job: plain, editing: [j.speakers[0].letter]).environmentObject(jobs).frame(width: 412).padding(14)
                 }
             })),
+            ("einstellungen", AnyView(SettingsView().environmentObject(dictation).environmentObject(calls).environmentObject(updates)
+                .environmentObject(jobs))),
             ("allgemein", AnyView(GeneralSettings().environmentObject(updates).frame(width: 520, height: 440))),
             ("aufnahme", AnyView(RecordingSettings().frame(width: 520, height: 440))),
             ("diktat", AnyView(DictationSettings().environmentObject(dictation).frame(width: 520, height: 440))),
             ("kalender", AnyView(CalendarSettings().frame(width: 520, height: 440))),
+            ("glossar", AnyView(GlossarySettings().frame(width: 520, height: 440))),
+            ("ki", AnyView(AISettings(demo: CommandLine.arguments.contains("--demo")).environmentObject(jobs).frame(width: 520, height: 472))),
+            ("eintrag-zusammenfassung", AnyView(Group {
+                if let j = jobs.jobs.first(where: { $0.summary != nil }) { JobRow(job: j).environmentObject(jobs).frame(width: 412).padding(14) }
+            })),
             ("stimmen", AnyView(VoicesView().frame(width: 620, height: 420))),
             ("fehler-melden", AnyView(ReportView())),
             ("stimmen-export", AnyView(PickVoices(title: String(localized: "Stimmen exportieren"), note: String(localized: "Je Person ein Stimmabdruck (256 Zahlen) mit Name – keine Aufnahmen, keine Titel oder Pfade. Stimmabdrücke sind biometrische Daten: nur mit Einwilligung der Personen weitergeben, möglichst über geschützte Wege. Die Datei ist nicht verschlüsselt."),
@@ -456,7 +471,9 @@ enum VPTest {
                     let cfg = SCStreamConfiguration()
                     cfg.width = Int(sw.frame.width * 2); cfg.height = Int(sw.frame.height * 2)
                     let img = try await SCScreenshotManager.captureImage(contentFilter: SCContentFilter(desktopIndependentWindow: sw), configuration: cfg)
-                    let url = Core.data.appendingPathComponent("ui-\(name).png")
+                    // --ui-out ORDNER: Bilder woanders ablegen (Feature-Zweig, ohne die Bilder des Hauptstands zu überschreiben)
+                    let out = CommandLine.arguments.firstIndex(of: "--ui-out").map { URL(fileURLWithPath: CommandLine.arguments[$0 + 1]) } ?? Core.data
+                    let url = out.appendingPathComponent("ui-\(name).png")
                     try NSBitmapImageRep(cgImage: img).representation(using: .png, properties: [:])?.write(to: url)
                     appLog("UI-Test: \(url.lastPathComponent)")
                 }

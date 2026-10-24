@@ -462,6 +462,14 @@ class TextFormat(unittest.TestCase):
         self.assertRegex(txt, r"\n\[00:00:\d\d\] [^:]+: ")
         self.assertTrue(render.is_ours_text(txt, self.audio.name))
 
+    def test_ours_despite_unicode_form(self):
+        """Name vom Handy als NFD auf der Platte, Pfad getippt als NFC: trotzdem das eigene Transkript."""
+        import unicodedata
+        nfd = unicodedata.normalize("NFD", "Vortrag Björn.m4a")
+        head = f"Vortrag Björn\n\nQuelle: {nfd} · 53:33 min\n"
+        self.assertTrue(render.is_ours_text(head, unicodedata.normalize("NFC", nfd)))
+        self.assertTrue(render.is_ours_text(unicodedata.normalize("NFC", head), nfd))
+
     def test_default_is_txt(self):
         config.CONFIG.unlink(missing_ok=True)
         self.assertEqual(render.write(self.doc, self.tmp / "Gespräch", ["md", "json"])["md"].name, "Gespräch.txt")
@@ -538,6 +546,19 @@ class Hallucinations(unittest.TestCase):
         self.assertEqual(gone.get(" ".join(f"salat{i}" for i in range(8))), "d")
         self.assertIn("nuschel", texts)
         self.assertEqual(len(kept), len(words) - 1 - 2 - 3 - 8)
+
+    def test_loops(self):
+        W = lambda i, w: {"w": w, "start": i * 0.1, "end": i * 0.1 + 0.08}
+        words = [W(0, "Das"), W(1, "ist")] + [W(2 + i, "Happy") for i in range(50)]
+        words += [W(60 + i, w) for i, w in enumerate("Ja, ja, ja, ja, ja. Gut.".split())]
+        words += [W(80 + i, w) for i, w in enumerate(("in der Bank, " * 12).split())]   # 3-Wort-Folge 12×
+        kept, dropped = pipeline.drop_loops(words)
+        texts = [w["w"] for w in kept]
+        self.assertEqual(texts.count("Happy"), 1)
+        self.assertEqual(texts.count("ja,") + texts.count("ja."), 4)    # echte Wiederholung (5×) bleibt ganz
+        self.assertEqual(texts.count("Bank,"), 1)
+        self.assertEqual([d["why"] for d in dropped], ["e", "e"])
+        self.assertEqual(len(dropped[0]["text"].split()), 49)
 
     def test_nothing_without_diarization(self):
         w = [{"w": "x", "start": 0, "end": 1}]
@@ -694,6 +715,81 @@ class Glossary(unittest.TestCase):
         self.assertEqual(terms, ["ACME", "Muster AG", "NurListe"])
         self.assertEqual(glossary.apply_text("Die akme und die Muster A G, sowie A.C.M.E.", rules),
                          "Die ACME und die Muster AG, sowie ACME.")   # Satzzeichen am Wortende bleibt
+        words = [{"w": w, "start": i, "end": i + 0.5} for i, w in enumerate("Die Akme-Strategie, Akme-.".split())]
+        self.assertEqual(glossary.apply(words, rules), 2)
+        self.assertEqual([w["w"] for w in words], ["Die", "ACME-Strategie,", "ACME-."])
+
+    def test_apply_to_transcript(self):
+        """vocab --apply: fertiges Transkript nachträglich ersetzen, neu schreiben; ohne Treffer bleibt die Datei."""
+        set_lang("de")
+        tmp = Path(tempfile.mkdtemp(dir=_DATA))
+        doc = sample()
+        doc["source"] = str(tmp / "a.m4a")
+        jp = tmp / "a.transcript.json"
+        jp.write_text(json.dumps(doc, ensure_ascii=False))
+        (Path(_DATA) / "vocab.txt").write_text("Budgetplan = Budget\n")
+        self.assertEqual(pipeline.apply_glossary(jp), 1)
+        new = json.loads(jp.read_text())
+        self.assertIn("Budgetplan.", [w["w"] for w in new["words"]])
+        self.assertEqual(new["glossary_replacements"], 1)
+        self.assertIn("Budgetplan.", (tmp / "a.txt").read_text())
+        mtime = jp.stat().st_mtime_ns
+        self.assertEqual(pipeline.apply_glossary(jp), 0)
+        self.assertEqual(jp.stat().st_mtime_ns, mtime)
+
+    def test_add_entries(self):
+        f = Path(tempfile.mkdtemp(dir=_DATA)) / "vocab.txt"
+        f.write_text("# Kopf\nACME = Akme  # Kunde\nNurListe\n")
+        self.assertEqual(glossary.add(f, "acme", ["Akme", "Ack Me"]), ({"term": "ACME", "variants": ["Akme", "Ack Me"]}, True))
+        self.assertEqual(glossary.add(f, "ACME", ["akme"])[1], False)              # schon da
+        self.assertEqual(glossary.add(f, "KI", ["Kali", "KI"])[0], {"term": "KI", "variants": ["Kali"]})   # Begriff selbst nicht
+        self.assertEqual(f.read_text(), "# Kopf\nACME = Akme, Ack Me  # Kunde\nNurListe\nKI = Kali\n")
+        self.assertEqual(glossary.entries(f)[2], {"term": "KI", "variants": ["Kali"]})
+        with self.assertRaises(ValueError):
+            glossary.add(f, " # ", ["x"])
+
+    def test_mcp_tools(self):
+        """MCP: anzeigen, ergänzen, anwenden – über den Server aufgerufen wie von einem Client."""
+        import asyncio
+        from transcriber import mcp_server
+        set_lang("de")
+        (Path(_DATA) / "vocab.txt").unlink(missing_ok=True)
+        tmp = Path(tempfile.mkdtemp(dir=_DATA))
+        doc = sample()
+        doc["source"] = str(tmp / "a.m4a")
+        jp = tmp / "a.transcript.json"
+        jp.write_text(json.dumps(doc, ensure_ascii=False))
+        call = lambda name, **kw: asyncio.run(mcp_server.mcp.call_tool(name, kw))
+        text = lambda r: r.content[0].text
+        self.assertEqual(json.loads(text(call("show_glossary"))), [])
+        self.assertTrue(json.loads(text(call("add_to_glossary", term="Budgetplan", misrecognized=["Budget"])))["changed"])
+        self.assertEqual(json.loads(text(call("show_glossary"))), [{"term": "Budgetplan", "variants": ["Budget"]}])
+        self.assertEqual(text(call("apply_glossary", transcript=str(jp))), "1 Ersetzungen")
+        self.assertEqual(text(call("apply_glossary", transcript=str(jp))), "0 Ersetzungen")
+
+
+class Repair(unittest.TestCase):
+    """asr._flat_spans / accept: nur lange Stellen ohne Satzzeichen, Übernahme nur bei gleichem Inhalt."""
+
+    def test_flat_spans(self):
+        from transcriber import asr
+        S = lambda a, b, t: {"start": a, "end": b, "text": t}
+        segs = [S(0, 5, "Guten Morgen, wir fangen an."), S(5, 10, "und dann haben wir " * 4), S(10, 15, "das budget gesehen " * 4),
+                S(15, 20, "Gut."), S(20, 25, "nur kurz ohne punkt")]
+        self.assertEqual(asr._flat_spans(segs), [(5, 15)])          # 28 Wörter am Stück; der kurze Rest zählt nicht
+        self.assertEqual(asr._flat_spans(segs, min_words=30), [])
+
+    def test_accept(self):
+        from transcriber import asr
+        W = lambda t, p=0.8: [{"w": x, "start": i, "end": i + 0.5, "p": p} for i, x in enumerate(t.split())]
+        old = W("ich habe mal eines herausgepickt ein einfaches beispiel aber das kannst du dir zeigen")
+        good = W("Ich habe mal eines herausgepickt, ein einfaches Beispiel, aber das kannst du dir zeigen.")
+        self.assertTrue(asr.accept(old, good)[0])
+        self.assertFalse(asr.accept(old, W("Ja, genau."))[0])                  # Inhalt verloren
+        self.assertFalse(asr.accept(old, W(good and "I picked one, a simple example, but you can show it.", 0.9))[0])  # übersetzt
+        self.assertFalse(asr.accept(old, W("Ich habe mal eines herausgepickt, ein einfaches Beispiel, aber das kannst du dir zeigen.", 0.6))[0])  # unsicherer
+        self.assertFalse(asr.accept(old, old)[0])                               # keine Satzzeichen gewonnen
+        self.assertEqual([w["w"] for w in asr._strip_thanks(W("Das war es. Vielen Dank."))], ["Das", "war", "es."])
 
 
 class Language(unittest.TestCase):
@@ -740,6 +836,158 @@ class ProgressStatus(unittest.TestCase):
         P.done({})
         self.assertEqual(errors, [])
         self.assertEqual(json.loads(P.path.read_text())["state"], "done")
+
+
+class Summary(unittest.TestCase):
+    """Zusammenfassung (feature/ki-nachbearbeitung): Vorlagen, Namen vor der Cloud, Ergebnisdatei – ohne Modell, ohne Netz."""
+
+    def setUp(self):
+        from transcriber import summarize
+        self.s = summarize
+        set_lang("de")
+        self.tmp = Path(tempfile.mkdtemp(dir=_DATA))
+        self.doc = sample()
+        self.doc["source"] = str(self.tmp / "Gespräch.m4a")
+        (self.tmp / "Gespräch.m4a").write_bytes(b"\0")
+        self.jp = render.write(self.doc, self.tmp / "Gespräch", ["json"])["json"]
+        config.CONFIG.write_text(json.dumps({"ai": {"provider": "mtplx", "model": "test"}}))
+        self._complete = summarize.complete
+        self.sent = []
+
+        def fake(s, system, user):
+            self.sent.append((s, user))
+            return ("<think>hm</think>## Kernpunkte\n- Kim Beispiel (?) und Sprecher C reden\n\n## Aufgaben\n"
+                    "- [ ] Sprecher C: Bericht schicken\n- [ ] Alex Muster: Termin\n- [ ] dritte"), \
+                {"seconds": 1.0, "prompt_tokens": 10, "completion_tokens": 5, "model": "test"}
+        summarize.complete = fake
+
+    def tearDown(self):
+        self.s.complete = self._complete
+        config.CONFIG.unlink(missing_ok=True)
+
+    def test_templates_both_languages(self):
+        for lang in ("de", "en"):
+            set_lang(lang)
+            ts = self.s.templates()
+            self.assertEqual(list(ts)[:6], ["protokoll", "kurzfassung", "auftrag", "supervision", "kernaussagen", "email"])
+            for x in ts.values():
+                self.assertIn("{{transcript}}", x["body"])
+                self.assertTrue(x["name"] and x["description"])
+        set_lang("de")
+
+    def test_custom_template_overrides(self):
+        self.s.user_dir().mkdir(parents=True, exist_ok=True)
+        (self.s.user_dir() / "protokoll.md").write_text("---\nname: Mein Protokoll\n---\nKurz bitte.\n")
+        try:
+            tpl = self.s.get_template("protokoll")
+            self.assertEqual((tpl["name"], tpl["custom"], tpl["builtin"]), ("Mein Protokoll", True, True))
+            self.assertTrue(self.s.fill(tpl["body"], {"transcript": "T"}).rstrip().endswith("T"))   # angehängt
+        finally:
+            shutil.rmtree(self.s.user_dir())
+
+    def test_run_local_writes_file(self):
+        out, meta = self.s.run(self.jp)
+        self.assertEqual(out.name, "Gespräch.summary.md")
+        self.assertTrue(meta["local"] and not meta["pseudonymized"])
+        user = self.sent[0][1]
+        self.assertIn("Kim Beispiel", user)                       # lokal: Namen bleiben
+        self.assertIn("] Alex Muster: ", user)                     # Redebeiträge wie im Transkript
+        text = out.read_text()
+        self.assertNotIn("<think>", text)
+        self.assertEqual(self.s.read_meta(out)["template"], "protokoll")
+        self.assertEqual(self.s.preview(out), {"points": ["Kim Beispiel (?) und Sprecher C reden"],
+                                               "tasks": ["Sprecher C: Bericht schicken", "Alex Muster: Termin"]})
+
+    def test_cloud_pseudonymized_and_only_on_click(self):
+        config.CONFIG.write_text(json.dumps({"ai": {"provider": "openai", "model": "x"}}))
+        os.environ["TRANSCRIBER_AI_KEY"] = "test"
+        try:
+            with self.assertRaises(RuntimeError):
+                self.s.run(self.jp, allow_cloud=False)
+            out, meta = self.s.run(self.jp)
+        finally:
+            del os.environ["TRANSCRIBER_AI_KEY"]
+        user = self.sent[-1][1]
+        for n in ("Alex", "Kim", "Muster", "Beispiel"):
+            self.assertNotIn(n, user)
+        self.assertTrue(meta["pseudonymized"] and not meta["local"])
+        self.assertIn("Alex Muster: Termin", out.read_text())       # Antwort mit echten Namen zurück (Platzhalter → Name)
+
+    def test_names_follow_naming_and_rename(self):
+        self.s.run(self.jp)
+        db = fresh_db()
+        speakers.save_job(db, self.doc["job_id"], self.doc["source"], self.jp, self.doc["model"],
+                          [dict(c, embedding=np.ones(4, np.float32)) for c in self.doc["speakers"]])
+        pipeline.name_speaker(self.jp, "C", "Robin Test")
+        text = (self.tmp / "Gespräch.summary.md").read_text()
+        self.assertIn("- [ ] Robin Test: Bericht schicken", text)
+        self.assertNotIn("Sprecher C", text)
+        paths = pipeline.rename(self.jp, "Neu")
+        self.assertTrue((self.tmp / "Neu.summary.md").exists())
+        self.assertFalse((self.tmp / "Gespräch.summary.md").exists())
+        from transcriber import cleanup
+        self.assertIn(self.tmp / "Neu.summary.md", cleanup._transcript_files(paths["json"], paths["source"]))   # „Alles löschen“
+
+    def test_rename_case_only(self):
+        """Nur die Groß-/Kleinschreibung ändern: kein „… 2“, nichts geht verloren (macOS-Dateisystem ignoriert sie)."""
+        self.s.run(self.jp)
+        fresh_db()
+        render.write(self.doc, self.tmp / "Gespräch", ["md", "json"])
+        pipeline.rename(self.jp, "GESPRÄCH")
+        self.assertEqual(sorted(p.name for p in self.tmp.iterdir()),
+                         ["GESPRÄCH.m4a", "GESPRÄCH.summary.md", "GESPRÄCH.transcript.json", "GESPRÄCH.txt"])
+        self.assertEqual(json.loads((self.tmp / "GESPRÄCH.transcript.json").read_text())["source"], str(self.tmp / "GESPRÄCH.m4a"))
+
+    def test_foreign_file_not_overwritten(self):
+        (self.tmp / "Gespräch.summary.md").write_text("eigene Notiz")
+        with self.assertRaises(RuntimeError):
+            self.s.run(self.jp)
+        self.assertEqual((self.tmp / "Gespräch.summary.md").read_text(), "eigene Notiz")
+
+    def test_thinking_only_answer_retried_with_prefill(self):
+        """LM Studio ignoriert enable_thinking: nur Nachdenken, leerer Text → zweiter Versuch mit leerem Nachdenk-Block."""
+        calls = []
+
+        def fake_request(s, path, payload=None, timeout=10):
+            calls.append(payload["messages"])
+            prefilled = payload["messages"][-1]["role"] == "assistant"
+            msg = {"content": "## Kernpunkte\n- A"} if prefilled else {"content": "", "reasoning_content": "Thinking …"}
+            return {"choices": [{"message": msg}], "usage": {}}
+        orig, self.s._request = self.s._request, fake_request
+        try:
+            text, _ = self._complete(self.s.settings({"ai": {"provider": "ollama", "model": "m"}}), "sys", "user")
+            self.assertEqual((text, len(calls)), ("## Kernpunkte\n- A", 2))
+            calls.clear()                                     # LM Studio: gleich mit Block, kein Fehlversuch
+            self._complete(self.s.settings({"ai": {"provider": "lmstudio", "model": "m"}}), "sys", "user")
+            self.assertEqual((len(calls), calls[0][-1]), (1, self.s.PREFILL))
+        finally:
+            self.s._request = orig
+
+    def test_openai_reasoning_model_parameters(self):
+        """GPT-5/o-Modelle: 400 wegen max_tokens/temperature → zweiter Versuch mit max_completion_tokens, ohne temperature."""
+        sent = []
+
+        def fake_request(s, path, payload=None, timeout=10):
+            sent.append(dict(payload))
+            if "max_tokens" in payload:
+                raise RuntimeError("https://api.openai.com/v1: HTTP 400 Unsupported parameter: 'max_tokens' … use 'max_completion_tokens'")
+            return {"choices": [{"message": {"content": "ok"}}], "usage": {}}
+        orig, self.s._request = self.s._request, fake_request
+        try:
+            text, _ = self._complete(self.s.settings({"ai": {"provider": "openai", "model": "gpt-5"}}), "sys", "user")
+        finally:
+            self.s._request = orig
+        self.assertEqual(text, "ok")
+        self.assertIn("max_completion_tokens", sent[1])
+        self.assertNotIn("temperature", sent[1])
+
+    def test_helpers(self):
+        self.assertTrue(self.s.is_local("http://127.0.0.1:18085/v1"))
+        self.assertFalse(self.s.is_local("https://api.openai.com/v1"))
+        self.assertEqual(self.s.strip_thinking("a</think>\nText"), "Text")
+        t, back = self.s.pseudonymize("Kim Beispiel sagt Kim. Kimberly bleibt.", self.doc)
+        self.assertNotIn("Kim ", t); self.assertIn("Kimberly", t)
+        self.assertEqual(self.s.restore(t, back), "Kim Beispiel sagt Kim. Kimberly bleibt.")
 
 
 if __name__ == "__main__":

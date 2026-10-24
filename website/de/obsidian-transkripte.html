@@ -16,10 +16,10 @@
   <meta name="referrer" content="no-referrer">
   <link rel="canonical" href="https://transcriber.teconomix.net/de/obsidian-transkripte.html">
   <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=0.8.4">
+  <link rel="stylesheet" href="../style.css?v=0.9">
   <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/obsidian-transkripte.html">
   <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/obsidian-transcripts.html">
-  <script src="../script.js?v=0.8.4" defer></script>
+  <script src="../script.js?v=0.9" defer></script>
 </head>
 <body>
 <header class="site-header">
@@ -36,6 +36,7 @@
   <h2>Was in deiner Vault landet</h2>
   <ul>
     <li><strong>Eine Notiz je Aufnahme</strong> in einem Ordner deiner Wahl (Standard <code>Transcriber</code>), mit den Eigenschaften <code>date</code>, <code>duration</code>, <code>participants</code> (als <code>[[Links]]</code>), <code>event</code>, <code>transcript</code> und dem Tag <code>transcript</code>.</li>
+    <li><strong>Die Zusammenfassung</strong>, wenn Local Transcriber eine erstellt hat – als eigener Abschnitt über dem Transkript, mit Aufgaben als Kästchen zum Abhaken. Abgehakte Aufgaben bleiben stehen.</li>
     <li><strong>Das Transkript nach Sprechern</strong> – mit den Namen, die Local Transcriber aus seiner lokalen Stimmdatenbank erkannt hat.</li>
     <li><strong>Namen, die du später vergibst,</strong> kommen in der Notiz an, ebenso eine Neuauswertung oder der sprechende Dateiname, den die App einer Aufnahme gibt.</li>
     <li><strong>Audiodateien, die schon in der Vault liegen:</strong> Rechtsklick › <em>Transkribieren</em>. Die Notiz bettet das Audio ein, du kannst es in Obsidian abspielen.</li>
@@ -47,8 +48,8 @@
   <h2>Sprecher in Obsidian benennen</h2>
   <p>In einer Transkript-Notiz bietet die Befehlspalette <em>Sprecher benennen</em>: Sprecher wählen, Namen eintippen – Vorschläge kommen aus den Termin-Teilnehmenden und, wenn du willst, aus einem Personen-Ordner. Die Stimmdatenbank von Local Transcriber lernt die Stimme und erkennt sie in künftigen Aufnahmen. <em>Alle Zuordnungen bestätigen</em> erledigt den Rest in einem Schritt.</p>
 
-  <h2>Zusammenfassungen – womit du willst</h2>
-  <p>Das Plugin selbst schickt nichts irgendwohin: kein Netzwerk, keine Telemetrie. Wenn du Zusammenfassungen willst, nimm für die Notiz das KI-Plugin deiner Wahl – ob lokal oder nicht, entscheidest dann du.</p>
+  <h2>Zusammenfassungen – auch mit lokaler KI</h2>
+  <p>Local Transcriber fasst Gespräche auf Wunsch selbst zusammen: als Protokoll mit Aufgaben, Kurzfassung, Auftrag im 5-Punkte-Schema, Supervisionsnotiz oder mit eigener Vorlage. Das Modell wählst du in der App – ein lokales (Ollama, LM Studio) oder einen Cloud-Anbieter. In Obsidian startest du das über den Befehl <em>Zusammenfassen</em>, oder die App erledigt es nach jeder Aufnahme von selbst. Das Plugin selbst schickt nichts irgendwohin: kein Netzwerk, keine Telemetrie.</p>
 
   <h2>Ehrlich: die Grenzen</h2>
   <p>Nur Macs mit Apple Silicon (macOS 14+) und Obsidian am Desktop – das Plugin liest die Transkript-Dateien auf diesem Mac. Es ist für das Plugin-Verzeichnis von Obsidian eingereicht; bis es dort steht, wird es von Hand oder mit BRAT installiert. Wird deine Vault synchronisiert (Obsidian Sync, iCloud, Syncthing …), wandern die Transkript-Notizen mit – wähle den Notizordner entsprechend. Und das Einverständnis aller vor der Aufnahme einzuholen, bleibt deine Sache.</p>

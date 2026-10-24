@@ -1,7 +1,8 @@
 # Datenschutz
 
 **Kurz:** Transcriber verarbeitet alles auf deinem Mac. Es sendet keine Audiodaten, Transkripte, Stimmen, Kalender-
-oder Bildschirminhalte irgendwohin. Es gibt keine Telemetrie, keine Analyse, kein Konto.
+oder Bildschirminhalte irgendwohin – einzige Ausnahme: die KI-Auswertung mit einem Cloud-Anbieter, wenn du sie selbst
+einrichtest (siehe Netzwerk). Es gibt keine Telemetrie, keine Analyse, kein Konto.
 
 ## Was lokal gespeichert wird
 
@@ -10,6 +11,8 @@ oder Bildschirminhalte irgendwohin. Es gibt keine Telemetrie, keine Analyse, kei
 | Aufnahmen, Transkripte | `~/Transcriber/` | deine Dateien |
 | **Stimmdatenbank** | `~/.local/share/transcriber/speakers.db` | **biometrische Daten** (Stimm-Einbettungen) der benannten Personen; nur für dich lesbar (Dateirechte 0600) |
 | Termin zur Aufnahme | `<Aufnahme>.event.json` neben der Aufnahme | Titel und Teilnehmer (Namen, E-Mail-Adressen) |
+| Zusammenfassung | `<Aufnahme>.summary.md` neben dem Transkript | nur, wenn du eine KI-Auswertung startest |
+| KI-Einstellungen, eigene Vorlagen | `config.json` (Abschnitt `ai`), `prompts/` unter `~/.local/share/transcriber/` | Schlüssel für Cloud-Anbieter **nicht** dort, sondern im Schlüsselbund |
 | Arbeitskopien | `~/.local/share/transcriber/cache/` | Audio als WAV und die Spracherkennung, fürs Neu-Auswerten; werden mit der Aufnahme gelöscht (Anleitung › Löschen) |
 | Protokolle | `~/.local/share/transcriber/*.log` | technische Meldungen, keine Inhalte von Diktaten |
 
@@ -28,6 +31,14 @@ Ausnahme: Wenn du zustimmst (das Panel fragt einmal; Einstellungen › Allgemein
 `https://transcriber.teconomix.net/latest.txt`, um auf eine neue Version hinzuweisen. Die Anfrage enthält nichts über
 dich oder deine Aufnahmen; der Server sieht deine IP-Adresse und speichert sie nur gekürzt (z. B. 82.98.0.0) im Zugriffsprotokoll, das nach
 7 Tagen gelöscht wird; aufbewahrt werden nur Tagessummen (siehe Datenschutzerklärung der Website).
+
+**KI-Auswertung** (optional, Einstellungen › KI): Mit einem **lokalen** Modell (Ollama, LM Studio, MTPLX, eigener
+Server auf `localhost`) bleibt alles auf dem Mac. Mit einem **Cloud-Anbieter** schickt Transcriber das Transkript samt
+Titel, Datum und Teilnehmernamen mit deinem Schlüssel direkt an diesen Anbieter – standardmäßig nur auf Klick; Namen von
+Sprechern und Termin-Teilnehmenden werden vorher durch Platzhalter ersetzt und in der Antwort wieder eingesetzt
+(abschaltbar; andere persönliche Angaben im Gesprächsinhalt bleiben). Es gelten die Bestimmungen des Anbieters.
+
+**Weiterarbeiten in Claude / Codex** öffnet das Programm mit vorbereitetem Text; abgeschickt wird erst, wenn du es dort tust.
 
 **Fehlerberichte** (Käfer im Panel) verschickt nicht die App: Sie legt eine ZIP-Datei in den Download-Ordner und
 öffnet eine Mail an info@teconomix.net, die du selbst abschickst. Die Datei enthält Protokolle, Version, Mac-Modell,

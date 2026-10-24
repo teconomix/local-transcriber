@@ -18,7 +18,8 @@ Clicking the waveform icon in the menu bar opens the panel:
 3. **Dictation line** – shows which keys are assigned; orange/red if a permission is missing. The switch on the right
    turns dictation on or off (off frees the keys and the memory of the dictation service).
 4. **Transcriptions** – the most recent jobs with progress, the recognized speakers and *Open · Show in Finder ·
-   Rename · Re-analyze…*. *Re-analyze…* offers **Match names again** (only re-matches against the voice database, in
+   Re-analyze · Summarize*. **Click the title** to rename recording and transcript (Return applies, Escape cancels).
+   *Re-analyze* offers **Match names again** (only re-matches against the voice database, in
    a second) and **Separate speakers again** with Automatic or 1–10 people (when two people were merged or one was split).
 5. At the bottom: **Folder** · **Settings** (⌘,) · ladybug (report a problem) · **Quit**.
 
@@ -82,7 +83,36 @@ ignored; if the short start sound bothers you, choose the right ⌃ in Settings.
 - put the file into `~/Transcriber` if the folder watcher is active – the result appears next to it. The `Recordings`
   folder is the app's: recordings there are transcribed by the app; if one has no transcript (e.g. “Transcribe” was off),
   the panel offers to transcribe it.
-- **Rename** a recording in the panel; renamed or moved in Finder, the watcher moves its transcript along.
+- **Rename:** click the title in the panel; renamed or moved in Finder, the watcher moves its transcript along.
+
+## Summarizing with AI
+
+A language model turns a finished transcript into minutes, a short summary or whatever the template asks for.
+
+1. **Settings › AI:** choose a provider – locally **Ollama**, **LM Studio**, **MTPLX** or a **custom address** (any
+   server with an OpenAI-style API), in the cloud **OpenAI**, **Anthropic**, **Mistral** or **OpenRouter** with your
+   own key (stored in the keychain). Enter the model or pick it from the list after **Test connection**.
+2. In the panel, below a transcript, **Summarize** → choose a template. Result: `<name>.summary.md` next to the
+   transcript; the entry shows the first key points and action items with **Open · Copy · Share · ⋯**. **Share** opens
+   the macOS menu (Mail with subject and formatted text, Messages, Notes …); the ⋯ menu offers other template,
+   regenerate, share as file, **Continue in** Claude, Claude Code or Codex, delete.
+3. If you like, **automatically after every transcription** (Settings › AI) – with a cloud provider only if you turn
+   off “Cloud models only on click”.
+
+Built in: **Minutes**, **Short summary**, **Order (five-paragraph format)**, **Supervision and coaching note**,
+**Key statements with quotes**, **Follow-up email**. Each can be edited (your version is stored in
+`~/.local/share/transcriber/prompts/`, “Reset” brings back the built-in one) or added as a new template; the star marks
+the template used by the automation. Placeholders: `{{title}}`, `{{date}}`, `{{participants}}`, `{{event}}`,
+`{{language}}`, `{{transcript}}`.
+
+If you name speakers afterwards, the new names appear in the summary too. For cloud providers, Transcriber replaces
+names with placeholders first (can be switched off). Command line: `transcriber summarize FILE [--template ID]`,
+`transcriber summarize --templates`, `transcriber summarize --models` (connection test).
+
+Speed (measured on a MacBook Pro M5 Pro, 64 GB): a 25-minute conversation in 30–40 s, 54 minutes in about a minute,
+over three hours (49,000 tokens) in four minutes with Qwen3.8-27B via MTPLX. With very long conversations, smaller or
+faster models are more likely to miss details from the middle – in the test, Qwen3.5-35B-A3B (Ollama) missed one of
+three planted action items.
 
 ## Deleting
 
@@ -100,22 +130,30 @@ recordings in the recordings folder. Command line: `transcriber delete FILE [--a
 
 ## Settings
 
-| Tab | Contents |
+The sections are listed on the left of the window.
+
+| Section | Contents |
 |---|---|
 | General | version, data folder, open at login, check for updates once a day (optional); when a new version is available, “Copy update command” puts the right command on the clipboard – paste it in Terminal and press Return |
 | Recording | Record system audio, voice processing, transcribe/name after recording, detect calls, languages to choose from |
 | Dictation | on/off, keys (verbatim / with AI), screen text as context, audio, icon at the cursor, voice processing |
 | Calendar | use calendar events, choice of calendars |
+| Glossary | names and terms with their misrecognized spellings (see below) |
+| AI | summaries: automation, template, provider, model, key, privacy, edit templates (see above) |
+| Voices | view, remove, export and import stored voices |
 
 ## Glossary
 
-Enter names and technical terms that are often misrecognized as fixed replacements:
+Enter names and technical terms that are often misrecognized as fixed replacements – in the app under
+**Settings › Glossary** (left the correct spelling, right how recognition writes it) or in Terminal:
 
 ```bash
 transcriber vocab 'Claude Code = Cloud-Code, Cloud Code'
 ```
 
-On the left the desired term, on the right the spellings to be replaced.
+Replacements happen after recognition, also inside hyphenated words. They apply to new transcripts and dictation. For an
+existing transcript: **Re-analyze › Apply glossary** (or `transcriber vocab --apply FILE.transcript.json`) – no
+recomputation. Careful with real words as spellings: they are replaced everywhere.
 
 ## Permissions at a glance
 

@@ -18,7 +18,8 @@ Klick auf das Wellen-Symbol in der Menüleiste öffnet das Panel:
 3. **Diktat-Zeile** – zeigt, welche Tasten belegt sind; orange/rot, wenn eine Freigabe fehlt. Der Schalter rechts
    schaltet das Diktat ein oder aus (aus = Tasten und der Speicher des Diktat-Dienstes sind wieder frei).
 4. **Transkriptionen** – die letzten Aufträge mit Fortschritt, den erkannten Sprechern und *Öffnen · Im Finder ·
-   Umbenennen · Neu auswerten …*. *Neu auswerten …* bietet **Namen neu zuordnen** (nur neuer Abgleich mit der
+   Neu auswerten · Zusammenfassen*. Den **Titel anklicken** benennt Aufnahme und Transkript um (Enter übernimmt,
+   Escape bricht ab). *Neu auswerten* bietet **Namen neu zuordnen** (nur neuer Abgleich mit der
    Stimmdatenbank, in einer Sekunde) und **Sprecher neu trennen** mit Automatisch oder 1–10 Personen (wenn zwei Personen
    vermischt oder eine aufgeteilt wurde).
 5. Unten: **Ordner** · **Einstellungen** (⌘,) · Käfer (Fehler melden) · **Beenden**.
@@ -85,7 +86,37 @@ ignoriert; wer den kurzen Startton dabei stört, wählt in den Einstellungen die
 - Datei in `~/Transcriber` legen, wenn der Ordnerwächter aktiv ist – das Ergebnis erscheint daneben. Der Ordner
   `Aufnahmen` gehört der App: Aufnahmen dort transkribiert die App; fehlt einer das Transkript (z. B. „Transkribieren“
   war aus), bietet das Panel es an.
-- **Umbenennen** einer Aufnahme im Panel; im Finder umbenannt oder verschoben, zieht der Wächter das Transkript nach.
+- **Umbenennen:** im Panel den Titel anklicken; im Finder umbenannt oder verschoben, zieht der Wächter das Transkript nach.
+
+## Zusammenfassen mit KI
+
+Ein Sprachmodell macht aus einem fertigen Transkript ein Protokoll, eine Kurzfassung oder was die Vorlage verlangt.
+
+1. **Einstellungen › KI:** Anbieter wählen – lokal **Ollama**, **LM Studio**, **MTPLX** oder eine **eigene Adresse**
+   (jeder Server mit Schnittstelle nach OpenAI-Art), in der Cloud **OpenAI**, **Anthropic**, **Mistral** oder
+   **OpenRouter** mit eigenem Schlüssel (liegt im Schlüsselbund). Modell eintragen oder nach **Verbindung testen** aus
+   der Liste wählen.
+2. Im Panel unter einem Transkript **Zusammenfassen** → Vorlage wählen. Ergebnis: `<Name>.summary.md` neben dem
+   Transkript; der Eintrag zeigt die ersten Kernpunkte und Aufgaben mit **Öffnen · Kopieren · Teilen · ⋯**. **Teilen**
+   öffnet das macOS-Menü (Mail mit Betreff und formatiertem Text, Nachrichten, Notizen …); im ⋯-Menü: andere Vorlage, neu
+   erzeugen, als Datei teilen, **Weiterarbeiten in** Claude, Claude Code oder Codex, löschen.
+3. Auf Wunsch **nach jeder Transkription automatisch** (Einstellungen › KI) – mit einem Cloud-Anbieter nur, wenn du
+   „Cloud-Modelle nur auf Klick“ ausschaltest.
+
+Mitgeliefert: **Protokoll**, **Kurzfassung**, **Auftrag (5-Punkte-Schema)**, **Supervisions- und Coachingnotiz**,
+**Kernaussagen mit Zitaten**, **E-Mail zum Nachfassen**. Jede lässt sich bearbeiten (die eigene Fassung liegt unter
+`~/.local/share/transcriber/prompts/`, „Zurücksetzen“ holt die mitgelieferte zurück) oder als neue Vorlage anlegen;
+der Stern markiert die Vorlage der Automatik. Platzhalter: `{{title}}`, `{{date}}`, `{{participants}}`, `{{event}}`,
+`{{language}}`, `{{transcript}}`.
+
+Benennst du danach Sprecher, stehen die neuen Namen auch in der Zusammenfassung. Bei Cloud-Anbietern ersetzt
+Transcriber Namen vorher durch Platzhalter (abschaltbar). Kommandozeile: `transcriber summarize DATEI [--template ID]`,
+`transcriber summarize --templates`, `transcriber summarize --models` (Verbindungstest).
+
+Tempo (gemessen auf einem MacBook Pro M5 Pro, 64 GB): ein 25-Minuten-Gespräch in 30–40 s, 54 Minuten in rund einer
+Minute, über drei Stunden (49 000 Tokens) in vier Minuten mit Qwen3.8-27B über MTPLX. Bei sehr langen Gesprächen
+übersehen kleinere oder schnellere Modelle eher Einzelheiten aus der Mitte – im Test entging Qwen3.5-35B-A3B (Ollama)
+eine von drei eingestreuten Aufgaben.
 
 ## Löschen
 
@@ -103,22 +134,31 @@ Aufnahmen im Aufnahmeordner. Kommandozeile: `transcriber delete DATEI [--audio-o
 
 ## Einstellungen
 
-| Reiter | Inhalt |
+Die Bereiche stehen links im Fenster.
+
+| Bereich | Inhalt |
 |---|---|
 | Allgemein | Version, Datenordner, bei Anmeldung starten, einmal täglich nach Updates suchen (optional); gibt es eine neue Version, legt „Update-Befehl kopieren“ den passenden Befehl in die Zwischenablage – im Terminal einfügen und Return drücken |
 | Aufnahme | Systemton mitschneiden, Sprachverarbeitung, nach der Aufnahme transkribieren/benennen, Calls erkennen, Sprachen zur Auswahl |
 | Diktat | ein/aus, Tasten (wörtlich / mit KI), Bildschirmtext als Kontext, Ton, Symbol, Sprachverarbeitung |
 | Kalender | Termine nutzen, Auswahl der Kalender |
+| Glossar | Namen und Fachbegriffe mit falschen Schreibweisen (siehe unten) |
+| KI | Zusammenfassung: Automatik, Vorlage, Anbieter, Modell, Schlüssel, Datenschutz, Vorlagen bearbeiten (siehe oben) |
+| Stimmen | gespeicherte Stimmen ansehen, entfernen, exportieren, importieren |
 
 ## Glossar
 
-Namen und Fachbegriffe, die oft falsch erkannt werden, als feste Ersetzung eintragen:
+Namen und Fachbegriffe, die oft falsch erkannt werden, als feste Ersetzung eintragen – in der App unter
+**Einstellungen › Glossar** (links die richtige Schreibweise, rechts, wie die Erkennung sie schreibt) oder im Terminal:
 
 ```bash
 transcriber vocab 'Claude Code = Cloud-Code, Cloud Code'
 ```
 
-Links der gewünschte Begriff, rechts die Schreibweisen, die ersetzt werden sollen.
+Ersetzt wird nach der Erkennung, auch in Wörtern mit Bindestrich („Kali-Strategie“ → „KI-Strategie“). Das gilt für
+neue Transkripte und das Diktat. Für ein vorhandenes Transkript: **Neu auswerten › Glossar anwenden** (bzw.
+`transcriber vocab --apply DATEI.transcript.json`) – ohne neu zu rechnen. Vorsicht bei echten Wörtern als
+Schreibweise: Sie werden überall ersetzt.
 
 ## Freigaben im Überblick
 

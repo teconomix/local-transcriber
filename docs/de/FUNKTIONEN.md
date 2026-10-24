@@ -3,7 +3,7 @@
 ## Alles lokal
 
 Aufnahme, Spracherkennung, Sprechererkennung, Stimmdatenbank und KI-Funktionen laufen auf dem Mac. Nach der
-Installation braucht Transcriber kein Internet. Es gibt kein Konto, kein Abo, keine Telemetrie. Details:
+Installation braucht Transcriber kein Internet – außer du wählst für die KI-Auswertung ausdrücklich ein Cloud-Modell. Es gibt kein Konto, kein Abo, keine Telemetrie. Details:
 [DATENSCHUTZ.md](DATENSCHUTZ.md).
 
 ## Aufnehmen
@@ -28,7 +28,10 @@ Installation braucht Transcriber kein Internet. Es gibt kein Konto, kein Abo, ke
   (vollständig, maschinenlesbar), optional `<Name>.srt` (Untertitel).
 - **Löschen:** nur die Aufnahme (Transkript bleibt) oder alles samt den Stimmen aus diesem Gespräch; auf Wunsch
   Aufnahmen automatisch nach 30 Tagen. Arbeitskopien gehen immer mit.
-- **Glossar** für Namen und Fachbegriffe: feste Ersetzungen nach der Erkennung (`transcriber vocab 'dG = DG, D.G.'`).
+- **Glossar** für Namen und Fachbegriffe: feste Ersetzungen nach der Erkennung, in der App unter Einstellungen › Glossar
+  (oder `transcriber vocab 'dG = DG, D.G.'`); nachträglich auf vorhandene Transkripte anwendbar.
+- **Nachbessern:** Stellen, an denen Whisper ohne Satzzeichen weiterschreibt, werden einzeln neu erkannt und nur
+  übernommen, wenn der Inhalt gleich bleibt; Wortschleifen („Happy Happy Happy …“) werden gekürzt.
 - **Dateien transkribieren:** im Panel „Datei transkribieren …“ oder einfach in `~/Transcriber` legen
   (Ordnerwächter, optional). Video- und Audioformate, die ffmpeg lesen kann.
 
@@ -74,11 +77,29 @@ lief, per Apple Intelligence aus dem Inhalt (macOS 26). Transkript und Stimmdate
 - Tasten frei wählbar (rechte ⌘/⌥/⌃, fn). Die Zwischenablage bleibt erhalten.
 - **Auch während einer Aufnahme** (Notizen im Call): Das Diktat nimmt den Mikrofonton der Aufnahme mit.
 
+## Auswerten mit KI
+
+- Nach dem Transkribieren macht ein Sprachmodell aus dem Gespräch ein **Protokoll** (Kernpunkte, Entscheidungen,
+  Aufgaben, offene Fragen), eine **Kurzfassung**, einen **Auftrag nach dem 5-Punkte-Schema** (Operation Order, mit
+  „Noch zu klären“), eine **Supervisions- und Coachingnotiz** (ohne Deutungen), **Kernaussagen mit Zitaten** oder eine
+  **E-Mail zum Nachfassen**. Vorlagen sind bearbeitbar, eigene möglich.
+- **Lokal** über Ollama, LM Studio, MTPLX oder jeden Server mit Schnittstelle nach OpenAI-Art – das Gespräch verlässt den
+  Mac nicht. **Cloud** über OpenAI, Anthropic, Mistral, OpenRouter mit eigenem Schlüssel: nur auf Klick (Automatik nur
+  ausdrücklich), Namen vorher durch Platzhalter ersetzt (abschaltbar).
+- Per Klick oder automatisch nach jeder Transkription; Ergebnis als `<Name>.summary.md` neben dem Transkript, im Panel
+  die ersten Kernpunkte und Aufgaben. Neue Sprechernamen ziehen in die Zusammenfassung nach.
+- **Weiterarbeiten** in Claude, Claude Code oder Codex mit einem Klick (die App öffnet sich mit vorbereitetem Text,
+  abgeschickt wird nichts). Im **Obsidian-Plugin** erscheint die Zusammenfassung als eigener Abschnitt mit abhakbaren
+  Aufgaben.
+
 ## Für Profis
 
-- **Kommandozeile:** `transcriber transcribe DATEI`, `who`, `name`, `confirm`, `speakers`, `vocab`, `rename`, `watch`.
+- **Kommandozeile:** `transcriber transcribe DATEI`, `who`, `name`, `confirm`, `speakers`, `vocab`, `rename`, `summarize`, `watch`.
 - **MCP-Server** (`transcriber-mcp`): Werkzeuge `transcribe`, `who`, `name_speaker`, `confirm_speakers`,
-  `list_speakers` für KI-Agenten wie Claude.
+  `list_speakers`, `show_glossary`, `add_to_glossary`, `apply_glossary`, `recent_transcripts`, `read_transcript`,
+  `get_summary`, `list_templates`, `summarize_transcript` für KI-Agenten wie Claude; dazu jede Vorlage als Prompt (in
+  Claude Desktop z. B. `/protokoll`), die der Agent mit seinem eigenen Modell anwendet – z. B. „da steht
+  Kali statt KI, merk dir das“ trägt die Schreibweise ins Glossar ein und korrigiert das aktuelle Transkript.
 - **Ordnerwächter** als LaunchAgent: legt Ergebnisse neben jede neue Datei in `~/Transcriber` und seinen Unterordnern –
   außer im Aufnahmeordner der App, dort startet die App selbst. Eine im Finder umbenannte oder verschobene Datei behält
   ihr Transkript (am Inhalt erkannt), statt neu transkribiert zu werden.

@@ -1,6 +1,7 @@
 """Ausgabe: lesbares Transkript als Markdown (.md) oder reiner Text (.txt, Einstellung text_format), JSON (vollständig,
 maschinenlesbar), optional SRT. Im Aufrufer heißt das lesbare Transkript immer „md“ (formats, paths), egal welche Endung."""
 import json
+import unicodedata
 from pathlib import Path
 
 from . import config
@@ -115,7 +116,10 @@ def is_ours(path, source_name):
 
 
 def is_ours_text(head, source_name):
-    return any(f"{word}: {source_name} · " in head[:1500] for word in ("Quelle", "Source"))
+    # Unicode-Form angleichen: Namen vom Handy (Syncthing) liegen als NFD auf der Platte, getippte Pfade (CLI, MCP) sind
+    # NFC – sonst galt das eigene Transkript als fremd und es entstand <name>.transcript.txt daneben (2026-10-24).
+    nfc = lambda x: unicodedata.normalize("NFC", x)
+    return any(f"{word}: {nfc(source_name)} · " in nfc(head[:1500]) for word in ("Quelle", "Source"))
 
 
 def find_readable(stem, source_name):

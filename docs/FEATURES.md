@@ -3,7 +3,7 @@
 ## Everything local
 
 Recording, speech recognition, speaker recognition, the voice database and the AI features all run on the Mac. After
-installation, Transcriber needs no internet connection. There is no account, no subscription, no telemetry. Details:
+installation, Transcriber needs no internet connection – unless you explicitly choose a cloud model for the AI evaluation. There is no account, no subscription, no telemetry. Details:
 [PRIVACY.md](PRIVACY.md).
 
 ## Recording
@@ -28,7 +28,10 @@ installation, Transcriber needs no internet connection. There is no account, no 
   (complete, machine-readable), optionally `<name>.srt` (subtitles).
 - **Deleting:** recording only (transcript stays) or everything incl. the voices from that conversation; optionally
   recordings are deleted automatically after 30 days. Working copies are always deleted along.
-- **Glossary** for names and technical terms: fixed replacements after recognition (`transcriber vocab 'dG = DG, D.G.'`).
+- **Glossary** for names and technical terms: fixed replacements after recognition, in the app under Settings › Glossary
+  (or `transcriber vocab 'dG = DG, D.G.'`); can be applied to existing transcripts afterwards.
+- **Repair:** passages where Whisper drops all punctuation are re-recognized individually and only taken over if the
+  content stays the same; word loops (“Happy Happy Happy …”) are cut.
 - **Transcribing files:** “Transcribe file…” in the panel, or simply drop them into `~/Transcriber`
   (folder watcher, optional). Video and audio formats that ffmpeg can read.
 
@@ -74,11 +77,28 @@ updated accordingly.
 - Keys are freely selectable (right ⌘/⌥/⌃, fn). The clipboard is preserved.
 - **Also during a recording** (notes in a call): dictation uses the recording's microphone audio.
 
+## Evaluating with AI
+
+- After transcription, a language model turns the conversation into **minutes** (key points, decisions, action items,
+  open questions), a **short summary**, an **order in the five-paragraph format** (operation order, with “Still to
+  clarify”), a **supervision and coaching note** (without interpretation), **key statements with quotes** or a
+  **follow-up email**. Templates can be edited, your own added.
+- **Locally** via Ollama, LM Studio, MTPLX or any server with an OpenAI-style API – the conversation never leaves the
+  Mac. **Cloud** via OpenAI, Anthropic, Mistral, OpenRouter with your own key: only on click (automation only when
+  explicitly enabled), names replaced with placeholders first (can be switched off).
+- On click or automatically after every transcription; result as `<name>.summary.md` next to the transcript, the
+  panel shows the first key points and action items. New speaker names carry over into the summary.
+- **Continue** in Claude, Claude Code or Codex with one click (the app opens with a prepared text, nothing is sent). In
+  the **Obsidian plugin**, the summary appears as its own section with action items to check off.
+
 ## For power users
 
-- **Command line:** `transcriber transcribe FILE`, `who`, `name`, `confirm`, `speakers`, `vocab`, `rename`, `watch`.
+- **Command line:** `transcriber transcribe FILE`, `who`, `name`, `confirm`, `speakers`, `vocab`, `rename`, `summarize`, `watch`.
 - **MCP server** (`transcriber-mcp`): tools `transcribe`, `who`, `name_speaker`, `confirm_speakers`,
-  `list_speakers` for AI agents such as Claude.
+  `list_speakers`, `show_glossary`, `add_to_glossary`, `apply_glossary`, `recent_transcripts`, `read_transcript`,
+  `get_summary`, `list_templates`, `summarize_transcript` for AI agents such as Claude; plus every template as a prompt
+  (in Claude Desktop e.g. `/protokoll`) that the agent applies with its own model – e.g. “it says
+  Kali instead of KI, remember that” adds the spelling to the glossary and fixes the current transcript.
 - **Folder watcher** as a LaunchAgent: puts results next to every new file in `~/Transcriber` and its subfolders –
   except the app's own recordings folder, where the app starts transcription itself. A file renamed or moved in
   Finder keeps its transcript (recognized by content) instead of being transcribed again.
