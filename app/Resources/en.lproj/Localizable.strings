@@ -11,7 +11,6 @@
 "Abgriff starten" = "Starting capture";
 "Aggregatgerät anlegen" = "Creating aggregate device";
 "Aktualisieren" = "Refresh";
-"Aktualisieren …" = "Update…";
 "Aktuell – zuletzt geprüft %@" = "Up to date – last checked %@";
 "Alle automatischen Zuordnungen bestätigen – verbessert die Erkennung künftiger Aufnahmen" = "Confirm all automatic matches – improves recognition of future recordings";
 "Alle Stimmreferenzen dieser Person werden entfernt. Transkripte bleiben unverändert." = "All voice references of this person will be removed. Transcripts stay unchanged.";
@@ -69,7 +68,7 @@
 "Entfernen" = "Remove";
 "Erledigte ausblenden" = "Hide finished";
 "fehlgeschlagen" = "failed";
-"Fragt nur die aktuelle Versionsnummer bei transcriber.teconomix.net ab – nichts über dich oder deine Aufnahmen. Aktualisiert wird mit dem Installationsbefehl; der Knopf öffnet die Anleitung." = "Only asks transcriber.teconomix.net for the current version number – nothing about you or your recordings. Updating uses the install command; the button opens the instructions.";
+"Fragt nur die aktuelle Versionsnummer bei transcriber.teconomix.net ab – nichts über dich oder deine Aufnahmen. Aktualisiert wird mit dem Installationsbefehl; der Knopf kopiert ihn." = "Only asks transcriber.teconomix.net for the current version number – nothing about you or your recordings. Updating uses the install command; the button copies it.";
 "Fragt nur die aktuelle Versionsnummer bei transcriber.teconomix.net ab – nichts über dich oder deine Aufnahmen. Später änderbar in den Einstellungen." = "Only asks transcriber.teconomix.net for the current version number – nothing about you or your recordings. You can change this later in Settings.";
 "Freigabe „Bedienungshilfen“ fehlt" = "“Accessibility” permission missing";
 "Füllwörter, Satzzeichen, Dateinamen per Apple-Modell (lokal). Bei starker Abweichung wird der Rohtext eingefügt." = "Filler words, punctuation, file names via Apple's model (local). If the result deviates strongly, the raw text is inserted.";
@@ -226,3 +225,9 @@
 "Nur die Aufnahme löschen: Das Transkript bleibt." = "Delete the recording only: the transcript stays.";
 "Nur fertig transkribierte Aufnahmen im Aufnahmeordner. Das Audio kommt in den Papierkorb; Transkript, Stimmen und Namen bleiben." = "Only transcribed recordings in the recordings folder. The audio goes to the Trash; transcript, voices and names stay.";
 "„%@“ löschen?" = "Delete “%@”?";
+"Update-Befehl im Terminal einfügen (⌘V) und Return drücken. Aufnahmen, Stimmen und Einstellungen bleiben erhalten." = "Paste the update command in Terminal (⌘V) and press Return. Recordings, voices and settings are kept.";
+"Update-Befehl kopieren" = "Copy update command";
+"Kopiert ✓" = "Copied ✓";
+"Bei Anmeldung starten" = "Open at login";
+"macOS muss das Anmeldeobjekt noch erlauben." = "macOS still needs to allow the login item.";
+"Anmeldeobjekte öffnen …" = "Open Login Items…";

@@ -4,7 +4,7 @@ import UserNotifications
 /// Update-Hinweis: einmal täglich https://transcriber.teconomix.net/latest.txt lesen (nur die Versionsnummer; es geht
 /// nichts über den Nutzer oder seine Aufnahmen hinaus, kein Cookie, eigener User-Agent). Nur nach Zustimmung: Das Panel
 /// fragt beim ersten Öffnen, danach Schalter in Einstellungen › Allgemein. Aktualisiert wird mit dem Installer –
-/// der Knopf öffnet die Installationsanleitung der Website.
+/// der Knopf kopiert den passenden Befehl (Website-Installer oder `brew upgrade`), die Mitteilung öffnet die Anleitung.
 @MainActor
 final class UpdateCheck: ObservableObject {
     static let latestURL = URL(string: "https://transcriber.teconomix.net/latest.txt")!
@@ -72,6 +72,18 @@ final class UpdateCheck: ObservableObject {
             if p != q { return p > q }
         }
         return false
+    }
+
+    /// Mit Homebrew installiert (Cask im Caskroom) → `brew upgrade`, sonst der Installationsbefehl der Website.
+    static var updateCommand: String {
+        let brew = ["/opt/homebrew/Caskroom/local-transcriber", "/usr/local/Caskroom/local-transcriber"]
+            .contains { FileManager.default.fileExists(atPath: $0) }
+        return brew ? "brew upgrade --cask local-transcriber" : "curl -fsSL https://transcriber.teconomix.net/install.sh | bash"
+    }
+
+    static func copyCommand() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(updateCommand, forType: .string)
     }
 
     /// Installationsanleitung in der Sprache der Oberfläche (Installer erneut ausführen = aktualisieren).

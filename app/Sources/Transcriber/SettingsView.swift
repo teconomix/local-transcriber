@@ -1,4 +1,5 @@
 import EventKit
+import ServiceManagement
 import SwiftUI
 
 /// Einstellungen (eigenes Fenster): Allgemein · Aufnahme · Diktat · Kalender · Stimmen. Das Panel enthält nur, was man im
@@ -18,34 +19,54 @@ struct SettingsView: View {
 
 struct GeneralSettings: View {
     @EnvironmentObject var updates: UpdateCheck
+    @State private var copied = false
+    @State private var login = SMAppService.mainApp.status
 
     var body: some View {
         Form {
             Section {
                 LabeledContent("Version", value: UpdateCheck.current)
                 LabeledContent("Ordner", value: "~/" + watchDir.lastPathComponent)
+                // Ohne laufende App benennt niemand fertige Aufnahmen sprechend und es gibt keine Call-Erkennung (2026-10-24).
+                Toggle("Bei Anmeldung starten", isOn: Binding(get: { login == .enabled || login == .requiresApproval }, set: { on in
+                    do { try on ? SMAppService.mainApp.register() : SMAppService.mainApp.unregister() } catch { appLog("Anmeldeobjekt: \(error)") }
+                    login = SMAppService.mainApp.status
+                }))
+                if login == .requiresApproval {
+                    HStack {
+                        Text("macOS muss das Anmeldeobjekt noch erlauben.").foregroundStyle(.orange)
+                        Button("Anmeldeobjekte öffnen …") { SMAppService.openSystemSettingsLoginItems() }
+                    }
+                    .font(.caption)
+                }
             }
             Section {
                 Toggle("Einmal täglich nach neuen Versionen suchen", isOn: Binding(get: { updates.enabled == true }, set: { updates.set($0) }))
-                HStack {
-                    if let v = updates.available {
-                        Text("Version \(v) verfügbar").foregroundStyle(.tint)
-                        Button("Aktualisieren …") { UpdateCheck.openInstructions() }
-                    } else if let e = updates.lastError {
-                        Text("Prüfung fehlgeschlagen: \(e)").foregroundStyle(.orange)
-                    } else if let t = updates.lastChecked, updates.enabled == true {
-                        Text("Aktuell – zuletzt geprüft \(t.formatted(date: .abbreviated, time: .shortened))").foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        if let v = updates.available {
+                            Text("Version \(v) verfügbar").foregroundStyle(.tint)
+                            Button(copied ? "Kopiert ✓" : "Update-Befehl kopieren") { UpdateCheck.copyCommand(); copied = true }
+                        } else if let e = updates.lastError {
+                            Text("Prüfung fehlgeschlagen: \(e)").foregroundStyle(.orange)
+                        } else if let t = updates.lastChecked, updates.enabled == true {
+                            Text("Aktuell – zuletzt geprüft \(t.formatted(date: .abbreviated, time: .shortened))").foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if updates.checking { ProgressView().controlSize(.small) }
+                        Button("Jetzt prüfen") { Task { await updates.check() } }.disabled(updates.enabled != true || updates.checking)
                     }
-                    Spacer()
-                    if updates.checking { ProgressView().controlSize(.small) }
-                    Button("Jetzt prüfen") { Task { await updates.check() } }.disabled(updates.enabled != true || updates.checking)
+                    if updates.available != nil {   // in derselben Zeile wie der Knopf – eine Trennlinie wirkte wie ein anderes Thema
+                        Text("Update-Befehl im Terminal einfügen (⌘V) und Return drücken. Aufnahmen, Stimmen und Einstellungen bleiben erhalten.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 }
             } header: {
                 Text("Updates")
             } footer: {
                 Text("""
                     Fragt nur die aktuelle Versionsnummer bei transcriber.teconomix.net ab – nichts über dich oder deine \
-                    Aufnahmen. Aktualisiert wird mit dem Installationsbefehl; der Knopf öffnet die Anleitung.
+                    Aufnahmen. Aktualisiert wird mit dem Installationsbefehl; der Knopf kopiert ihn.
                     """)
                     .font(.caption).foregroundStyle(.secondary)
             }

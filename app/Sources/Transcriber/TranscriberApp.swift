@@ -228,6 +228,7 @@ struct PanelView: View {
     @AppStorage("languages") private var languages = Core.defaultLanguages
     @AppStorage("nextSpeakers") private var nextSpeakers = "0"   // nur für die nächste Aufnahme/Datei, dann wieder 0
     @State private var listHeight: CGFloat = 0
+    @State private var updateCopied = false
     @State private var mics: [AVCaptureDevice] = Recorder.microphones()
     @State private var error: String?
     @Environment(\.openWindow) private var openWindow
@@ -387,11 +388,18 @@ struct PanelView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.1)))
         } else if let v = updates.available {
-            HStack(spacing: 6) {
-                Image(systemName: "arrow.down.circle").foregroundStyle(.tint)
-                Text("Version \(v) verfügbar")
-                Spacer()
-                Button("Aktualisieren …") { UpdateCheck.openInstructions() }.controlSize(.small)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.down.circle").foregroundStyle(.tint)
+                    Text("Version \(v) verfügbar")
+                    Spacer()
+                    Button(updateCopied ? "Kopiert ✓" : "Update-Befehl kopieren") { UpdateCheck.copyCommand(); updateCopied = true }
+                        .controlSize(.small)
+                }
+                // Nutzer fragten, was nach dem Klick zu tun ist (2026-10-24) – daher Befehl kopieren statt Website.
+                Text("Update-Befehl im Terminal einfügen (⌘V) und Return drücken. Aufnahmen, Stimmen und Einstellungen bleiben erhalten.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .font(.caption)
         }
