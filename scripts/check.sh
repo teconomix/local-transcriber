@@ -16,7 +16,7 @@ step() { local label=$1; shift; print -P "%B▸ $label%b"
 syntax() {
   local f ok=0
   for f in installer/*.sh; do bash -n "$f" || ok=1; done
-  for f in scripts/*.sh app/*.sh website/deploy.sh tests/*.sh; do zsh -n "$f" || ok=1; done
+  for f in scripts/*.sh app/*.sh website/deploy.sh(N) tests/*.sh; do zsh -n "$f" || ok=1; done   # deploy.sh fehlt im öffentlichen Repo
   return $ok
 }
 

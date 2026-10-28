@@ -19,12 +19,12 @@
   <meta name="color-scheme" content="light dark">
   <meta name="referrer" content="no-referrer">
   <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=0.9">
+  <link rel="stylesheet" href="../style.css?v=0.10">
   <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/">
   <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/">
   <link rel="alternate" hreflang="x-default" href="https://transcriber.teconomix.net/">
-  <script src="../script.js?v=0.9" defer></script>
-  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Local Transcriber", "operatingSystem": "macOS 14 oder neuer (Apple Silicon)", "applicationCategory": "BusinessApplication", "description": "Kostenloses Open-Source-Werkzeug für die macOS-Menüleiste: Meetings, Calls und Diktate werden lokal auf dem Mac transkribiert, mit Sprechererkennung – ohne Cloud, ohne Konto, ohne Abo.", "url": "https://transcriber.teconomix.net/de/", "inLanguage": ["de", "en"], "license": "https://opensource.org/licenses/MIT", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}, "author": {"@type": "Person", "name": "Björn Rabethge"}, "softwareVersion": "0.9", "downloadUrl": "https://transcriber.teconomix.net/install.sh"}</script>
+  <script src="../script.js?v=0.10" defer></script>
+  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Local Transcriber", "operatingSystem": "macOS 14 oder neuer (Apple Silicon)", "applicationCategory": "BusinessApplication", "description": "Kostenloses Open-Source-Werkzeug für die macOS-Menüleiste: Meetings, Calls und Diktate werden lokal auf dem Mac transkribiert, mit Sprechererkennung – ohne Cloud, ohne Konto, ohne Abo.", "url": "https://transcriber.teconomix.net/de/", "inLanguage": ["de", "en"], "license": "https://opensource.org/licenses/MIT", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}, "author": {"@type": "Person", "name": "Björn Rabethge"}, "softwareVersion": "0.10", "downloadUrl": "https://transcriber.teconomix.net/install.sh"}</script>
 </head>
 <body>
 <a class="skip" href="#inhalt">Zum Inhalt springen</a>
@@ -60,7 +60,7 @@
               <span aria-live="polite">Kopieren</span>
             </button>
           </div>
-          <p class="install-version">Version <span data-version>0.9</span> · 24. Oktober 2026 · macOS 14 oder neuer</p>
+          <p class="install-version">Version <span data-version>0.10</span> · 28. Oktober 2026 · macOS 14 oder neuer</p>
         </div>
 
         <div class="hero-links">
@@ -71,7 +71,7 @@
           </a>
         </div>
 
-        <a class="announce" href="#ki">Neu in 0.9: Gespräche mit KI auswerten – lokal, oder in der Cloud mit geschützten Namen →</a>
+        <a class="announce" href="arbeitsablauf.html">Neu in 0.10: Aufnahmen vom iPhone per Kurzbefehl, iCloud oder AirDrop – und Spracherkennung mit halb so viel Speicher →</a>
 
         <ul class="facts">
           <li>Mac mit Apple Silicon</li>
@@ -104,7 +104,7 @@
               Diktat: rechte ⌘ · mit KI: rechte ⌥
             </div>
           </div>
-          <div class="p-sub"><span>Transkriptionen</span><span>Erledigte ausblenden</span></div>
+          <div class="p-sub"><span>Transkriptionen</span><span>Alle</span></div>
           <div class="p-card">
             <h4>2026-10-10 14-03 Budgetplanung Q4</h4>
             <span class="p-x" aria-hidden="true">✕</span>
@@ -240,10 +240,10 @@
         </li>
       </ol>
       <figure class="demo-video">
-        <video controls preload="none" playsinline width="1920" height="1080" poster="../assets/video/poster-de.jpg" aria-label="Demo-Video von Local Transcriber">
-          <source src="../assets/video/demo-de.mp4" type="video/mp4">
+        <video controls preload="none" playsinline width="1920" height="1080" poster="../assets/video/poster-de.jpg?v=0.10" aria-label="Demo-Video von Local Transcriber">
+          <source src="../assets/video/demo-de.mp4?v=0.10" type="video/mp4">
         </video>
-        <figcaption>Rundgang in 70 Sekunden: Call aufnehmen, Sprecher erkennen, diktieren. Ohne Ton.</figcaption>
+        <figcaption>Rundgang in 80 Sekunden: Call aufnehmen, Sprecher erkennen, mit KI auswerten, per Mail teilen, diktieren. Mit leiser Musik.</figcaption>
       </figure>
     </div>
   </section>
@@ -288,7 +288,7 @@
           <ul class="req">
             <li><strong>Mac mit Apple Silicon</strong> (M1 oder neuer)</li>
             <li><strong>macOS 14 Sonoma</strong> oder neuer – für KI-Funktionen wie Aufräumen und Dateinamen: macOS 26 mit Apple Intelligence</li>
-            <li><strong>ca. 8 GB freier Speicher</strong> (das Spracherkennungsmodell allein ~3 GB)</li>
+            <li><strong>ca. 8 GB freier Speicher</strong> (das Spracherkennungsmodell allein ~1 GB)</li>
             <li><strong>16 GB Arbeitsspeicher</strong> empfohlen</li>
             <li><strong>Internet</strong> nur für die Installation (und für ein Cloud-Modell, falls du eines wählst)</li>
             <li><strong>Optional für KI-Auswertung:</strong> ein lokales Sprachmodell in Ollama oder LM Studio (mehr Arbeitsspeicher hilft: ab 32 GB laufen gute Modelle) – oder ein Schlüssel für einen Cloud-Anbieter</li>
@@ -312,11 +312,11 @@
               Zum Schluss fragt er, ob er den Ordner <code>~/Transcriber</code> überwachen soll: <kbd>j</kbd> für ja, nur <kbd>↩</kbd> für nein.
               <figure class="term" aria-label="So sieht die Installation im Terminal aus">
                 <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i></div>
-<pre><b>Transcriber <span data-version>0.9</span> – Installation</b>
+<pre><b>Transcriber <span data-version>0.10</span> – Installation</b>
 
 <b>▸ Voraussetzungen prüfen</b>
   <em>✓</em> macOS 15.6, Apple Silicon, 212 GB frei
-<b>▸ Transcriber <span data-version>0.9</span> laden</b>
+<b>▸ Transcriber <span data-version>0.10</span> laden</b>
   <em>✓</em> Prüfsummen stimmen
 <b>▸ Python-Umgebung einrichten (uv, Python 3.12, Pakete – dauert ein paar Minuten)</b>
   <em>✓</em> Python-Umgebung bereit
@@ -324,13 +324,13 @@
   <em>✓</em> ffmpeg installiert (statischer Build)
 <b>▸ Modelle</b>
   <em>✓</em> Sprechererkennung (pyannote community-1, CC-BY-4.0)
-<b>▸ Spracherkennungsmodell laden (Whisper large-v3-turbo, ~3 GB – kann dauern)</b>
+<b>▸ Spracherkennungsmodell laden (Whisper large-v3-turbo (8 Bit), ~0,9 GB – kann dauern)</b>
   <em>✓</em> Whisper large-v3-turbo
 <b>▸ App installieren</b>
   <em>✓</em> ~/Applications/Transcriber.app
   Ordner ~/Transcriber überwachen (abgelegte Audiodateien automatisch transkribieren)? [j/N]
 
-<em><b>Fertig.</b></em> Transcriber <span data-version>0.9</span> ist installiert.</pre>
+<em><b>Fertig.</b></em> Transcriber <span data-version>0.10</span> ist installiert.</pre>
               </figure>
             </li>
             <li><strong>Freigaben erteilen:</strong> Transcriber startet in der Menüleiste. macOS fragt beim ersten Gebrauch je Funktion einmal nach – auf „Erlauben“ klicken.
@@ -402,7 +402,7 @@
 
 <footer class="site-footer">
   <div class="wrap">
-    <span>Local Transcriber <span data-version>0.9</span> · Open Source (MIT) · ohne Gewähr</span>
+    <span>Local Transcriber <span data-version>0.10</span> · Open Source (MIT) · ohne Gewähr</span>
     <nav aria-label="Rechtliches und Links">
       <a href="impressum.html">Impressum</a>
       <a href="datenschutz.html">Datenschutz</a>
@@ -410,6 +410,9 @@
       <a href="beratung.html">Für Beratung &amp; Supervision</a>
       <a href="lokal-transkribieren.html">Ohne Cloud transkribieren</a>
       <a href="obsidian-transkripte.html">Transkripte in Obsidian</a>
+      <a href="interviews-transkribieren.html">Interviews transkribieren</a>
+      <a href="diktieren-mac.html">Diktieren am Mac</a>
+      <a href="arbeitsablauf.html">Vom Handy zum Protokoll</a>
       <a href="https://github.com/teconomix/local-transcriber/discussions">Fragen &amp; Ideen</a>
       <a href="https://github.com/teconomix/local-transcriber">GitHub</a>
       <span>Ein kleines Werkzeug von Björn Rabethge</span>

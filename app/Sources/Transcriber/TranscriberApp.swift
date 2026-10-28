@@ -19,6 +19,14 @@ struct TranscriberApp: App {
         if CommandLine.arguments.contains("--tap-test") { VPTest.tap(); exit(0) }
         if CommandLine.arguments.contains("--calendar-test") { Task { await VPTest.calendar(); exit(0) } }
         if CommandLine.arguments.contains("--cleanup-test") { Task { await VPTest.cleanup(); exit(0) } }
+        if let i = CommandLine.arguments.firstIndex(of: "--airdrop-test") {   // iPhone-Weg: AirDrop-Dateien in Downloads
+            let a = CommandLine.arguments
+            AirDropInbox.selfTest(seconds: i + 1 < a.count ? Double(a[i + 1]) ?? 60 : 60); exit(0)
+        }
+        if let i = CommandLine.arguments.firstIndex(of: "--icloud-test") {   // iPhone-Weg: iCloud-Eingang einmal abholen
+            let a = CommandLine.arguments
+            ICloudInbox.selfTest(seconds: i + 1 < a.count ? Double(a[i + 1]) ?? 120 : 120); exit(0)
+        }
         if let i = CommandLine.arguments.firstIndex(of: "--gap-test"), i + 1 < CommandLine.arguments.count {
             let folder = URL(fileURLWithPath: CommandLine.arguments[i + 1])
             let gap = CommandLine.arguments.firstIndex(of: "--gap").flatMap { Double(CommandLine.arguments[$0 + 1]) } ?? 2.5
@@ -44,10 +52,16 @@ struct TranscriberApp: App {
             let a = CommandLine.arguments
             VPTest.micProbe(vp: a[i + 1] == "vp", out: URL(fileURLWithPath: a[i + 2]), seconds: Double(a[i + 3]) ?? 20); exit(0)
         }
-        if CommandLine.arguments.contains("--report-test") {   // Fehlerbericht erstellen, ohne Mail
+        if CommandLine.arguments.contains("--report-test") {   // Fehlerbericht erstellen, ohne Mail; prüft Ablage und Aufräumen
             Task { @MainActor in
+                let old = BugReport.dir.appendingPathComponent("Selbsttest-alt.zip")
+                try? FileManager.default.createDirectory(at: BugReport.dir, withIntermediateDirectories: true)
+                FileManager.default.createFile(atPath: old.path, contents: Data(),
+                                               attributes: [.modificationDate: Date().addingTimeInterval(-(BugReport.keepDays + 1) * 86400)])
                 let r = await BugReport.create(description: "Selbsttest", redact: true)
-                appLog("Report-Test: \(r.url?.path ?? "FEHLER \(r.error ?? "?")")")
+                let placed = r.url?.deletingLastPathComponent().standardizedFileURL == BugReport.dir.standardizedFileURL
+                let purged = !FileManager.default.fileExists(atPath: old.path)
+                appLog("Report-Test: \(r.url?.path ?? "FEHLER \(r.error ?? "?")") – Ablage \(placed ? "ok" : "FALSCH"), alter Bericht \(purged ? "entfernt" : "NICHT entfernt")")
                 exit(0)
             }
         }
@@ -92,6 +106,9 @@ struct TranscriberApp: App {
             Task { await VPTest.ui(recorder: recorder, jobs: jobs, dictation: dictation, calls: calls, updates: updates); exit(0) }
         }
 
+        Window("Alle Transkriptionen", id: "library") { LibraryView().environmentObject(jobs) }
+            .defaultSize(width: 880, height: 680)
+            .windowResizability(.contentMinSize)
         Window("Fehler melden", id: "report") { ReportView() }
             .windowResizability(.contentSize)
         Window("Einstellungen", id: "settings") {
@@ -109,6 +126,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var jobs: JobManager?
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // Von Transcriber gestarteten KI-Server mitbeenden – nicht, solange eine Zusammenfassung läuft (die läuft weiter,
+        // der Server endet dann nach der Leerlaufzeit). Ohne Startbefehl/Server tut der Aufruf nichts.
+        try? Core.process(["ai-server", "--stop", "--if-idle"]).run()
         guard let r = recorder, let j = jobs, r.isRecording else { return .terminateNow }
         appLog("Beenden während der Aufnahme: Aufnahme wird erst abgeschlossen")
         Task { @MainActor in
@@ -240,6 +260,10 @@ struct PanelView: View {
     @State private var updateCopied = false
     @State private var mics: [AVCaptureDevice] = Recorder.microphones()
     @State private var error: String?
+    @State private var panelWindow: NSWindow?
+    /// Oberkante des Panels beim Öffnen – AppKit behält beim Schrumpfen die Unterkante, das Panel löste sich dann von
+    /// der Menüleiste (2026-10-28: lange Liste → ein Eintrag).
+    @State private var panelTop: CGFloat?
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -312,13 +336,19 @@ struct PanelView: View {
 
             if !jobs.untranscribed.isEmpty { untranscribedLine }
 
-            if !jobs.jobs.isEmpty {
+            if jobs.jobs.isEmpty {
                 HStack {
+                    Spacer()
+                    Button("Alle Transkriptionen") { openWindow(id: "library"); NSApp.activate(ignoringOtherApps: true) }
+                        .controlSize(.small).buttonStyle(.link)
+                }
+            } else {
+                HStack(spacing: 6) {
                     Text("Transkriptionen").font(.subheadline.weight(.semibold))
                     Spacer()
-                    if jobs.jobs.contains(where: { $0.state != .running }) {
-                        Button("Erledigte ausblenden") { jobs.clearFinished() }.controlSize(.small).buttonStyle(.link)
-                    }
+                    Button("Alle") { openWindow(id: "library"); NSApp.activate(ignoringOtherApps: true) }
+                        .controlSize(.small).buttonStyle(.link)
+                        .help("Alle Transkriptionen im Ordner ~/Transcriber")
                 }
                 // Eine ScrollView schrumpft im selbst bemessenden Menüleistenfenster auf Höhe 0 – deshalb feste Höhe:
                 // so hoch wie der Inhalt, höchstens so, dass Kopf und Fußzeile (Beenden) auf dem Bildschirm bleiben.
@@ -340,6 +370,20 @@ struct PanelView: View {
         .frame(width: 440)
         // Zu 80 % deckender Grund statt reinem Glas (90 % war zu viel): blaue Links waren vor blauem Schreibtischbild kaum lesbar (Björn, 2026-10-24).
         .background(Color(nsColor: .windowBackgroundColor).opacity(0.8).ignoresSafeArea())
+        // Panel geöffnet → neu ordnen. onAppear kommt im Menüleistenfenster nur beim ersten Mal, das Fenster wird aber
+        // bei jedem Öffnen zum Hauptfenster der Tastatur (Björn 2026-10-24: Reihenfolge änderte sich erst nach Neustart).
+        .background(WindowReader { w in if panelWindow !== w { panelWindow = w } })
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { n in
+            if let w = n.object as? NSWindow, w === panelWindow { jobs.resort() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didChangeOcclusionStateNotification)) { n in
+            guard let w = n.object as? NSWindow, w === panelWindow else { return }
+            if w.occlusionState.contains(.visible) { panelTop = w.frame.maxY; jobs.resort() } else { panelTop = nil }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResizeNotification)) { n in
+            guard let w = n.object as? NSWindow, w === panelWindow, let top = panelTop, abs(w.frame.maxY - top) > 0.5 else { return }
+            w.setFrameTopLeftPoint(NSPoint(x: w.frame.minX, y: top))
+        }
     }
 
     /// Leiste unten, bündig mit den Kästen darüber (Variante „E3“ aus den Mockups, Björn 2026-10-14): Ordner und
@@ -517,6 +561,19 @@ final class ClosureMenuItem: NSMenuItem {
     @objc private func fire() { handler() }
 }
 
+/// Liefert das NSWindow, in dem eine Ansicht steckt.
+struct WindowReader: NSViewRepresentable {
+    let found: (NSWindow?) -> Void
+    func makeNSView(context: Context) -> NSView {
+        let v = NSView()
+        DispatchQueue.main.async { found(v.window) }
+        return v
+    }
+    func updateNSView(_ v: NSView, context: Context) {
+        DispatchQueue.main.async { found(v.window) }
+    }
+}
+
 /// Kernpunkte/Aufgaben der Zusammenfassung: Symbol schmal und auf Höhe der ersten Zeile.
 struct SummaryLabelStyle: LabelStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -561,28 +618,46 @@ struct JobRow: View {
     @FocusState private var titleFocused: Bool
     @Environment(\.openWindow) private var openWindow
 
-    init(job: Job, editing: Set<String> = []) {        // editing vorbelegt nur für den Foto-Test (--ui-test)
+    /// archive: im Fenster „Alle Transkriptionen“ – ohne ✕ (aus der Liste nehmen) und ohne Zuklappen.
+    let archive: Bool
+
+    init(job: Job, editing: Set<String> = [], archive: Bool = false) {   // editing vorbelegt nur für den Foto-Test (--ui-test)
         self.job = job
+        self.archive = archive
         _editing = State(initialValue: editing)
     }
+
+    private var isCollapsed: Bool { !archive && job.state == .done && jobs.collapsed.contains(job.id) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
+                if job.state == .done && !archive {                    // zuklappen: erledigt, aber noch in der Liste
+                    Button { jobs.toggleCollapsed(job) } label: {
+                        Image(systemName: "chevron.right").font(.caption2.weight(.bold)).rotationEffect(.degrees(isCollapsed ? 0 : 90))
+                    }
+                    .buttonStyle(.borderless).foregroundStyle(.secondary).frame(width: 10)
+                    .help(isCollapsed ? "Aufklappen" : "Zuklappen – nur Titel und Anfang der Zusammenfassung")
+                }
                 if newTitle != nil { titleEditor } else { titleLabel }
                 Spacer(minLength: 4)
                 if job.state == .done {                                // Papierkorb = löschen, ✕ = nur aus der Liste
                     Button { confirmDelete() } label: { Image(systemName: "trash").font(.caption.weight(.semibold)) }
                         .buttonStyle(.borderless).foregroundStyle(.secondary).help("Löschen … (nur die Aufnahme oder alles)")
                 }
-                if job.state != .running {
+                if job.state != .running && !archive {
                     Button { jobs.hide(job) } label: { Image(systemName: "xmark").font(.caption.weight(.semibold)) }
                         .buttonStyle(.borderless).foregroundStyle(.secondary).help("Aus der Liste entfernen (Dateien bleiben)")
                 }
             }
-            if job.state == .done { fileLine }             // volle Breite: neben den Symbolen brach „Zusammenfassen“ um
+            if job.state == .done { fileLine.padding(.leading, archive ? 0 : 18) }   // volle Breite: neben den Symbolen brach „Zusammenfassen“ um
             }
+            if isCollapsed {
+                if let sum = job.summary, let teaser = sum.text.isEmpty ? sum.points.first : sum.text {
+                    Text(teaser).font(.caption).foregroundStyle(.secondary).lineLimit(2).padding(.leading, 18)
+                }
+            } else {
             switch job.state {
             case .running:
                 ProgressView(value: job.progress) { Text(job.message).font(.caption) }
@@ -604,6 +679,7 @@ struct JobRow: View {
                 summarySection
                 if let e = job.error { Text(e).font(.caption).foregroundStyle(.red) }
                 if let n = job.notice { Text(n).font(.caption).foregroundStyle(.secondary) }
+            }
             }
         }
         .padding(10)
@@ -702,6 +778,9 @@ struct JobRow: View {
                 }
                 ForEach(sum.tasks, id: \.self) { t in
                     Label { Text(t).lineLimit(2) } icon: { Image(systemName: "square").foregroundStyle(.secondary) }
+                }
+                if !sum.text.isEmpty {
+                    Text(sum.text).lineLimit(6).foregroundStyle(.secondary).help(sum.text)
                 }
             }
             .font(.caption)

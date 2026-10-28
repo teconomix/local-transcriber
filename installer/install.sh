@@ -7,12 +7,14 @@
 #   ~/Applications/Transcriber.app           Menüleisten-App
 #   ~/.local/share/transcriber/               Python-Umgebung, Modelle, Stimmdatenbank, Protokolle
 #   ~/.local/bin/transcriber                  Kommandozeile
-#   ~/Transkription/                          Aufnahmen und Transkripte
+#   ~/Transcriber/                            Aufnahmen und Transkripte (bis 0.5 ~/Transkription)
 # Lädt aus dem Internet: die Release-Dateien (dieser Server), uv + Python (astral.sh), Python-Pakete (PyPI),
-# das Whisper-Modell (Hugging Face, ~3 GB) und – falls nicht vorhanden – ffmpeg (ffmpeg.martin-riedl.de).
+# das Whisper-Modell (Hugging Face, 8 Bit ~0,9 GB, mit --fp16 ~1,6 GB) und – falls nicht vorhanden – ffmpeg (ffmpeg.martin-riedl.de).
 # Jede Datei von diesem Server wird gegen SHA256SUMS geprüft. Erneut ausführen = aktualisieren.
 #
-# Optionen: --no-launch (App nicht starten), --no-watch (Ordnerwächter nicht anbieten), --yes (keine Rückfragen)
+# Optionen: --no-launch (App nicht starten), --no-watch (Ordnerwächter nicht anbieten), --yes (keine Rückfragen),
+#           --fp16 (Whisper turbo in FP16, 1,6 GB, statt 8 Bit, 0,9 GB – gemessen gleich genau), --compact (8 Bit erzwingen)
+#           Ohne Option: neue Installation 8 Bit; ein Update behält das eingestellte Modell (ältere Installationen: FP16).
 
 set -euo pipefail
 
@@ -21,6 +23,7 @@ BASE="${TRANSCRIBER_BASE:-__BASE__}"
 DATA="$HOME/.local/share/transcriber"
 APPS="$HOME/Applications"
 WHISPER="mlx-community/whisper-large-v3-turbo"
+WHISPER_8BIT="mlx-community/whisper-large-v3-turbo-8bit"   # transcriber/asr.py › MODELS
 
 say()  { printf '\033[1m▸ %s\033[0m\n' "$*"; }
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; }
@@ -57,9 +60,9 @@ busy() {  # busy "Text" befehl …: Ausgabe ins Protokoll; solange er läuft, Dr
 }
 
 main() {
-    LAUNCH=1; WATCH=1; YES=0
+    LAUNCH=1; WATCH=1; YES=0; MODEL=
     for a in "$@"; do case "$a" in
-        --no-launch) LAUNCH=0 ;; --no-watch) WATCH=0 ;; --yes) YES=1 ;;
+        --no-launch) LAUNCH=0 ;; --no-watch) WATCH=0 ;; --yes) YES=1 ;; --compact) MODEL=turbo-8bit ;; --fp16) MODEL=turbo ;;
         *) die "$(t "unbekannte Option: $a" "unknown option: $a")" ;; esac; done
 
     printf '\n\033[1mTranscriber %s – Installation\033[0m\n\n' "$VERSION"
@@ -137,11 +140,19 @@ main() {
     rm -rf "$DATA/models/speaker-diarization-community-1"
     tar -xzf "$tmp/pyannote-community-1.tar.gz" -C "$DATA/models"
     ok "$(t "Sprechererkennung" "Speaker recognition") (pyannote community-1, CC-BY-4.0)"
-    say "$(t "Spracherkennungsmodell laden (Whisper large-v3-turbo, ~3 GB – kann dauern)" "Downloading speech recognition model (Whisper large-v3-turbo, ~3 GB – may take a while)")"
+    # Welches Modell: Option, sonst entscheidet der Kern (asr.choice: eingestellt > nur FP16 vorhanden > 8 Bit).
+    # Wechsel und Löschen danach in der App: Einstellungen › Aufnahme › Spracherkennung.
+    [[ -n "$MODEL" ]] || MODEL="$(HF_HUB_OFFLINE=1 "$DATA/venvs/app/bin/transcriber" model --json | "$DATA/venvs/app/bin/python" -c 'import json,sys; print(json.load(sys.stdin)["current"])')" \
+        || die "$(t "Kern antwortet nicht (transcriber model)." "Core does not respond (transcriber model).")"
+    local repo="$WHISPER" size="$(t "~1,6 GB" "~1.6 GB")" label="Whisper large-v3-turbo"
+    if [[ "$MODEL" == turbo-8bit ]]; then repo="$WHISPER_8BIT"; size="$(t "~0,9 GB" "~0.9 GB")"; label="Whisper large-v3-turbo ($(t "8 Bit" "8-bit"))"; fi
+    say "$(t "Spracherkennungsmodell laden ($label, $size – kann dauern)" "Downloading speech recognition model ($label, $size – may take a while)")"
     # Über Python statt `hf download`: ohne Werbe-Hinweis der CLI und ohne Token-Warnung des Servers, Balken bleibt
     "$DATA/venvs/app/bin/python" -c "import sys; from huggingface_hub import snapshot_download, logging as l
-l.set_verbosity_error(); snapshot_download(sys.argv[1])" "$WHISPER" >/dev/null || die "$(t "Whisper-Modell konnte nicht geladen werden (Hugging Face erreichbar?)." "Could not download the Whisper model (is Hugging Face reachable?).")"
-    ok "Whisper large-v3-turbo"
+l.set_verbosity_error(); snapshot_download(sys.argv[1])" "$repo" >/dev/null || die "$(t "Whisper-Modell konnte nicht geladen werden (Hugging Face erreichbar?)." "Could not download the Whisper model (is Hugging Face reachable?).")"
+    # In config.json festschreiben (8 Bit: dazu Ordner mit Verweisen für mlx-whisper anlegen)
+    HF_HUB_OFFLINE=1 "$DATA/venvs/app/bin/transcriber" model "$MODEL" >/dev/null || die "$(t "Modell ließ sich nicht einrichten." "Could not set up the model.")"
+    ok "$label"
 
     # 6. App ----------------------------------------------------------------------------------------
     say "$(t "App installieren" "Installing the app")"

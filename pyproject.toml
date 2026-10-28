@@ -1,6 +1,6 @@
 [project]
 name = "transcriber"
-version = "0.9"
+version = "0.10"
 description = "Lokale Transkription mit Sprechererkennung (MacLion)"
 requires-python = ">=3.12,<3.14"
 license = "MIT"
@@ -25,4 +25,5 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.sdist]
 # Nur der Python-Kern – keine internen Notizen (CLAUDE.md), keine Benchmark-Daten, keine App-Quellen.
-include = ["transcriber", "pyproject.toml", "README.md", "LICENSE", "THIRD_PARTY_NOTICES.md"]
+# Mit „/“ verankert: sonst kamen auch obsidian/README.md, docs/de/README.md, scripts/demo-video/README.md mit
+include = ["/transcriber", "/pyproject.toml", "/README.md", "/LICENSE", "/THIRD_PARTY_NOTICES.md"]

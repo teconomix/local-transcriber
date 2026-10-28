@@ -8,6 +8,16 @@ DB = DATA / "speakers.db"          # Stimmen = biometrische Daten, nie synchroni
 CACHE = DATA / "cache"             # vorbereitete WAVs je Auftrag
 CONFIG = DATA / "config.json"
 JOBS = DATA / "jobs"               # Statusdateien laufender/fertiger Aufträge (für die App)
+# Audio/Video, das transkribiert wird (Wächter, Löschen, Fehlerbericht); .qta = mehrspurige Sprachmemos (ffmpeg liest sie)
+MEDIA_EXT = {".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg", ".opus", ".mp4", ".mov", ".m4v", ".mkv", ".webm", ".caf",
+             ".aiff", ".aif", ".qta"}
+
+def secure_data():
+    """DATA nur für diesen Benutzer (0700): darin liegen Gesprächsaudio und Volltexte (cache/), sonst mit 0755 für
+    andere Konten auf dem Mac lesbar, wenn mkdir(parents=True) auch ~/.local/share neu anlegt."""
+    DATA.mkdir(parents=True, exist_ok=True)
+    DATA.chmod(0o700)
+
 
 DEFAULTS = {
     "language": "de",              # Whisper-Sprachcode: de, en, es, fr, …
@@ -22,6 +32,7 @@ DEFAULTS = {
                                    # mischen Personen unumkehrbar (2026-10-12: 9 Personen, Grenze 6 → zwei in einem Cluster)
     "vocab_file": str(DATA / "vocab.txt"),  # Glossar, Format siehe glossary.py
     "glossary_prompt": False,      # Glossar zusätzlich als Whisper-Prompt (gemessen: schadet, siehe asr.py)
+    # "asr_model": turbo (FP16, 1,6 GB) | turbo-8bit (0,86 GB, gleich genau) – ohne Eintrag entscheidet asr.choice
     "repair_flat": True,           # Stellen ohne Satzzeichen einzeln neu erkennen, nur bei Prüfung übernehmen (asr.repair)
     # Stimmenabgleich (Kosinus). Gemessen 2026-10-08: gleiche Person 0,75–0,93, verschiedene ≤ 0,42.
     "match_sure": 0.75,            # ab 60 s; war 0,65 – falsche Personen kamen bis 0,65, richtige ab 0,80 (bench/SCHWELLEN.md)

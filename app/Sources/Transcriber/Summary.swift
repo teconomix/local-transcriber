@@ -139,6 +139,7 @@ struct SummaryInfo: Equatable {
     let model: String
     let points: [String]
     let tasks: [String]
+    var text = ""             // Fließtext ohne Aufzählung (Kurzfassung): erster Absatz
 
     static func url(for json: URL) -> URL {
         json.deletingLastPathComponent().appendingPathComponent(
@@ -160,7 +161,25 @@ struct SummaryInfo: Equatable {
         let tasks = items.filter { $0.hasPrefix("[ ]") }.map { String($0.dropFirst(3)).trimmingCharacters(in: .whitespaces) }
         let points = items.filter { !$0.hasPrefix("[") }
         return SummaryInfo(url: u, name: meta["name"] as? String ?? "", local: meta["local"] as? Bool ?? true,
-                           model: meta["model"] as? String ?? "", points: Array(points.prefix(2)), tasks: Array(tasks.prefix(2)))
+                           model: meta["model"] as? String ?? "", points: Array(points.prefix(2)), tasks: Array(tasks.prefix(2)),
+                           text: items.isEmpty ? firstParagraph(lines.dropFirst()) : "")
+    }
+
+    /// wie summarize.first_paragraph: ohne Überschriften, Tabellen, Zitate und Hervorhebungszeichen
+    static func firstParagraph<S: Sequence>(_ lines: S, limit: Int = 700) -> String where S.Element == String {
+        var para: [String] = []
+        for raw in lines {
+            let l = raw.trimmingCharacters(in: .whitespaces)
+            if l.isEmpty || ["#", "|", ">", "---"].contains(where: { l.hasPrefix($0) }) {
+                if !para.isEmpty { break }
+                continue
+            }
+            para.append(l)
+        }
+        let text = para.joined(separator: " ").replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "__", with: "")
+        guard text.count > limit else { return text }
+        let cut = String(text.prefix(limit))
+        return (cut.range(of: " ", options: .backwards).map { String(cut[..<$0.lowerBound]) } ?? cut) + " …"
     }
 }
 

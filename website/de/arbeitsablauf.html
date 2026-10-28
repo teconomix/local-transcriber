@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vom Handy zum Protokoll – Gespräche aufnehmen, transkribieren, zusammenfassen | Local Transcriber</title>
+  <meta name="description" content="Der ganze Arbeitsablauf mit Local Transcriber: Aufnahme am Handy oder Mac, automatisch transkribiert und benannt, mit lokaler KI zusammengefasst, geteilt – und danach das Original gelöscht. Kostenlos und Open Source.">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Local Transcriber">
+  <meta property="og:title" content="Vom Handy zum Protokoll – Gespräche aufnehmen, transkribieren, zusammenfassen">
+  <meta property="og:description" content="Aufnahme am Handy oder Mac, automatisch transkribiert, lokal zusammengefasst und geteilt – kostenlos und Open Source.">
+  <meta property="og:url" content="https://transcriber.teconomix.net/de/arbeitsablauf.html">
+  <meta property="og:image" content="https://transcriber.teconomix.net/assets/og-de.png">
+  <meta property="og:locale" content="de_AT">
+  <meta name="color-scheme" content="light dark">
+  <meta name="referrer" content="no-referrer">
+  <link rel="canonical" href="https://transcriber.teconomix.net/de/arbeitsablauf.html">
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../style.css?v=0.10">
+  <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/arbeitsablauf.html">
+  <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/workflow.html">
+  <script src="../script.js?v=0.10" defer></script>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="../assets/icon.svg" alt="" width="28" height="28">Local Transcriber</a>
+    <nav class="nav" aria-label="Hauptnavigation"><a class="opt" href="./?k=seo-ablauf-de">Zur Startseite</a><a class="lang" href="../en/workflow.html" hreflang="en" lang="en">English</a></nav>
+  </div>
+</header>
+
+<main class="legal article wrap">
+  <h1>Vom Handy zum Protokoll – Gespräche aufnehmen, transkribieren, zusammenfassen</h1>
+  <p class="article-lead">Du nimmst ein Gespräch am Handy auf. Wenn du wieder am Mac bist, liegt daneben schon das Transkript mit Sprechernamen, ein sprechender Dateiname und auf Wunsch ein Protokoll mit Aufgaben – bereit zum Teilen. Danach löschst du die Aufnahme, auf dem Mac und auf dem Handy. So greifen die Teile von Local Transcriber ineinander.</p>
+
+  <h2>1. Aufnehmen</h2>
+  <ul>
+    <li><strong>Am Mac:</strong> <em>Aufnahme starten</em> im Panel – Mikrofon und Systemton als getrennte Spuren. Bei Teams, Zoom, Meet &amp; Co. fragt eine Mitteilung „Aufnehmen?“; aufgenommen wird nur auf Klick, Schluss ist mit dem Call.</li>
+    <li><strong>Am Android-Handy:</strong> mit einer Aufnahme-App, die in einen normalen Ordner speichert (z. B. der quelloffene <em>Fossify Voice Recorder</em>), und <a href="https://syncthing.net">Syncthing</a>. Syncthing spiegelt den Aufnahmeordner ohne Cloud in einen Unterordner von <code>~/Transcriber</code>, etwa <code>~/Transcriber/Handy</code>. Heißen die Dateien <code>Aufnahme JJJJ-MM-TT HH-MM</code>, bekommen sie später einen sprechenden Namen.</li>
+    <li><strong>Am iPhone:</strong> mit dem Kurzbefehl <a href="/assets/shortcut/An%20Transcriber%20senden.shortcut"><em>An Transcriber senden</em></a> (am iPhone antippen › <em>Kurzbefehl hinzufügen</em>; in der App gibt es dafür auch einen QR-Code und AirDrop). Danach eine Aufnahme z. B. in <em>Sprachmemos</em> teilen › <em>An Transcriber senden</em>: Sie geht über iCloud Drive an den Mac, die App holt sie nach <code>~/Transcriber/iPhone</code> und löscht sie in iCloud. Einschalten unter <em>Einstellungen › Aufnahme › iPhone</em>. Ohne Cloud geht es per AirDrop: Mit <em>„Per AirDrop empfangene Aufnahmen übernehmen“</em> holt die App AirDrop-Audio aus <code>~/Downloads</code> (macOS fragt dafür einmal nach dem Zugriff auf Downloads).</li>
+    <li><strong>Diktieren</strong> ist der dritte Einstieg, unabhängig davon: rechte <kbd>⌘</kbd> halten, sprechen, loslassen – der Text steht an der Schreibmarke jeder App.</li>
+  </ul>
+
+  <h2>2. Transkribieren – ohne einen Klick</h2>
+  <p>Der Ordnerwächter (bietet der Installer an) sieht neue Dateien in <code>~/Transcriber</code> und seinen Unterordnern, wartet, bis die Übertragung fertig ist, und legt Transkript und erkannte Sprecher neben die Aufnahme. Aufnahmen aus dem Panel transkribiert die App selbst.</p>
+
+  <h2>3. Sprechender Dateiname</h2>
+  <p>Aus <code>Aufnahme 2026-10-23 22-52</code> wird <code>2026-10-23 22-52 Budgetplanung Q4</code> – Apple Intelligence liest das Transkript auf dem Mac (macOS 26). Das passiert, solange die App läuft; für Aufnahmen, die nachts vom Handy kommen, in den Einstellungen <em>Bei Anmeldung starten</em> einschalten.</p>
+
+  <h2>4. Zusammenfassen – lokal oder Cloud mit Namensschutz</h2>
+  <p>In <em>Einstellungen › KI</em> ein Modell wählen und <em>Nach jeder Transkription automatisch zusammenfassen</em> einschalten: Protokoll mit Aufgaben, Kurzfassung, Auftrag im 5-Punkte-Schema, Supervisionsnotiz, Kernaussagen, E-Mail zum Nachfassen oder eine eigene Vorlage. Mit einem lokalen Modell (Ollama, LM Studio, MTPLX) verlässt nichts den Mac. Cloud-Anbieter laufen nur auf Klick, und die Namen der Beteiligten werden vorher durch Platzhalter ersetzt.</p>
+
+  <h2>5. Weitergeben</h2>
+  <ul>
+    <li><strong>Teilen:</strong> per Mail (mit Betreff, formatiert, Aufgaben als Kästchen), Nachrichten, Notizen oder als Datei.</li>
+    <li><strong>Weiterarbeiten</strong> in Claude, Claude Code oder Codex – direkt aus dem Eintrag.</li>
+    <li><strong>KI-Agenten</strong> wie Claude finden, lesen und fassen Gespräche über den mitgelieferten MCP-Server zusammen.</li>
+    <li><strong>Obsidian:</strong> Das <a href="obsidian-transkripte.html">Plugin</a> macht aus jedem Gespräch eine Notiz, die Zusammenfassung mit abhakbaren Aufgaben obenauf.</li>
+  </ul>
+
+  <h2>6. Fertig? Original löschen</h2>
+  <p>Gerade bei vertraulichen Gesprächen soll die Aufnahme nicht ewig herumliegen. Das Papierkorb-Symbol am Eintrag löscht <em>Nur Aufnahme</em> (Transkript und Zusammenfassung bleiben) oder <em>Alles</em>. Ist der Syncthing-Ordner auf „Senden &amp; Empfangen“ eingestellt, verschwindet die Aufnahme damit auch vom Handy – das erledigt Syncthing. Auf Wunsch löscht Local Transcriber alle transkribierten Audio- und Videodateien in <code>~/Transcriber</code> automatisch 30 Tage nach dem Transkript.</p>
+
+  <h2>Ehrlich: die Grenzen</h2>
+  <p>Nur Macs mit Apple Silicon (macOS 14+; sprechende Namen ab macOS 26 mit Apple Intelligence). Sprechende Namen und automatische Zusammenfassung brauchen die laufende App. Den Weg vom Handy zum Mac richtest du selbst ein; Local Transcriber kümmert sich um alles ab dem Ordner. Und das Einverständnis aller vor der Aufnahme einzuholen, bleibt deine Sache. Schritt für Schritt mit allen Einstellungen: <a href="https://github.com/teconomix/local-transcriber/blob/main/docs/de/ARBEITSABLAUF.md">Arbeitsablauf in der Dokumentation</a>.</p>
+
+  <h2>Installieren</h2>
+  <p>Terminal öffnen (<kbd>⌘</kbd> + <kbd>Leertaste</kbd>, „Terminal“) und einfügen – den Rest erledigt der Installer in etwa zehn Minuten:</p>
+  <div class="cmd">
+    <pre id="install-cmd-a">curl -fsSL https://transcriber.teconomix.net/k/seo-ablauf-de/install.sh | bash</pre>
+    <button class="copy-btn" type="button" data-copied="Kopiert" data-copy="install-cmd-a" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>
+      <span aria-live="polite">Kopieren</span>
+    </button>
+  </div>
+  <p>Oder mit Homebrew: <code>brew install --cask teconomix/tap/local-transcriber</code>. Anleitung mit Bildern und 80-Sekunden-Video: <a href="./?k=seo-ablauf-de#installation">Startseite</a>.</p>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Local Transcriber · Open Source (MIT) · ohne Gewähr</span>
+    <nav aria-label="Rechtliches und Links">
+      <a href="impressum.html">Impressum</a>
+      <a href="datenschutz.html">Datenschutz</a>
+      <a href="beratung.html">Für Beratung &amp; Supervision</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

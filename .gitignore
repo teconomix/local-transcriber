@@ -13,3 +13,4 @@ scripts/demo-video/png/
 scripts/demo-video/clips/
 scripts/demo-video/preview/
 scripts/demo-video/chrome-profile/
+scripts/demo-video/*.mp4

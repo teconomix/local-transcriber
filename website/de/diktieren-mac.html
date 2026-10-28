@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Diktieren am Mac ohne Cloud – Taste halten, sprechen, Text steht da | Local Transcriber</title>
+  <meta name="description" content="Diktat in jeder Mac-App: rechte ⌘-Taste halten, sprechen, loslassen – der Text erscheint an der Schreibmarke. Erkannt mit Whisper lokal auf dem Mac, ohne Cloud und ohne Konto. Kostenlos und Open Source.">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Local Transcriber">
+  <meta property="og:title" content="Diktieren am Mac ohne Cloud – Taste halten, sprechen, Text steht da">
+  <meta property="og:description" content="Diktat in jeder Mac-App, lokal mit Whisper erkannt – kostenlos und Open Source.">
+  <meta property="og:url" content="https://transcriber.teconomix.net/de/diktieren-mac.html">
+  <meta property="og:image" content="https://transcriber.teconomix.net/assets/og-de.png">
+  <meta property="og:locale" content="de_AT">
+  <meta name="color-scheme" content="light dark">
+  <meta name="referrer" content="no-referrer">
+  <link rel="canonical" href="https://transcriber.teconomix.net/de/diktieren-mac.html">
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../style.css?v=0.10">
+  <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/diktieren-mac.html">
+  <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/dictation-mac.html">
+  <script src="../script.js?v=0.10" defer></script>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="../assets/icon.svg" alt="" width="28" height="28">Local Transcriber</a>
+    <nav class="nav" aria-label="Hauptnavigation"><a class="opt" href="./?k=seo-diktat">Zur Startseite</a><a class="lang" href="../en/dictation-mac.html" hreflang="en" lang="en">English</a></nav>
+  </div>
+</header>
+
+<main class="legal article wrap">
+  <h1>Diktieren am Mac ohne Cloud – Taste halten, sprechen, Text steht da</h1>
+  <p class="article-lead">Eine Mail beantworten, eine Notiz festhalten, einem KI-Assistenten eine lange Anweisung geben – oft ist Sprechen schneller als Tippen. Local Transcriber macht daraus eine Taste: rechte <kbd>⌘</kbd> halten, sprechen, loslassen. Der Text erscheint dort, wo die Schreibmarke steht, in jeder App. Erkannt wird mit Whisper auf dem Mac selbst; der Ton verlässt den Rechner nicht.</p>
+
+  <h2>So funktioniert es</h2>
+  <ul>
+    <li><strong>Halten statt umschalten:</strong> Solange die Taste gedrückt ist, hört das Diktat zu. Ein Ton sagt dir, dass das Mikrofon wirklich aufnimmt, ein kleines Symbol neben der Schreibmarke zeigt den Zustand (startet, nimmt auf, erkennt).</li>
+    <li><strong>In jeder App:</strong> Mail, Slack, Browser, Notizen, Terminal – eingefügt wird an der Schreibmarke. Was vorher in der Zwischenablage lag, legt die App danach wieder zurück.</li>
+    <li><strong>Schnell:</strong> Zehn Sekunden Diktat sind in unseren Messungen in rund 0,2 Sekunden erkannt (Whisper large-v3-turbo auf der Grafikeinheit des Mac).</li>
+    <li><strong>Deine Begriffe:</strong> Das Glossar (Namen, Fachwörter, Abkürzungen) gilt auch fürs Diktat.</li>
+    <li><strong>Auch während einer Aufnahme:</strong> Notizen im laufenden Call diktieren – das Diktat nutzt dann den Mikrofonton der Aufnahme mit.</li>
+    <li><strong>Tasten frei wählbar:</strong> rechte <kbd>⌘</kbd>, <kbd>⌥</kbd>, <kbd>⌃</kbd> oder <kbd>fn</kbd>. Drückst du dazu eine andere Taste, bleibt es ein normales Tastenkürzel.</li>
+  </ul>
+
+  <h2>Mit KI aufräumen – auf dem Gerät</h2>
+  <p>Mit der zweiten Taste (Standard: rechte <kbd>⌥</kbd>) geht der erkannte Text vorher durch Apple Intelligence auf dem Mac (macOS 26): Füllwörter fallen weg, Satzzeichen kommen dazu, gesprochene Dateinamen werden richtig geschrieben („dictate punkt py“ → <code>dictate.py</code>). Auf Wunsch liest es dafür den Text des aktiven Fensters mit, damit Namen stimmen – nur im Speicher, nichts wird abgelegt. Weicht das Ergebnis zu stark vom Gesagten ab, wird der Rohtext eingefügt.</p>
+
+  <h2>Ehrlich: die Grenzen</h2>
+  <ul>
+    <li><strong>Kein Live-Text:</strong> Der Text erscheint nach dem Loslassen, nicht Wort für Wort beim Sprechen.</li>
+    <li><strong>Selbstkorrekturen</strong> („Dienstag, nein, Mittwoch“) löst auch das KI-Aufräumen nicht zuverlässig auf.</li>
+    <li>Das Aufräumen braucht macOS 26 mit Apple Intelligence; das wörtliche Diktat läuft ab macOS 14.</li>
+    <li>Nur Macs mit Apple Silicon. Solange das Diktat eingeschaltet ist, hält ein Hintergrunddienst das Sprachmodell im Speicher (rund 1,7 GB) – der Schalter im Panel gibt ihn wieder frei.</li>
+    <li>macOS fragt nach der Freigabe <em>Bedienungshilfen</em> (Taste erkennen, Text einfügen); für den Fenstertext als Kontext zusätzlich nach <em>Bildschirmaufnahme</em>.</li>
+  </ul>
+
+  <h2>Mehr als Diktat</h2>
+  <p>Dasselbe Werkzeug nimmt Besprechungen und Calls auf, transkribiert sie mit Sprechererkennung und macht auf Wunsch ein Protokoll daraus – siehe <a href="lokal-transkribieren.html">Gespräche transkribieren ohne Cloud</a>.</p>
+
+  <h2>Installieren</h2>
+  <p>Terminal öffnen (<kbd>⌘</kbd> + <kbd>Leertaste</kbd>, „Terminal“) und einfügen – den Rest erledigt der Installer in etwa zehn Minuten. Danach das Diktat im Panel einschalten.</p>
+  <div class="cmd">
+    <pre id="install-cmd-a">curl -fsSL https://transcriber.teconomix.net/k/seo-diktat/install.sh | bash</pre>
+    <button class="copy-btn" type="button" data-copied="Kopiert" data-copy="install-cmd-a" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>
+      <span aria-live="polite">Kopieren</span>
+    </button>
+  </div>
+  <p>Oder mit Homebrew: <code>brew install --cask teconomix/tap/local-transcriber</code>. Anleitung mit Bildern und 80-Sekunden-Video: <a href="./?k=seo-diktat#installation">Startseite</a>. Quellcode: Open Source (MIT).</p>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Local Transcriber · Open Source (MIT) · ohne Gewähr</span>
+    <nav aria-label="Rechtliches und Links">
+      <a href="impressum.html">Impressum</a>
+      <a href="datenschutz.html">Datenschutz</a>
+      <a href="beratung.html">Für Beratung &amp; Supervision</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

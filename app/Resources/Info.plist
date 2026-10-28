@@ -16,6 +16,7 @@
   <key>LSUIElement</key><true/>
   <key>NSMicrophoneUsageDescription</key><string>Transcriber nimmt Gespräche auf, um sie lokal zu transkribieren.</string>
   <key>NSCalendarsFullAccessUsageDescription</key><string>Transcriber nimmt Titel und Teilnehmer des laufenden Termins, um Aufnahmen zu benennen und Sprecher vorzuschlagen.</string>
+  <key>NSDownloadsFolderUsageDescription</key><string>Transcriber übernimmt per AirDrop empfangene Aufnahmen aus „Downloads“ (nur wenn in den Einstellungen eingeschaltet).</string>
   <key>NSAudioCaptureUsageDescription</key><string>Transcriber nimmt den Systemton (z. B. Videokonferenz) als zweite Spur auf.</string>
 </dict>
 </plist>

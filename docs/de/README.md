@@ -8,7 +8,7 @@ Local Transcriber (in der Menüleiste kurz „Transcriber“) ist ein kleines Me
 wer gesprochen hat, und lässt dich überall per Tastendruck diktieren. Alles läuft lokal auf dem Mac – kein Konto,
 kein Abo, kein Lizenzserver, kein Audio, das den Rechner verlässt.
 
-[![Demo-Video (70 s) auf der Website](https://transcriber.teconomix.net/assets/video/poster-de.jpg)](https://transcriber.teconomix.net/de/?k=github)
+[![Demo-Video (80 s) auf der Website](https://transcriber.teconomix.net/assets/video/poster-de.jpg)](https://transcriber.teconomix.net/de/?k=github)
 
 ```bash
 curl -fsSL https://transcriber.teconomix.net/k/github/install.sh | bash
@@ -29,7 +29,7 @@ Oder mit Homebrew: `brew install --cask teconomix/tap/local-transcriber`. Fragen
 - **Lokale KI** (macOS 26) – Diktat aufräumen, sprechende Dateinamen – mit Apple Intelligence auf dem Gerät.
 - **Für Profis** – Ordnerwächter, Text oder Markdown, JSON, SRT, Glossar, Kommandozeile, MCP-Server für KI-Agenten.
 
-Ausführlich: [FUNKTIONEN.md](FUNKTIONEN.md) · Bedienung: [ANLEITUNG.md](ANLEITUNG.md) ·
+Ausführlich: [FUNKTIONEN.md](FUNKTIONEN.md) · Bedienung: [ANLEITUNG.md](ANLEITUNG.md) · Arbeitsablauf: [ARBEITSABLAUF.md](ARBEITSABLAUF.md) ·
 Installation: [INSTALLATION.md](INSTALLATION.md) · Datenschutz: [DATENSCHUTZ.md](DATENSCHUTZ.md)
 
 ## Voraussetzungen

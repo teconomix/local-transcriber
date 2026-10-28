@@ -55,7 +55,7 @@ def transcribe(samples, language="de"):
     text = ""
     if a is not None:
         import mlx_whisper
-        r = mlx_whisper.transcribe(a, path_or_hf_repo=asr.REPO, language=language, verbose=None,
+        r = mlx_whisper.transcribe(a, path_or_hf_repo=asr.path(), language=language, verbose=None,
                                    condition_on_previous_text=False)
         text = " ".join(s["text"].strip() for s in r["segments"] if s["text"].strip()).replace("\ufffd", "")  # halbe Zeichen
         if text.lower().strip(" .!").startswith(PHANTOM) and len(text) < 60:
@@ -81,6 +81,8 @@ def _read_exact(f, n):
 
 
 class Handler(socketserver.StreamRequestHandler):
+    timeout = 30        # Lese-Timeout je Verbindung: ein stummer Client blockiert den (einzelnen) Dienst sonst für immer
+
     def handle(self):
         try:
             head = json.loads(self.rfile.readline())
@@ -113,7 +115,7 @@ def serve():
     # Modell laden und einmal durchrechnen, damit das erste echte Diktat nicht den Kaltstart bezahlt.
     t0 = time.monotonic()
     import mlx_whisper
-    mlx_whisper.transcribe(np.zeros(RATE, dtype=np.float32), path_or_hf_repo=asr.REPO, language="de", verbose=None)
+    mlx_whisper.transcribe(np.zeros(RATE, dtype=np.float32), path_or_hf_repo=asr.path(), language="de", verbose=None)
     print(t("Diktat-Dienst bereit", "Dictation service ready") + f" ({time.monotonic() - t0:.1f} s), {SOCK}", file=sys.stderr, flush=True)
     old = os.umask(0o077)                     # Socket nur für diesen Benutzer
     try:

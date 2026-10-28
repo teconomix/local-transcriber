@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Ordnerüberwachung (~/Transkription) als LaunchAgent einrichten bzw. mit „--remove“ entfernen.
+# Ordnerüberwachung (~/Transcriber) als LaunchAgent einrichten bzw. mit „--remove“ entfernen.
 set -euo pipefail
 P=~/Library/LaunchAgents/net.teconomix.transcriber.watch.plist
 launchctl bootout gui/$(id -u) "$P" 2>/dev/null || true

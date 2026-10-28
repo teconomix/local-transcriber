@@ -20,6 +20,10 @@ installation, Transcriber needs no internet connection – unless you explicitly
 
 - **Whisper large-v3-turbo** via MLX on the GPU: ~50× real time (47 min of audio in ~1 min), plus speaker
   recognition at ~28× real time.
+- **Two speech recognition models:** Whisper turbo in 8-bit (default for new installations, 0.9 GB) or 16-bit
+  (1.6 GB) – measured just as accurate; 8-bit needs about 0.8 GB less memory (dictation too). Switch in Settings ›
+  Recording › Speech recognition (downloads the model if needed) and delete the unused one there. Installations
+  from before 0.10 keep 16-bit. Command line: `transcriber model [turbo|turbo-8bit] [--download] [--remove NAME]`.
 - **About 100 languages** (all that Whisper knows). Initially offered are German, English, Spanish and French; select
   or deselect more in Settings › Recording › “Languages to choose from”. Widely spoken languages work best, rare ones
   noticeably worse. If a recording is clearly in another language than selected, the detected one is used.
@@ -27,7 +31,7 @@ installation, Transcriber needs no internet connection – unless you explicitly
   `.md` selectable in Settings › Recording), `<name>.transcript.json`
   (complete, machine-readable), optionally `<name>.srt` (subtitles).
 - **Deleting:** recording only (transcript stays) or everything incl. the voices from that conversation; optionally
-  recordings are deleted automatically after 30 days. Working copies are always deleted along.
+  all transcribed audio and video files in `~/Transcriber` are deleted automatically 30 days after transcription. Working copies are always deleted along.
 - **Glossary** for names and technical terms: fixed replacements after recognition, in the app under Settings › Glossary
   (or `transcriber vocab 'dG = DG, D.G.'`); can be applied to existing transcripts afterwards.
 - **Repair:** passages where Whisper drops all punctuation are re-recognized individually and only taken over if the
@@ -86,6 +90,8 @@ updated accordingly.
 - **Locally** via Ollama, LM Studio, MTPLX or any server with an OpenAI-style API – the conversation never leaves the
   Mac. **Cloud** via OpenAI, Anthropic, Mistral, OpenRouter with your own key: only on click (automation only when
   explicitly enabled), names replaced with placeholders first (can be switched off).
+- **Local server on demand:** with a start command (e.g. `ollama serve`), Transcriber starts the server when needed
+  and stops it again after a set idle time or when the app quits.
 - On click or automatically after every transcription; result as `<name>.summary.md` next to the transcript, the
   panel shows the first key points and action items. New speaker names carry over into the summary.
 - **Continue** in Claude, Claude Code or Codex with one click (the app opens with a prepared text, nothing is sent). In

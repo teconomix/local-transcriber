@@ -3,8 +3,8 @@ import ScreenCaptureKit
 import Vision
 
 /// Text des aktiven Fensters als Kontext fürs KI-Aufräumen (nur ⌥-Modus): Namen, Dateinamen und Fachbegriffe richtig
-/// schreiben. Bild des vordersten Fensters der aktiven App (ScreenCaptureKit, Freigabe „Bildschirmaufnahme“ hat die App
-/// schon für den Systemton) → Texterkennung (Vision, lokal). Läuft parallel zur Aufnahme. Bild und Text bleiben im
+/// schreiben. Bild des vordersten Fensters der aktiven App (ScreenCaptureKit, Freigabe „Bildschirmaufnahme“ – der
+/// Systemton braucht sie seit dem Process-Tap nicht mehr, macOS fragt also beim ersten ⌥-Diktat) → Texterkennung (Vision, lokal). Läuft parallel zur Aufnahme. Bild und Text bleiben im
 /// Arbeitsspeicher, nichts wird gespeichert oder protokolliert (nur die Zeichenzahl).
 /// Über die Bedienungshilfen ginge es ohne Bild, liefert in Electron-Apps (Claude, Slack, VS Code) aber kaum Text.
 ///

@@ -78,7 +78,7 @@ enum DictationCleanup {
         do {
             // Je Diktat eine neue Sitzung: eine Sitzung sammelt sonst den Verlauf und füllt den Kontext.
             let session = LanguageModelSession(model: model, instructions: fullInstructions() + (screen.map(screenBlock) ?? ""))
-            let r = try await session.respond(to: raw, options: GenerationOptions(sampling: .greedy))
+            let r = try await session.respond(to: raw, options: GenerationOptions(samplingMode: .greedy))
             let ms = Int(Date().timeIntervalSince(t0) * 1000)
             let out = r.content.trimmingCharacters(in: CharacterSet(charactersIn: "\"„“”»« \n"))
             let ratio = Double(out.count) / Double(max(raw.count, 1))

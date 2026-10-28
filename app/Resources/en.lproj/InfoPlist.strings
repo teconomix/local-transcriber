@@ -1,3 +1,4 @@
 "NSMicrophoneUsageDescription" = "Transcriber records conversations to transcribe them locally.";
 "NSCalendarsFullAccessUsageDescription" = "Transcriber uses the title and attendees of the current event to name recordings and suggest speakers.";
 "NSAudioCaptureUsageDescription" = "Transcriber records the system audio (e.g. a video call) as a second track.";
+"NSDownloadsFolderUsageDescription" = "Transcriber picks up recordings received via AirDrop from “Downloads” (only when turned on in Settings).";

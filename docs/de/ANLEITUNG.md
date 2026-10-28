@@ -22,7 +22,22 @@ Klick auf das Wellen-Symbol in der Menüleiste öffnet das Panel:
    Escape bricht ab). *Neu auswerten* bietet **Namen neu zuordnen** (nur neuer Abgleich mit der
    Stimmdatenbank, in einer Sekunde) und **Sprecher neu trennen** mit Automatisch oder 1–10 Personen (wenn zwei Personen
    vermischt oder eine aufgeteilt wurde).
+   Oben steht, woran du zuletzt gearbeitet hast (transkribiert, benannt, zusammengefasst, umbenannt); die Reihenfolge
+   ändert sich erst beim nächsten Öffnen des Panels. In Einstellungen › Allgemein lässt sich stattdessen nach
+   Aufnahmedatum, Titel oder Länge sortieren. Die Liste zeigt, was in den letzten 7 Tagen bearbeitet wurde
+   (Einstellungen › Allgemein). Der **Pfeil** vor dem Titel klappt einen Eintrag zu – dann bleiben Titel und der Anfang
+   der Zusammenfassung, praktisch für Erledigtes, das du noch griffbereit haben willst. **Alle** öffnet das Fenster
+   *Alle Transkriptionen*.
 5. Unten: **Ordner** · **Einstellungen** (⌘,) · Käfer (Fehler melden) · **Beenden**.
+
+## Alle Transkriptionen
+
+**Alle** im Panel öffnet ein Fenster mit jedem Transkript in `~/Transcriber`, auch älteren und im Panel entfernten.
+Filtern nach Unterordner (z. B. *Aufnahmen*, *Handy*), sortieren nach Aufnahmedatum, zuletzt bearbeitet, Titel oder
+Länge, suchen in Titeln, Terminen und Sprechernamen. Mehrere Begriffe müssen alle vorkommen: „Anna Max“ findet die
+Gespräche, in denen beide dabei waren. Rechts funktioniert der gewählte Eintrag wie im Panel – Sprecher benennen,
+zusammenfassen, umbenennen, löschen. Das Aufnahmedatum stammt aus der Audiodatei selbst; später synchronisierte
+Handy-Aufnahmen stehen deshalb trotzdem richtig.
 
 ## Ein Meeting aufnehmen
 
@@ -96,6 +111,12 @@ Ein Sprachmodell macht aus einem fertigen Transkript ein Protokoll, eine Kurzfas
    (jeder Server mit Schnittstelle nach OpenAI-Art), in der Cloud **OpenAI**, **Anthropic**, **Mistral** oder
    **OpenRouter** mit eigenem Schlüssel (liegt im Schlüsselbund). Modell eintragen oder nach **Verbindung testen** aus
    der Liste wählen.
+   Optional bei einem lokalen Server: ein **Startbefehl** (z. B. `ollama serve` oder ein Skript, das MTPLX startet).
+   Läuft der Server nicht, startet Transcriber ihn damit, wartet, bis er antwortet (ein großes Modell lädt 10–60 s),
+   und beendet ihn nach der eingestellten Zeit ohne Nutzung (5–60 min oder nie) bzw. beim Beenden der App wieder –
+   nicht aber, solange noch eine Zusammenfassung läuft. Einen selbst gestarteten Server beendet es nie. Kehrt der Befehl
+   sofort zurück und der Server läuft woanders weiter (LM Studio: `lms server start`), braucht das Beenden
+   `stop_command` in `config.json`. Kommandozeile: `transcriber ai-server` (Status), `--start`, `--stop`.
 2. Im Panel unter einem Transkript **Zusammenfassen** → Vorlage wählen. Ergebnis: `<Name>.summary.md` neben dem
    Transkript; der Eintrag zeigt die ersten Kernpunkte und Aufgaben mit **Öffnen · Kopieren · Teilen · ⋯**. **Teilen**
    öffnet das macOS-Menü (Mail mit Betreff und formatiertem Text, Nachrichten, Notizen …); im ⋯-Menü: andere Vorlage, neu
@@ -129,8 +150,9 @@ Das **Papierkorb-Symbol** neben einem Eintrag im Panel fragt, wie viel weg soll:
 
 Transcriber löscht dabei auch seine Arbeitskopien des Audios (in `~/.local/share/transcriber/cache/`). Im Finder
 gelöscht, räumt Transcriber innerhalb weniger Minuten genauso auf. Eine Notiz in Obsidian löschst du dort selbst.
-**Einstellungen › Aufnahme › „Aufnahmen nach 30 Tagen löschen“** macht „Nur Aufnahme“ automatisch für transkribierte
-Aufnahmen im Aufnahmeordner. Kommandozeile: `transcriber delete DATEI [--audio-only]`.
+**Einstellungen › Aufnahme › „Audio nach 30 Tagen löschen“** macht „Nur Aufnahme“ automatisch für alle transkribierten
+Audio- und Videodateien in `~/Transcriber` samt Unterordnern, 30 Tage nach dem Transkript (nicht nach dem Datum der
+Datei – eine alte Aufnahme, die du heute hineinlegst, bleibt 30 Tage). Kommandozeile: `transcriber delete DATEI [--audio-only]`.
 
 ## Einstellungen
 
@@ -138,7 +160,7 @@ Die Bereiche stehen links im Fenster.
 
 | Bereich | Inhalt |
 |---|---|
-| Allgemein | Version, Datenordner, bei Anmeldung starten, einmal täglich nach Updates suchen (optional); gibt es eine neue Version, legt „Update-Befehl kopieren“ den passenden Befehl in die Zwischenablage – im Terminal einfügen und Return drücken |
+| Allgemein | Version, Datenordner, bei Anmeldung starten, Zeitraum und Sortierung der Liste im Panel (ab letzter Bearbeitung, Standard 7 Tage), einmal täglich nach Updates suchen (optional); gibt es eine neue Version, legt „Update-Befehl kopieren“ den passenden Befehl in die Zwischenablage – im Terminal einfügen und Return drücken |
 | Aufnahme | Systemton mitschneiden, Sprachverarbeitung, nach der Aufnahme transkribieren/benennen, Calls erkennen, Sprachen zur Auswahl |
 | Diktat | ein/aus, Tasten (wörtlich / mit KI), Bildschirmtext als Kontext, Ton, Symbol, Sprachverarbeitung |
 | Kalender | Termine nutzen, Auswahl der Kalender |

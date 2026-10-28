@@ -11,7 +11,7 @@ enum RecordingTitle {
     /// Datum/Uhrzeit aus dem Standardnamen, sonst nil (Datei wurde schon benannt oder stammt nicht aus der App).
     static func defaultStamp(_ url: URL) -> String? {
         let name = url.deletingPathExtension().lastPathComponent
-        guard let m = name.wholeMatch(of: #/(?:Aufnahme|Recording) (\d{4}-\d{2}-\d{2} \d{2}-\d{2})(?: \d+)?/#) else { return nil }
+        guard let m = name.wholeMatch(of: #/(?:Aufnahme|Recording) (\d{4}-\d{2}-\d{2} \d{2}-\d{2})(?:[ -]\d+)?/#) else { return nil }
         return String(m.1)
     }
 
@@ -40,7 +40,7 @@ enum RecordingTitle {
         do {
             let model = SystemLanguageModel(useCase: .general, guardrails: .permissiveContentTransformations)
             let r = try await LanguageModelSession(model: model, instructions: instructions)
-                .respond(to: text, options: GenerationOptions(sampling: .greedy))
+                .respond(to: text, options: GenerationOptions(samplingMode: .greedy))
             let t = (r.content.split(separator: "\n").first.map(String.init) ?? "")
                 .trimmingCharacters(in: CharacterSet(charactersIn: "\"„“”»«'*#.:;!? ").union(.whitespaces))
             let words = t.split(separator: " ").count

@@ -43,6 +43,8 @@ struct GeneralSettings: View {
     @EnvironmentObject var updates: UpdateCheck
     @State private var copied = false
     @State private var login = SMAppService.mainApp.status
+    @AppStorage("panelDays") private var panelDays = 7
+    @AppStorage("panelSort") private var panelSort = LibraryModel.Sort.activity.rawValue
 
     var body: some View {
         Form {
@@ -54,6 +56,20 @@ struct GeneralSettings: View {
                     do { try on ? SMAppService.mainApp.register() : SMAppService.mainApp.unregister() } catch { appLog("Anmeldeobjekt: \(error)") }
                     login = SMAppService.mainApp.status
                 }))
+                VStack(alignment: .leading, spacing: 4) {
+                    Picker("Liste im Panel", selection: $panelDays) {
+                        Text("Letzten Tag").tag(1); Text("Letzte 3 Tage").tag(3); Text("Letzte 7 Tage").tag(7)
+                        Text("Letzte 30 Tage").tag(30); Text("Alle").tag(0)
+                    }
+                    Picker("Sortierung im Panel", selection: $panelSort) {
+                        Text("Zuletzt bearbeitet").tag(LibraryModel.Sort.activity.rawValue)
+                        Text("Aufnahmedatum").tag(LibraryModel.Sort.recorded.rawValue)
+                        Text("Titel").tag(LibraryModel.Sort.title.rawValue)
+                        Text("Länge").tag(LibraryModel.Sort.length.rawValue)
+                    }
+                    Text("Nur für die Liste im Panel: Einträge, die in diesem Zeitraum zuletzt bearbeitet wurden (transkribiert, benannt, zusammengefasst, umbenannt). Neu geordnet wird beim Öffnen des Panels. Alles zeigt das Fenster „Alle Transkriptionen“.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
                 if login == .requiresApproval {
                     HStack {
                         Text("macOS muss das Anmeldeobjekt noch erlauben.").foregroundStyle(.orange)
@@ -104,10 +120,21 @@ struct RecordingSettings: View {
     @AppStorage("audioRetention") private var audioRetention = false
     @AppStorage("autoTitle") private var autoTitle = true
     @AppStorage("callDetect") private var callDetect = true
+    @AppStorage("icloudInbox") private var icloudInbox = false
+    @AppStorage("airdropInbox") private var airdropInbox = false
     @AppStorage("language") private var language = "de"
     @AppStorage("languages") private var languages = Core.defaultLanguages
     @State private var filter = ""
     @State private var textFormat = Core.textFormat
+    @EnvironmentObject var dictation: Dictation
+    @State private var asrModel = ""                       // leer, bis der Kern geantwortet hat
+    @State private var asrCurrent = ""             // was der Kern eingestellt hat (loadModels)
+    @State private var asrInstalled: Set<String> = []
+    @State private var asrBusy: String?                    // Hinweis während Laden/Löschen
+    @State private var asrError: String?
+    @State private var asrRemove: String?
+    static let asrLabels: [(id: String, label: LocalizedStringKey)] = [
+        ("turbo-8bit", "Whisper turbo, 8 Bit (0,9 GB)"), ("turbo", "Whisper turbo, 16 Bit (1,6 GB)")]
 
     var body: some View {
         Form {
@@ -116,6 +143,37 @@ struct RecordingSettings: View {
                     .help("Der Ton der anderen im Call. Im Raum-Meeting bleibt die Spur leer und schadet nicht.")
                 Toggle("Sprachverarbeitung fürs Mikrofon (Pegel, Rausch- und Echounterdrückung)", isOn: $voiceProcessing)
                     .help("Apple Voice Processing. Aus = Rohsignal.")
+            }
+            Section("Spracherkennung") {
+                Picker("Modell", selection: $asrModel) {
+                    if asrModel.isEmpty { Text(verbatim: "…").tag("") }
+                    ForEach(Self.asrLabels, id: \.id) { Text($0.label).tag($0.id) }
+                }
+                .disabled(asrBusy != nil || asrModel.isEmpty)
+                .onChange(of: asrModel) { old, new in
+                    // new == asrCurrent: loadModels hat zurückgestellt (Wechsel gescheitert) – kein zweiter Wechsel
+                    guard !old.isEmpty, !new.isEmpty, new != old, new != asrCurrent, asrBusy == nil else { return }
+                    Task { await switchModel(to: new, from: old) }
+                }
+                Text("8 Bit erkennt gemessen gleich genau, braucht aber halb so viel Platz und rund 0,8 GB weniger Arbeitsspeicher. Ein noch nicht geladenes Modell wird beim Wechsel einmal aus dem Internet geladen; es gilt ab dem nächsten Auftrag.")
+                    .font(.caption).foregroundStyle(.secondary)
+                if let asrBusy {
+                    HStack(spacing: 6) { ProgressView().controlSize(.small); Text(asrBusy) }
+                }
+                ForEach(Self.asrLabels.filter { $0.id != asrModel && asrInstalled.contains($0.id) }, id: \.id) { m in
+                    HStack {
+                        Text("\(Text(m.label)) liegt noch auf diesem Mac, wird aber nicht genutzt.").font(.caption)
+                        Spacer()
+                        Button("Löschen …") { asrRemove = m.id }.disabled(asrBusy != nil)
+                    }
+                }
+                if let asrError { Text(asrError).font(.caption).foregroundStyle(.red) }
+            }
+            .task { await loadModels() }
+            .confirmationDialog("Nicht genutztes Modell löschen?", isPresented: Binding(get: { asrRemove != nil }, set: { if !$0 { asrRemove = nil } })) {
+                Button("Löschen", role: .destructive) { if let m = asrRemove { Task { await removeModel(m) } } }
+            } message: {
+                Text("Es lässt sich jederzeit wieder laden, indem du es hier auswählst. Andere Programme, die dasselbe Modell aus dem Hugging-Face-Zwischenspeicher nutzen, müssten es dann neu laden.")
             }
             Section("Nach der Aufnahme") {
                 Toggle("Transkribieren", isOn: $autoTranscribe)
@@ -126,9 +184,43 @@ struct RecordingSettings: View {
                     Text("Markdown (.md)").tag("md")
                 }
                 .onChange(of: textFormat) { _, new in Core.textFormat = new }
-                Toggle("Aufnahmen nach 30 Tagen löschen (Transkripte bleiben)", isOn: $audioRetention)
-                    .help("Nur fertig transkribierte Aufnahmen im Aufnahmeordner. Das Audio kommt in den Papierkorb; Transkript, Stimmen und Namen bleiben.")
                 .help("Text öffnet auf jedem Mac in TextEdit. Markdown (Überschrift, Sprecher-Tabelle, fette Namen) eignet sich für Obsidian & Co. Gilt für neue Transkripte; vorhandene behalten ihr Format.")
+                Toggle(isOn: $audioRetention) {
+                    Text("Audio nach 30 Tagen löschen (Transkripte bleiben)")
+                    Text("Alle fertig transkribierten Audio- und Videodateien in ~/Transcriber samt Unterordnern, 30 Tage nach dem Transkript. Sie kommen in den Papierkorb; Transkript, Zusammenfassung und Stimmen bleiben.")
+                }
+            }
+            Section("iPhone") {
+                Toggle("Aufnahmen vom iPhone aus iCloud Drive holen", isOn: $icloudInbox).disabled(!ICloudInbox.available)
+                    .help("Ordner „iCloud Drive › Transcriber“ und „iCloud Drive › Kurzbefehle › Transcriber“: Was dort ankommt, verschiebt die App nach ~/Transcriber/iPhone und transkribiert es. In iCloud bleibt nichts zurück.")
+                if !ICloudInbox.available {
+                    Text("iCloud Drive ist auf diesem Mac nicht eingeschaltet.").font(.caption).foregroundStyle(.secondary)
+                } else if icloudInbox {
+                    Text("Die Aufnahme liegt kurz in iCloud, bis dieser Mac sie abholt. Für vertrauliche Gespräche „Erweiterten Datenschutz“ für iCloud einschalten oder AirDrop nehmen.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Button("Ordner im Finder zeigen") {
+                        try? FileManager.default.createDirectory(at: ICloudInbox.inbox, withIntermediateDirectories: true)
+                        NSWorkspace.shared.activateFileViewerSelecting([ICloudInbox.inbox])
+                    }
+                    HStack(alignment: .top, spacing: 14) {
+                        if let qr = ICloudInbox.qrCode(ICloudInbox.shortcutWebURL) {
+                            Image(nsImage: qr).interpolation(.none)
+                                .padding(6).background(.white, in: RoundedRectangle(cornerRadius: 6))
+                                .help(ICloudInbox.shortcutWebURL.absoluteString)
+                        }
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Kurzbefehl „\(ICloudInbox.shortcutName)“ aufs iPhone").bold()
+                            Text("Mit der Kamera des iPhones scannen oder per AirDrop schicken, dann „Kurzbefehl hinzufügen“. Danach eine Aufnahme z. B. in Sprachmemos teilen › „\(ICloudInbox.shortcutName)“ – den Rest erledigt dieser Mac.")
+                                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                            Button("Per AirDrop senden …") { ICloudInbox.sendShortcutViaAirDrop() }
+                                .disabled(ICloudInbox.shortcutFile == nil)
+                        }
+                    }
+                }
+                Toggle("Per AirDrop empfangene Aufnahmen übernehmen", isOn: $airdropInbox)
+                    .onChange(of: airdropInbox) { _, on in AirDropInbox.setEnabled(on) }
+                Text("Ohne Cloud: am iPhone Teilen › AirDrop › dieser Mac. Transcriber schaut dafür im Download-Ordner nur nach Audiodateien, die per AirDrop ankommen, und verschiebt sie nach ~/Transcriber/iPhone. Andere Dateien bleiben unberührt. macOS fragt beim Einschalten einmal nach dem Zugriff auf „Downloads“.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Section("Videokonferenzen") {
                 Toggle("Calls erkennen und Aufnahme anbieten", isOn: $callDetect)
@@ -152,6 +244,38 @@ struct RecordingSettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private func loadModels() async {
+        guard let m = await Core.asrModels() else { asrError = String(localized: "Modell-Stand nicht lesbar (Protokoll: app.log)"); return }
+        asrInstalled = m.installed
+        asrCurrent = m.current
+        asrModel = m.current
+    }
+
+    private func switchModel(to new: String, from old: String) async {
+        asrError = nil
+        asrBusy = asrInstalled.contains(new) ? String(localized: "Modell wird eingestellt …") : String(localized: "Modell wird geladen …")
+        let (ok, out) = await Core.run(["model", new, "--download"])
+        asrBusy = nil
+        if ok {
+            dictation.modelChanged()                  // Diktat-Dienst hält das alte Modell geladen
+        } else {
+            appLog("Modellwechsel \(new) fehlgeschlagen: \(out)")
+            asrError = out.split(separator: "\n").last.map(String.init) ?? out
+        }
+        await loadModels()                            // zeigt, was wirklich eingestellt ist (bei Fehler: das alte)
+    }
+
+    private func removeModel(_ m: String) async {
+        asrError = nil; asrBusy = String(localized: "Modell wird gelöscht …")
+        let (ok, out) = await Core.run(["model", "--remove", m])
+        asrBusy = nil
+        if !ok {
+            appLog("Modell \(m) nicht gelöscht: \(out)")
+            asrError = out.split(separator: "\n").last.map(String.init) ?? out
+        }
+        await loadModels()
     }
 
     private func binding(_ code: String) -> Binding<Bool> {

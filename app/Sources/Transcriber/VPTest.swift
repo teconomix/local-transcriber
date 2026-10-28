@@ -444,7 +444,8 @@ enum VPTest {
             ("einstellungen", AnyView(SettingsView().environmentObject(dictation).environmentObject(calls).environmentObject(updates)
                 .environmentObject(jobs))),
             ("allgemein", AnyView(GeneralSettings().environmentObject(updates).frame(width: 520, height: 440))),
-            ("aufnahme", AnyView(RecordingSettings().frame(width: 520, height: 440))),
+            ("aufnahme", AnyView(RecordingSettings().environmentObject(dictation).frame(width: 520, height: 440))),
+            ("aufnahme-ganz", AnyView(RecordingSettings().environmentObject(dictation).frame(width: 520, height: 1250))),   // samt Abschnitt iPhone
             ("diktat", AnyView(DictationSettings().environmentObject(dictation).frame(width: 520, height: 440))),
             ("kalender", AnyView(CalendarSettings().frame(width: 520, height: 440))),
             ("glossar", AnyView(GlossarySettings().frame(width: 520, height: 440))),
@@ -452,6 +453,8 @@ enum VPTest {
             ("eintrag-zusammenfassung", AnyView(Group {
                 if let j = jobs.jobs.first(where: { $0.summary != nil }) { JobRow(job: j).environmentObject(jobs).frame(width: 412).padding(14) }
             })),
+            ("alle", AnyView(LibraryView().environmentObject(jobs).frame(width: 880, height: 680))),
+            ("alle-klein", AnyView(LibraryView().environmentObject(jobs).frame(width: 860, height: 420))),   // kleinstes Fenster
             ("stimmen", AnyView(VoicesView().frame(width: 620, height: 420))),
             ("fehler-melden", AnyView(ReportView())),
             ("stimmen-export", AnyView(PickVoices(title: String(localized: "Stimmen exportieren"), note: String(localized: "Je Person ein Stimmabdruck (256 Zahlen) mit Name – keine Aufnahmen, keine Titel oder Pfade. Stimmabdrücke sind biometrische Daten: nur mit Einwilligung der Personen weitergeben, möglichst über geschützte Wege. Die Datei ist nicht verschlüsselt."),

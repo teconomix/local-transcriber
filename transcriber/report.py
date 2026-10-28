@@ -2,8 +2,9 @@
 Glossar. Die App ruft `transcriber report` auf, legt ihre macOS-Infos (Freigaben, Audiogeräte, Einstellungen) als
 JSON dazu und hängt die ZIP-Datei an eine Mail an info@teconomix.net (2026-10-14).
 
-Unkenntlich (Standard): Dateinamen aus ~/Transcriber, Termintitel und Teilnehmer aus .event.json, Namen aus der
-Stimmdatenbank, E-Mail-Adressen, Benutzername und Home-Pfad werden durch Platzhalter ersetzt (‹Datei 3›, ‹Person 2› …).
+Unkenntlich (Standard): Datei- und Ordnernamen aus ~/Transcriber, Termintitel und Teilnehmer aus .event.json und
+.transcript.json, Sprechernamen, Namen aus der Stimmdatenbank, E-Mail-Adressen, Benutzername und Home-Pfad werden durch
+Platzhalter ersetzt (‹Datei 3›, ‹Person 2› …).
 Gleicher Name → gleicher Platzhalter, damit Abläufe im Protokoll lesbar bleiben."""
 import contextlib
 import json
@@ -19,10 +20,11 @@ from importlib import metadata
 from pathlib import Path
 
 from . import config
+from .summarize import PARTICLES
 
 LOGS = ("app.log", "watch.log", "dictate.log")
 TAIL = 2000                    # Zeilen je Protokoll
-AUDIO = {".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg", ".opus", ".mp4", ".mov", ".m4v", ".mkv", ".webm", ".caf", ".aiff", ".aif"}
+AUDIO = config.MEDIA_EXT
 
 
 class Redactor:
@@ -50,37 +52,64 @@ class Redactor:
         return s
 
 
-def _names(red, watch_dir):
-    """Vertrauliche Zeichenketten sammeln: Dateinamen, Termine, Personen, Benutzer."""
+def _person(red, n):
+    """Ganzer Name und seine Teile (ab 3 Zeichen, ohne „von“, „der“ …: die stehen auch in gewöhnlichen Meldungen)."""
+    red.add(n, "Person")
+    for part in (n or "").split():
+        if len(part) >= 3 and part.lower() not in PARTICLES:
+            red.add(part, "Name")
+
+
+def _event(red, ev):
+    red.add(ev.get("title"), "Termin")
+    red.add(ev.get("calendar"), "Kalender")
+    for a in ev.get("attendees", []):
+        _person(red, a.get("name"))
+
+
+def _db_rows(sql):
+    """Zeilen aus der Stimmdatenbank (nur lesend; fehlt sie, keine)."""
+    with contextlib.suppress(Exception), contextlib.closing(sqlite3.connect(f"file:{config.DB}?mode=ro", uri=True)) as db:
+        return db.execute(sql).fetchall()
+    return []
+
+
+def _folder(red, part, exclude):
+    if part not in exclude and re.search(r"[^\W\d_]", part):   # ohne Buchstaben („2026“) wie in jedem Zeitstempel
+        red.add(part, "Ordner")
+
+
+def _names(red, watch_dir, exclude=()):
+    """Vertrauliche Zeichenketten sammeln: Datei- und Ordnernamen, Termine, Personen, Benutzer.
+    exclude: Ordnernamen der App („Aufnahmen“) – nicht vertraulich, und als Wort in Meldungen nötig."""
     import getpass
     home = str(Path.home())
     if watch_dir.exists():
         for f in watch_dir.rglob("*"):
+            if f.is_dir():
+                for part in f.relative_to(watch_dir).parts:
+                    _folder(red, part, exclude)
+                continue
             if f.is_file() and (f.suffix.lower() in AUDIO or f.name.endswith(".transcript.json")):
                 stem = f.name.removesuffix(".transcript.json") if f.name.endswith(".transcript.json") else f.stem
                 red.add(stem, "Datei")
-            if f.name.endswith(".event.json"):
+            if f.name.endswith((".event.json", ".transcript.json")):
                 try:
-                    ev = json.loads(f.read_text())
+                    d = json.loads(f.read_text())
                 except (OSError, ValueError):
                     continue
-                red.add(ev.get("title"), "Termin")
-                red.add(ev.get("calendar"), "Kalender")
-                for a in ev.get("attendees", []):
-                    red.add(a.get("name"), "Person")
-    try:
-        import sqlite3
-        db = sqlite3.connect(f"file:{config.DB}?mode=ro", uri=True)
-        for (n,) in db.execute("SELECT name FROM persons"):
-            red.add(n, "Person")
-            for part in n.split():
-                if len(part) >= 4:
-                    red.add(part, "Name")
-    except Exception:
-        pass
-    # Auch Titel gelöschter oder umbenannter Aufnahmen, die nur noch im Protokoll stehen
+                if f.name.endswith(".event.json"):
+                    _event(red, d)
+                    continue
+                _event(red, d.get("event") or {})
+                for c in d.get("speakers", []):
+                    _person(red, c.get("name"))
+    for (n,) in _db_rows("SELECT name FROM persons"):
+        _person(red, n)
+    # Auch Titel gelöschter oder umbenannter Aufnahmen, die nur noch im Protokoll stehen (Wächter: de und en)
     pats = [(r"Aufnahme benannt in [\d.]+ s: (.+?)\.\w+$", "Datei"), (r"Termin zur Aufnahme: (.+) \(\d+ Teilnehmer\)$", "Termin"),
-            (r"Aufnahme (?:gestartet|beendet): (.+?)\.m4a", "Datei"), (r"→ (.+?)\.\w+$", "Datei"), (r"fertig: (.+?)\.(?:md|txt) ", "Datei"),
+            (r"Aufnahme (?:gestartet|beendet): (.+?)\.m4a", "Datei"), (r"→ (.+?)\.\w+$", "Datei"),
+            (r"(?:fertig|done): (.+?)\.(?:md|txt|json) ", "Datei"),
             (r"gelöscht(?:, Transkript bleibt)?: (.+?)\.\w+$", "Datei"),   # seit 2026-10-20 mit Namen; Datei gibt es nicht mehr
             (r"↪ (.+?)\.\w+: ", "Datei"), (r"(?:FEHLER, siehe|ERROR, see) (.+?)\.error\.txt", "Datei")]
     for name in LOGS:
@@ -89,13 +118,16 @@ def _names(red, watch_dir):
             for p, kind in pats:
                 if m := re.search(p, line):
                     red.add(m.group(1), kind)
+            if m := re.search(r"(?:überwache|watching) (/.+)$", line):   # anderer Wächterordner (--dir, alte Einstellung)
+                for part in Path(m.group(1)).parts[1:]:
+                    if part not in Path(home).parts + ("Volumes",):
+                        _folder(red, part, exclude)
     # Aufträge außerhalb des Wächterordners (CLI, MCP) stehen nur in den Statusdateien bzw. der Datenbank
     for f in config.JOBS.glob("*.json") if config.JOBS.exists() else []:
         with contextlib.suppress(OSError, ValueError):
             red.add(Path(json.loads(f.read_text()).get("source") or "").stem, "Datei")
-    with contextlib.suppress(Exception):
-        for (src,) in sqlite3.connect(f"file:{config.DB}?mode=ro", uri=True).execute("SELECT source FROM jobs"):
-            red.add(Path(src or "").stem, "Datei")
+    for (src,) in _db_rows("SELECT source FROM jobs"):
+        red.add(Path(src or "").stem, "Datei")
     user = getpass.getuser()
     if red.enabled:
         red.map[home] = "~"
@@ -122,14 +154,8 @@ def _core_info():
     models = sorted(p.name for p in hf.glob("models--*")) if hf.exists() else []
     local = sorted(p.name for p in (config.DATA / "models").glob("*")) if (config.DATA / "models").exists() else []
     ffmpeg = shutil.which("ffmpeg") or (str(config.DATA / "bin" / "ffmpeg") if (config.DATA / "bin" / "ffmpeg").exists() else None)
-    persons = refs = None
-    try:
-        import sqlite3
-        db = sqlite3.connect(f"file:{config.DB}?mode=ro", uri=True)
-        persons = db.execute("SELECT count(*) FROM persons").fetchone()[0]
-        refs = db.execute("SELECT count(*) FROM embeddings").fetchone()[0]
-    except Exception:
-        pass
+    persons = (_db_rows("SELECT count(*) FROM persons") or [(None,)])[0][0]
+    refs = (_db_rows("SELECT count(*) FROM embeddings") or [(None,)])[0][0]
     du = shutil.disk_usage(Path.home())
     return {"python": sys.version.split()[0], "platform": platform.platform(), "machine": platform.machine(),
             "packages": pkgs, "hf_models": models, "local_models": local, "ffmpeg": ffmpeg,
@@ -143,7 +169,7 @@ def build(out, description="", app_info=None, redact=True):
     cfg = config.load()
     watch_dir = Path(cfg["watch_dir"]).expanduser()
     red = Redactor(redact)
-    _names(red, watch_dir)
+    _names(red, watch_dir, cfg.get("watch_exclude", []))
     files = {}
     head = [f"Transcriber-Fehlerbericht vom {time.strftime('%Y-%m-%d %H:%M')}",
             f"Dateinamen/Termintitel unkenntlich: {'ja' if redact else 'nein'}", "", "Beschreibung:", description.strip() or "–", ""]

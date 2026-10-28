@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dictation on the Mac without the cloud – hold a key, speak, done | Local Transcriber</title>
+  <meta name="description" content="Dictate into any Mac app: hold the right ⌘ key, speak, release – the text appears at the cursor. Recognized with Whisper locally on the Mac, no cloud and no account. Free and open source.">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Local Transcriber">
+  <meta property="og:title" content="Dictation on the Mac without the cloud – hold a key, speak, done">
+  <meta property="og:description" content="Dictate into any Mac app, recognized locally with Whisper – free and open source.">
+  <meta property="og:url" content="https://transcriber.teconomix.net/en/dictation-mac.html">
+  <meta property="og:image" content="https://transcriber.teconomix.net/assets/og-en.png">
+  <meta property="og:locale" content="en_US">
+  <meta name="color-scheme" content="light dark">
+  <meta name="referrer" content="no-referrer">
+  <link rel="canonical" href="https://transcriber.teconomix.net/en/dictation-mac.html">
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../style.css?v=0.10">
+  <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/diktieren-mac.html">
+  <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/dictation-mac.html">
+  <script src="../script.js?v=0.10" defer></script>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="../assets/icon.svg" alt="" width="28" height="28">Local Transcriber</a>
+    <nav class="nav" aria-label="Main navigation"><a class="opt" href="./?k=seo-dictation">Home</a><a class="lang" href="../de/diktieren-mac.html" hreflang="de" lang="de">Deutsch</a></nav>
+  </div>
+</header>
+
+<main class="legal article wrap">
+  <h1>Dictation on the Mac without the cloud – hold a key, speak, done</h1>
+  <p class="article-lead">Answering an email, jotting down a note, giving an AI assistant a long instruction – speaking is often faster than typing. Local Transcriber turns it into a single key: hold the right <kbd>⌘</kbd>, speak, release. The text appears wherever the cursor is, in any app. Recognition runs with Whisper on the Mac itself; the audio never leaves the computer.</p>
+
+  <h2>How it works</h2>
+  <ul>
+    <li><strong>Hold, don't toggle:</strong> Dictation listens as long as the key is down. A sound tells you the microphone is really recording, and a small indicator next to the cursor shows the state (starting, recording, recognizing).</li>
+    <li><strong>In any app:</strong> Mail, Slack, the browser, Notes, Terminal – the text is inserted at the cursor. Whatever was on the clipboard before is put back afterwards.</li>
+    <li><strong>Fast:</strong> In our measurements, ten seconds of dictation are recognized in about 0.2 seconds (Whisper large-v3-turbo on the Mac's GPU).</li>
+    <li><strong>Your terms:</strong> The glossary (names, technical terms, abbreviations) applies to dictation too.</li>
+    <li><strong>Also during a recording:</strong> dictate notes in a running call – dictation then shares the recording's microphone audio.</li>
+    <li><strong>Keys of your choice:</strong> right <kbd>⌘</kbd>, <kbd>⌥</kbd>, <kbd>⌃</kbd> or <kbd>fn</kbd>. Press another key along with it and it stays an ordinary shortcut.</li>
+  </ul>
+
+  <h2>Clean up with AI – on the device</h2>
+  <p>With the second key (default: right <kbd>⌥</kbd>), the recognized text first goes through Apple Intelligence on the Mac (macOS 26): filler words are dropped, punctuation is added, spoken file names are written correctly (“dictate dot py” → <code>dictate.py</code>). If you like, it also reads the text of the active window so names come out right – in memory only, nothing is stored. If the result deviates too much from what you said, the raw text is inserted.</p>
+
+  <h2>Honestly: the limits</h2>
+  <ul>
+    <li><strong>No live text:</strong> the text appears after you release the key, not word by word while you speak.</li>
+    <li><strong>Self-corrections</strong> (“Tuesday, no, Wednesday”) are not reliably resolved, even by the AI cleanup.</li>
+    <li>The cleanup needs macOS 26 with Apple Intelligence; plain dictation works from macOS 14.</li>
+    <li>Apple Silicon Macs only. While dictation is switched on, a background service keeps the speech model in memory (about 1.7 GB) – the switch in the panel frees it again.</li>
+    <li>macOS asks for the <em>Accessibility</em> permission (to detect the key and insert text); for the window text as context also for <em>Screen Recording</em>.</li>
+  </ul>
+
+  <h2>More than dictation</h2>
+  <p>The same tool records meetings and calls, transcribes them with speaker recognition and, if you want, turns them into minutes – see <a href="transcribe-without-cloud.html">Transcribe conversations without the cloud</a>.</p>
+
+  <h2>Install</h2>
+  <p>Open Terminal (<kbd>⌘</kbd> + <kbd>Space</kbd>, “Terminal”) and paste – the installer does the rest in about ten minutes. Then switch on dictation in the panel.</p>
+  <div class="cmd">
+    <pre id="install-cmd-a">curl -fsSL https://transcriber.teconomix.net/k/seo-dictation/install.sh | bash</pre>
+    <button class="copy-btn" type="button" data-copied="Copied" data-copy="install-cmd-a" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>
+      <span aria-live="polite">Copy</span>
+    </button>
+  </div>
+  <p>Or with Homebrew: <code>brew install --cask teconomix/tap/local-transcriber</code>. Guide with pictures and an 80-second video: <a href="./?k=seo-dictation#installation">home page</a>. Source code: open source (MIT).</p>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Local Transcriber · Open source (MIT) · no warranty</span>
+    <nav aria-label="Legal and links">
+      <a href="legal-notice.html">Legal notice</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="counseling.html">For counseling &amp; supervision</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Interviews transkribieren auf dem Mac – lokal, mit Sprechererkennung und Zeitstempeln | Local Transcriber</title>
+  <meta name="description" content="Interviews, Gruppengespräche und Forschungsaufnahmen auf dem Mac transkribieren: Sprecher getrennt, Zeitstempel, Text, JSON und Untertitel – lokal mit Whisper und pyannote, ohne Upload. Kostenlos und Open Source.">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Local Transcriber">
+  <meta property="og:title" content="Interviews transkribieren auf dem Mac – lokal, mit Sprechererkennung und Zeitstempeln">
+  <meta property="og:description" content="Interviews lokal auf dem Mac transkribieren, Sprecher getrennt, ohne Upload – kostenlos und Open Source.">
+  <meta property="og:url" content="https://transcriber.teconomix.net/de/interviews-transkribieren.html">
+  <meta property="og:image" content="https://transcriber.teconomix.net/assets/og-de.png">
+  <meta property="og:locale" content="de_AT">
+  <meta name="color-scheme" content="light dark">
+  <meta name="referrer" content="no-referrer">
+  <link rel="canonical" href="https://transcriber.teconomix.net/de/interviews-transkribieren.html">
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../style.css?v=0.10">
+  <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/interviews-transkribieren.html">
+  <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/transcribe-interviews.html">
+  <script src="../script.js?v=0.10" defer></script>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="../assets/icon.svg" alt="" width="28" height="28">Local Transcriber</a>
+    <nav class="nav" aria-label="Hauptnavigation"><a class="opt" href="./?k=seo-interview-de">Zur Startseite</a><a class="lang" href="../en/transcribe-interviews.html" hreflang="en" lang="en">English</a></nav>
+  </div>
+</header>
+
+<main class="legal article wrap">
+  <h1>Interviews transkribieren auf dem Mac – lokal, mit Sprechererkennung und Zeitstempeln</h1>
+  <p class="article-lead">Ein Interview für die Abschlussarbeit, eine Fokusgruppe, ein Gespräch für einen Artikel: Wer abtippt, sitzt pro Stunde Aufnahme mehrere Stunden daran. Local Transcriber nimmt dir den ersten Durchgang ab – auf dem Mac, ohne die Aufnahme irgendwo hochzuladen. Das zählt, wenn Befragten Vertraulichkeit zugesagt wurde.</p>
+
+  <h2>Von der Aufnahme zum Text</h2>
+  <ul>
+    <li><strong>Datei hineingeben:</strong> im Panel <em>Datei transkribieren …</em> oder die Datei in den Ordner <code>~/Transcriber</code> legen (optionaler Ordnerwächter). Audio und Video in allen Formaten, die ffmpeg lesen kann – auch Aufnahmen vom Handy oder Diktiergerät.</li>
+    <li><strong>Sprecher getrennt:</strong> pyannote erkennt, wer wann spricht. Weißt du, wie viele Personen beteiligt waren, gibst du die Zahl vorher an (Auto oder genau 1–6); passt die Trennung nicht, trennst du dasselbe Gespräch später mit 1–10 Personen neu, ohne die Spracherkennung zu wiederholen.</li>
+    <li><strong>Namen statt Buchstaben:</strong> Aus „Sprecher A“ wird mit einem Klick „Interviewerin“ oder ein Name. Stimmen, die du benannt hast, erkennt die App in künftigen Aufnahmen wieder; unsichere Zuordnungen stehen als „Name (?)“ da.</li>
+    <li><strong>Etwa 100 Sprachen</strong> (alle, die Whisper kennt); verbreitete Sprachen gelingen am besten. Fachbegriffe und Namen, die falsch erkannt werden, trägst du ins Glossar ein – es gilt für künftige Transkripte und lässt sich auf vorhandene anwenden.</li>
+    <li><strong>Tempo:</strong> eine Stunde Audio samt Sprechererkennung in etwa drei bis vier Minuten (Whisper large-v3-turbo auf der Grafikeinheit des Mac).</li>
+  </ul>
+
+  <h2>Was du bekommst</h2>
+  <ul>
+    <li><code>&lt;Name&gt;.txt</code> – lesbar, je Redebeitrag eine Zeile mit Zeitstempel und Sprecher, z. B. <code>[00:12:04] Sprecher B: …</code> (wahlweise Markdown).</li>
+    <li><code>&lt;Name&gt;.transcript.json</code> – vollständig und maschinenlesbar, mit Sprecher und Zeitstempel je Wort; gut als Ausgangspunkt für eigene Auswertungen.</li>
+    <li><code>&lt;Name&gt;.srt</code> – Untertitel, auf Wunsch.</li>
+    <li>Auf Wunsch eine Auswertung mit einem Sprachmodell, etwa <em>Kernaussagen mit Zitaten</em> oder eine Kurzfassung – mit einem lokalen Modell (Ollama, LM Studio) bleibt auch das auf dem Mac.</li>
+  </ul>
+
+  <h2>Ehrlich: die Grenzen</h2>
+  <ul>
+    <li><strong>Erster Durchgang, kein fertiges Transkript nach Regeln:</strong> Whisper schreibt eher geglättet als wortwörtlich; Pausen, Betonungen, Lachen oder Überlappungen werden nicht nach einem Transkriptionssystem markiert. Für eine Auswertung nach festen Regeln musst du gegenhören und nacharbeiten.</li>
+    <li>Schlechte Aufnahmen (Hall, Störgeräusche, Leute fallen sich ins Wort) kosten Genauigkeit – bei der Erkennung wie bei der Sprechertrennung.</li>
+    <li>Kein Programm für qualitative Datenanalyse: Kodieren und Kategorisieren passieren woanders. Die Text- und JSON-Dateien lassen sich dorthin übernehmen.</li>
+    <li>Nur Macs mit Apple Silicon (macOS 14+), etwa 8 GB freier Speicherplatz.</li>
+    <li>Die Einwilligung der Befragten und die Vorgaben deiner Hochschule bzw. deines Auftraggebers bleiben deine Sache. Lokal heißt: Die Dateien liegen nur dort, wo du sie hinlegst – auch die Pflicht, sie zu schützen und zu löschen, liegt bei dir.</li>
+  </ul>
+
+  <h2>Installieren</h2>
+  <p>Terminal öffnen (<kbd>⌘</kbd> + <kbd>Leertaste</kbd>, „Terminal“) und einfügen – den Rest erledigt der Installer in etwa zehn Minuten:</p>
+  <div class="cmd">
+    <pre id="install-cmd-a">curl -fsSL https://transcriber.teconomix.net/k/seo-interview-de/install.sh | bash</pre>
+    <button class="copy-btn" type="button" data-copied="Kopiert" data-copy="install-cmd-a" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>
+      <span aria-live="polite">Kopieren</span>
+    </button>
+  </div>
+  <p>Oder mit Homebrew: <code>brew install --cask teconomix/tap/local-transcriber</code>. Anleitung mit Bildern und 80-Sekunden-Video: <a href="./?k=seo-interview-de#installation">Startseite</a>. Quellcode: Open Source (MIT).</p>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Local Transcriber · Open Source (MIT) · ohne Gewähr</span>
+    <nav aria-label="Rechtliches und Links">
+      <a href="impressum.html">Impressum</a>
+      <a href="datenschutz.html">Datenschutz</a>
+      <a href="beratung.html">Für Beratung &amp; Supervision</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

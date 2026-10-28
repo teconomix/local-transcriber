@@ -32,7 +32,9 @@ Run it again to update. The voice database, settings and transcripts are kept. W
 installer renames the data folder `~/Transkription` to `~/Transcriber` (once, nothing is copied).
 
 Options (append after `bash -s --`, e.g. `curl -fsSL …/install.sh | bash -s -- --no-watch`):
-`--no-launch` (do not start the app), `--no-watch` (do not offer the folder watcher), `--yes` (no prompts).
+`--no-launch` (do not start the app), `--no-watch` (do not offer the folder watcher), `--yes` (no prompts),
+`--fp16` (16-bit speech recognition, 1.6 GB, instead of the default 8-bit, 0.9 GB – measured just as accurate). An update
+keeps the model you chose; switch later in Settings › Recording › Speech recognition.
 
 ### With Homebrew
 

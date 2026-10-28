@@ -11,6 +11,7 @@ from pathlib import Path
 from . import audio, config, speakers
 from .i18n import t
 
+UNNAMED = re.compile(r"(?:Sprecher|Speaker) [A-Z?]|Unklar|Unclear")   # Anzeigenamen ohne Person
 ROW = re.compile(r"(?:\*\*)?\[(\d\d):(\d\d):(\d\d)\] ([^:*]+):")   # .md: **[…] Name:**, .txt: […] Name:
 
 
@@ -21,8 +22,9 @@ def parse_named(md):
         if m:
             t = int(m[1]) * 3600 + int(m[2]) * 60 + int(m[3])
             raw = m[4].strip()
-            unsure = "vermutlich" in raw or "?" in raw
-            rows.append((t, re.sub(r"\s*\(.*?\)\s*", "", raw).strip(), unsure))
+            name = re.sub(r"\s*\(.*?\)\s*", "", raw).strip()
+            unsure = "vermutlich" in raw or "?" in raw or UNNAMED.fullmatch(name) is not None
+            rows.append((t, name, unsure))
     return rows
 
 
@@ -46,8 +48,12 @@ def from_named_transcript(src, md, dry=False, cfg=None, share_min=0.6):
                 ov[s["speaker"]][(name, uns)] += o
     db = speakers.connect()
     if not dry:
+        # neue Trennung = Labels bedeuten etwas anderes: alte Referenzen heraus (wie pipeline._run), sonst überschriebe
+        # INSERT OR REPLACE die Referenz einer anderen Person; das Transkript des Auftrags bleibt eingetragen
+        speakers.release_job_refs(db, jid)
         db.execute("DELETE FROM clusters WHERE job_id=?", (jid,))
-        speakers.save_job(db, jid, src, str(md), "enroll", clusters)
+        old = db.execute("SELECT transcript FROM jobs WHERE id=?", (jid,)).fetchone()
+        speakers.save_job(db, jid, src, old["transcript"] if old else str(md), "enroll", clusters)
     summary = []
     for c in sorted(clusters, key=lambda c: -c["speech_s"]):
         tot = sum(ov[c["label"]].values()) or 1

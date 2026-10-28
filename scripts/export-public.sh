@@ -33,13 +33,14 @@ NAMES=''
 DB=~/.local/share/transcriber/speakers.db
 OWNER=$(grep -m1 -i 'copyright' LICENSE | sed 's/.*[0-9]\{4\} //')     # Urheber darf genannt werden
 AL=~/.local/share/transcriber/publish-allowlist.txt
-ALLOW=" $([[ -f $AL ]] && grep -v '^#' "$AL" | tr '\n' ' ') "
+ALLOW=" $(grep -v '^#' "$AL" 2>/dev/null | tr '\n' ' ' || true) "    # fehlt die Datei: leer (vorher brach set -e still ab)
 if [[ -f $DB ]]; then
   for w in ${(f)"$(sqlite3 -readonly "$DB" 'SELECT name FROM persons' | tr ' ' '\n' | awk 'length >= 4')"}; do
     [[ " $OWNER " == *" $w "* || $ALLOW == *" $w "* ]] || NAMES+="${NAMES:+|}$w"
   done
 fi
 BL=~/.local/share/transcriber/publish-blocklist.txt
+[[ -f $BL ]] || echo "Hinweis: keine Sperrliste $BL – geprüft werden nur Namen aus der Stimmdatenbank" >&2
 [[ -f $BL ]] && for w in ${(f)"$(grep -v '^#' "$BL" | sed '/^$/d')"}; do BAD+="|$w"; done
 hits=0
 grep -r -n -i -E "$BAD" "$DEST" --exclude=LICENSE --exclude=export-public.sh && hits=1

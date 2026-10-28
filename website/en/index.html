@@ -19,12 +19,12 @@
   <meta name="color-scheme" content="light dark">
   <meta name="referrer" content="no-referrer">
   <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=0.9">
+  <link rel="stylesheet" href="../style.css?v=0.10">
   <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/">
   <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/">
   <link rel="alternate" hreflang="x-default" href="https://transcriber.teconomix.net/">
-  <script src="../script.js?v=0.9" defer></script>
-  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Local Transcriber", "operatingSystem": "macOS 14 or newer (Apple Silicon)", "applicationCategory": "BusinessApplication", "description": "Free open-source macOS menu bar tool: meetings, calls and dictation are transcribed locally on your Mac, with speaker recognition – no cloud, no account, no subscription.", "url": "https://transcriber.teconomix.net/en/", "inLanguage": ["de", "en"], "license": "https://opensource.org/licenses/MIT", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}, "author": {"@type": "Person", "name": "Björn Rabethge"}, "softwareVersion": "0.9", "downloadUrl": "https://transcriber.teconomix.net/install.sh"}</script>
+  <script src="../script.js?v=0.10" defer></script>
+  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Local Transcriber", "operatingSystem": "macOS 14 or newer (Apple Silicon)", "applicationCategory": "BusinessApplication", "description": "Free open-source macOS menu bar tool: meetings, calls and dictation are transcribed locally on your Mac, with speaker recognition – no cloud, no account, no subscription.", "url": "https://transcriber.teconomix.net/en/", "inLanguage": ["de", "en"], "license": "https://opensource.org/licenses/MIT", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}, "author": {"@type": "Person", "name": "Björn Rabethge"}, "softwareVersion": "0.10", "downloadUrl": "https://transcriber.teconomix.net/install.sh"}</script>
 </head>
 <body>
 <a class="skip" href="#content">Skip to content</a>
@@ -60,7 +60,7 @@
               <span aria-live="polite">Copy</span>
             </button>
           </div>
-          <p class="install-version">Version <span data-version>0.9</span> · October 24, 2026 · macOS 14 or later</p>
+          <p class="install-version">Version <span data-version>0.10</span> · October 28, 2026 · macOS 14 or later</p>
         </div>
 
         <div class="hero-links">
@@ -71,7 +71,7 @@
           </a>
         </div>
 
-        <a class="announce" href="#ai">New in 0.9: evaluate conversations with AI – locally, or in the cloud with names protected →</a>
+        <a class="announce" href="workflow.html">New in 0.10: recordings from your iPhone via shortcut, iCloud or AirDrop – and speech recognition with half the memory →</a>
 
         <ul class="facts">
           <li>Mac with Apple silicon</li>
@@ -104,7 +104,7 @@
               Dictation: right ⌘ · with AI: right ⌥
             </div>
           </div>
-          <div class="p-sub"><span>Transcriptions</span><span>Hide finished</span></div>
+          <div class="p-sub"><span>Transcriptions</span><span>All</span></div>
           <div class="p-card">
             <h4>2026-10-10 14-03 Q4 budget planning</h4>
             <span class="p-x" aria-hidden="true">✕</span>
@@ -240,10 +240,10 @@
         </li>
       </ol>
       <figure class="demo-video">
-        <video controls preload="none" playsinline width="1920" height="1080" poster="../assets/video/poster-en.jpg" aria-label="Local Transcriber demo video">
-          <source src="../assets/video/demo-en.mp4" type="video/mp4">
+        <video controls preload="none" playsinline width="1920" height="1080" poster="../assets/video/poster-en.jpg?v=0.10" aria-label="Local Transcriber demo video">
+          <source src="../assets/video/demo-en.mp4?v=0.10" type="video/mp4">
         </video>
-        <figcaption>A 70-second tour: record a call, recognize speakers, dictate. No sound.</figcaption>
+        <figcaption>An 80-second tour: record a call, recognize speakers, summarize with AI, share by email, dictate. With soft music.</figcaption>
       </figure>
     </div>
   </section>
@@ -288,7 +288,7 @@
           <ul class="req">
             <li><strong>Mac with Apple silicon</strong> (M1 or later)</li>
             <li><strong>macOS 14 Sonoma</strong> or later – for AI features such as cleanup and file names: macOS 26 with Apple Intelligence</li>
-            <li><strong>about 8 GB of free disk space</strong> (the speech recognition model alone ~3 GB)</li>
+            <li><strong>about 8 GB of free disk space</strong> (the speech recognition model alone ~1 GB)</li>
             <li><strong>16 GB of memory</strong> recommended</li>
             <li><strong>Internet</strong> only for installation (and for a cloud model, if you choose one)</li>
             <li><strong>Optional for AI evaluation:</strong> a local language model in Ollama or LM Studio (more memory helps: good models run from 32 GB) – or a key for a cloud provider</li>
@@ -312,11 +312,11 @@
               At the end it asks whether to watch the folder <code>~/Transcriber</code>: <kbd>y</kbd> for yes, just <kbd>↩</kbd> for no.
               <figure class="term" aria-label="What the installation looks like in Terminal">
                 <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i></div>
-<pre><b>Transcriber <span data-version>0.9</span> – Installation</b>
+<pre><b>Transcriber <span data-version>0.10</span> – Installation</b>
 
 <b>▸ Checking requirements</b>
   <em>✓</em> macOS 15.6, Apple Silicon, 212 GB free
-<b>▸ Downloading Transcriber <span data-version>0.9</span></b>
+<b>▸ Downloading Transcriber <span data-version>0.10</span></b>
   <em>✓</em> Checksums verified
 <b>▸ Setting up Python environment (uv, Python 3.12, packages – takes a few minutes)</b>
   <em>✓</em> Python environment ready
@@ -324,13 +324,13 @@
   <em>✓</em> ffmpeg installed (static build)
 <b>▸ Models</b>
   <em>✓</em> Speaker recognition (pyannote community-1, CC-BY-4.0)
-<b>▸ Downloading speech recognition model (Whisper large-v3-turbo, ~3 GB – may take a while)</b>
+<b>▸ Downloading speech recognition model (Whisper large-v3-turbo (8-bit), ~0.9 GB – may take a while)</b>
   <em>✓</em> Whisper large-v3-turbo
 <b>▸ Installing the app</b>
   <em>✓</em> ~/Applications/Transcriber.app
   Watch the folder ~/Transcriber (automatically transcribe audio files dropped there)? [y/N]
 
-<em><b>Done.</b></em> Transcriber <span data-version>0.9</span> is installed.</pre>
+<em><b>Done.</b></em> Transcriber <span data-version>0.10</span> is installed.</pre>
               </figure>
             </li>
             <li><strong>Grant permissions:</strong> Transcriber starts in the menu bar. macOS asks once per feature the first time you use it – click “Allow”.
@@ -402,7 +402,7 @@
 
 <footer class="site-footer">
   <div class="wrap">
-    <span>Local Transcriber <span data-version>0.9</span> · Open source (MIT) · no warranty</span>
+    <span>Local Transcriber <span data-version>0.10</span> · Open source (MIT) · no warranty</span>
     <nav aria-label="Legal and links">
       <a href="legal-notice.html">Legal notice</a>
       <a href="privacy.html">Privacy</a>
@@ -410,6 +410,9 @@
       <a href="counseling.html">For counseling &amp; supervision</a>
       <a href="transcribe-without-cloud.html">Transcribe without the cloud</a>
       <a href="obsidian-transcripts.html">Transcripts in Obsidian</a>
+      <a href="transcribe-interviews.html">Transcribe interviews</a>
+      <a href="dictation-mac.html">Dictation on the Mac</a>
+      <a href="workflow.html">From phone to minutes</a>
       <a href="https://github.com/teconomix/local-transcriber/discussions">Questions &amp; ideas</a>
       <a href="https://github.com/teconomix/local-transcriber">GitHub</a>
       <span>A small tool by Björn Rabethge</span>

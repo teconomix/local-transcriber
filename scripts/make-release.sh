@@ -5,6 +5,10 @@
 set -euo pipefail
 cd "${0:A:h}/.."
 V=$(cat VERSION)
+[[ -n $V ]] || { echo "VERSION ist leer"; exit 1; }       # sonst löschte rm -rf unten alle Releases unter dist/download
+# App und Quellpaket entstehen aus dem Arbeitsbaum: nur Committetes veröffentlichen
+[[ "${ALLOW_DIRTY:-}" == 1 ]] || { git diff --quiet && git diff --cached --quiet; } \
+  || { echo "Arbeitsbaum hat ungesicherte Änderungen – erst committen (oder ALLOW_DIRTY=1)"; exit 1; }
 BASE="${1:-https://transcriber.teconomix.net}"
 OUT="dist/download/$V"
 rm -rf "$OUT"; mkdir -p "$OUT"
@@ -22,7 +26,7 @@ BUILD=$(echo "$V" | awk -F. '{print $1 * 10000 + $2 * 100 + $3}')   # 0.6 → 60
 sed -e "s#<key>CFBundleShortVersionString</key><string>[^<]*</string>#<key>CFBundleShortVersionString</key><string>$V</string>#" \
     -e "s#<key>CFBundleVersion</key><string>[^<]*</string>#<key>CFBundleVersion</key><string>$BUILD</string>#" \
     app/Resources/Info.plist > "$APP/Contents/Info.plist"
-cp -R app/Resources/*.lproj app/Resources/AppIcon.icns "$APP/Contents/Resources/"   # de (leer, Quelltext) + en
+cp -R app/Resources/*.lproj app/Resources/AppIcon.icns app/Resources/shortcut "$APP/Contents/Resources/"   # de (leer, Quelltext) + en; Kurzbefehl (iPhone-Weg)
 # Signatur wie build-app.sh: festes, selbst signiertes Zertifikat → Freigaben bleiben über Updates erhalten.
 KC=~/.local/share/transcriber/signing/transcriber-signing.keychain-db
 if [[ -f $KC ]]; then

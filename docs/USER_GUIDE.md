@@ -21,7 +21,20 @@ Clicking the waveform icon in the menu bar opens the panel:
    Re-analyze · Summarize*. **Click the title** to rename recording and transcript (Return applies, Escape cancels).
    *Re-analyze* offers **Match names again** (only re-matches against the voice database, in
    a second) and **Separate speakers again** with Automatic or 1–10 people (when two people were merged or one was split).
+   The entry you worked on last is at the top (transcribed, named, summarized, renamed); the order only changes when
+   you open the panel again. Settings › General can sort the panel by recording date, title or length instead. The list shows entries worked on in the last 7 days (Settings › General). The **arrow**
+   before the title collapses an entry to its title and the first lines of the summary – handy for conversations you
+   are done with but want to keep at hand. **All** opens the window *All transcripts*.
 5. At the bottom: **Folder** · **Settings** (⌘,) · ladybug (report a problem) · **Quit**.
+
+## All transcripts
+
+**All** in the panel opens a window with every transcript in `~/Transcriber`, including older ones and those removed
+from the panel. Filter by subfolder (e.g. *Recordings*, *Phone*), sort by recording date, last worked on, title or
+length, and search titles, calendar events and speaker names. Several terms must all match: “Anna Max” finds the
+conversations both took part in. On the right, the selected entry works as in the panel – name speakers, summarize,
+rename, delete. The recording date comes from the audio file itself, so phone recordings synced later still sort
+correctly.
 
 ## Recording a meeting
 
@@ -92,6 +105,12 @@ A language model turns a finished transcript into minutes, a short summary or wh
 1. **Settings › AI:** choose a provider – locally **Ollama**, **LM Studio**, **MTPLX** or a **custom address** (any
    server with an OpenAI-style API), in the cloud **OpenAI**, **Anthropic**, **Mistral** or **OpenRouter** with your
    own key (stored in the keychain). Enter the model or pick it from the list after **Test connection**.
+   Optional for a local server: a **start command** (e.g. `ollama serve` or a script that starts MTPLX). If the
+   server is not running, Transcriber starts it with this command, waits until it answers (a large model takes
+   10–60 s to load) and stops it again after the set time without use (5–60 min or never) or when the app quits –
+   but not while a summary is still running. A server you started yourself is never stopped. If the command returns
+   immediately and the server keeps running elsewhere (LM Studio: `lms server start`), stopping needs `stop_command`
+   in `config.json`. Command line: `transcriber ai-server` (status), `--start`, `--stop`.
 2. In the panel, below a transcript, **Summarize** → choose a template. Result: `<name>.summary.md` next to the
    transcript; the entry shows the first key points and action items with **Open · Copy · Share · ⋯**. **Share** opens
    the macOS menu (Mail with subject and formatted text, Messages, Notes …); the ⋯ menu offers other template,
@@ -125,8 +144,9 @@ The **trash icon** next to an entry in the panel asks how much to delete:
 
 Transcriber also deletes its working copies of the audio (in `~/.local/share/transcriber/cache/`). Deleted in Finder
 instead, Transcriber cleans up the same way within a few minutes. A note in Obsidian you delete there yourself.
-**Settings › Recording › “Delete recordings after 30 days”** does “Recording only” automatically for transcribed
-recordings in the recordings folder. Command line: `transcriber delete FILE [--audio-only]`.
+**Settings › Recording › “Delete audio after 30 days”** does “Recording only” automatically for all transcribed
+audio and video files in `~/Transcriber` and its subfolders, 30 days after transcription (not after the file's own
+date – an old recording you add today stays for 30 days). Command line: `transcriber delete FILE [--audio-only]`.
 
 ## Settings
 
@@ -134,7 +154,7 @@ The sections are listed on the left of the window.
 
 | Section | Contents |
 |---|---|
-| General | version, data folder, open at login, check for updates once a day (optional); when a new version is available, “Copy update command” puts the right command on the clipboard – paste it in Terminal and press Return |
+| General | version, data folder, open at login, how many days the panel list covers (since the last edit; default 7) and how it is sorted, check for updates once a day (optional); when a new version is available, “Copy update command” puts the right command on the clipboard – paste it in Terminal and press Return |
 | Recording | Record system audio, voice processing, transcribe/name after recording, detect calls, languages to choose from |
 | Dictation | on/off, keys (verbatim / with AI), screen text as context, audio, icon at the cursor, voice processing |
 | Calendar | use calendar events, choice of calendars |

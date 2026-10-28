@@ -1,4 +1,4 @@
-"""Zusammenfassung eines fertigen Transkripts mit einem Sprachmodell (feature/ki-nachbearbeitung).
+"""Zusammenfassung eines fertigen Transkripts mit einem Sprachmodell (seit 0.9).
 
 Schnittstelle: Chat Completions nach OpenAI-Art – damit gehen lokale Server (MTPLX, LM Studio, Ollama) und
 Cloud-Anbieter (OpenAI, Anthropic, Mistral, OpenRouter) über denselben Weg. Nur Standardbibliothek (urllib): kein
@@ -25,7 +25,7 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlparse
 
-from . import config, render
+from . import aiserver, config, render
 from .i18n import lang, t
 
 SUFFIX = ".summary.md"
@@ -62,6 +62,10 @@ DEFAULTS = {
     "temperature": 0.2,
     "max_tokens": 4096,
     "timeout_s": 900,
+    "start_command": "",           # lokaler Server nicht erreichbar → damit starten (aiserver.py), z. B. ~/bin/mtplx-serve
+    "stop_command": "",            # nur nötig, wenn der Startbefehl sofort zurückkehrt (lms server start → lms server stop)
+    "idle_stop_min": 15,           # selbst gestarteten Server nach so vielen Minuten ohne Nutzung beenden (0 = nie)
+    "start_timeout_s": 180,
 }
 
 LANG_NAMES = {"de": ("Deutsch", "German"), "en": ("Englisch", "English"), "es": ("Spanisch", "Spanish"),
@@ -155,28 +159,59 @@ def context(doc):
             "transcript": transcript_text(doc)}
 
 
+PLACEHOLDER = re.compile(r"\{\{\s*(\w+)\s*\}\}")
+
+
 def fill(body, ctx):
-    if "{{transcript}}" not in body:                     # eigene Vorlage ohne Platzhalter: Transkript ans Ende
-        body = body.rstrip() + "\n\n{{transcript}}\n"
-    return re.sub(r"\{\{\s*(\w+)\s*\}\}", lambda m: ctx.get(m.group(1), m.group(0)), body)
+    if not any(m.group(1) == "transcript" for m in PLACEHOLDER.finditer(body)):   # auch „{{ transcript }}“
+        body = body.rstrip() + "\n\n{{transcript}}\n"                           # eigene Vorlage ohne: ans Ende
+    return PLACEHOLDER.sub(lambda m: ctx.get(m.group(1), m.group(0)), body)
 
 
 # ---------------------------------------------------------------- Namen vor der Cloud verbergen
 
-def _names(doc):
-    """Personennamen aus Sprechern und Kalender, längste zuerst (Vor- und Nachname vor dem Vornamen allein)."""
+# Namensteile, die allein gewöhnliche Wörter sind (Artikel, Präpositionen, Adelsprädikate): nur im ganzen Namen ersetzen
+PARTICLES = {"van", "von", "der", "die", "das", "de", "den", "del", "della", "da", "dos", "des", "do", "zu", "zur", "vom",
+             "la", "le", "di", "du", "ten", "ter", "auf", "al", "el", "bin", "ibn"}
+
+
+def _nfc(s):
+    return unicodedata.normalize("NFC", s or "")
+
+
+def _names(doc, extra=()):
+    """Personennamen aus Sprechern, Kalender und extra (Stimmdatenbank), längste zuerst (Vor- und Nachname vor dem
+    Vornamen allein)."""
     full = {c["name"] for c in doc["speakers"] if c.get("name")}
     full |= {a["name"] for a in (doc.get("event") or {}).get("attendees", []) if a.get("name")}
-    parts = set(full) | {p for n in full for p in n.split() if len(p) > 2}
+    full = {_nfc(n).strip() for n in full | set(extra)} - {""}
+    parts = set(full) | {p for n in full for p in n.split() if len(p) > 2 and p.lower() not in PARTICLES}
     return sorted(parts, key=len, reverse=True)
 
 
-def pseudonymize(text, doc):
-    """Namen → [P1], [P2] …; liefert (Text, Rückübersetzung). Nur ganze Wörter."""
+def known_persons():
+    """Alle Personen der Stimmdatenbank – auch wer in diesem Gespräch nicht erkannt wurde, aber erwähnt wird."""
+    from . import speakers
+    try:
+        db = speakers.connect()
+        try:
+            return [r["name"] for r in speakers.persons(db)]
+        finally:
+            db.close()
+    except Exception:                                    # ohne Datenbank: nur Namen aus dem Transkript
+        return []
+
+
+def pseudonymize(text, doc, extra=()):
+    """Namen → [P1], [P2] …; liefert (Text, Rückübersetzung). Ganze Wörter, wie geschrieben oder in Großbuchstaben, mit Endung
+    („Björns“ → „[P1]s“, „Björn's“ → „[P1]'s“) – „Jan“ bleibt in „Januar“. Text und Namen in NFC (die App lieferte NFD)."""
     back = {}
-    for n in _names(doc):
+    text = _nfc(text)
+    for n in _names(doc, extra):
         ph = f"[P{len(back) + 1}]"                     # fortlaufend nur für Namen, die wirklich vorkommen
-        new = re.sub(rf"(?<!\w){re.escape(n)}(?!\w)", ph, text)
+        # wie geschrieben oder in Großbuchstaben – nicht klein: sonst träfe die Person „Hell“ jedes „hell“
+        forms = "|".join(re.escape(f) for f in dict.fromkeys((n, n.upper())))
+        new = re.sub(rf"(?<!\w)(?:{forms})(?=(?:['’]?s)?(?!\w))", ph, text)
         if new != text:
             back[ph] = n
             text = new
@@ -230,7 +265,8 @@ def _request(s, path, payload=None, timeout=10):
 def models(s=None):
     """Modelle des Servers (GET /models) – für „Verbindung testen“ und die Auswahl in der App."""
     s = s or settings()
-    return sorted(m["id"] for m in _request(s, "/models").get("data", []))
+    with aiserver.using(s):
+        return sorted(m["id"] for m in _request(s, "/models").get("data", []))
 
 
 def strip_thinking(text):
@@ -333,10 +369,11 @@ def run(json_path, template=None, cfg=None, allow_cloud=True, progress=None):
     prompt = fill(tpl["body"], context(doc))
     back = {}
     if not local and s["pseudonymize"]:
-        prompt, back = pseudonymize(prompt, doc)
-    if progress:
-        progress(t(f"{tpl['name']} wird erstellt", f"creating {tpl['name']}"))
-    text, info = complete(s, SYSTEM, prompt)
+        prompt, back = pseudonymize(prompt, doc, known_persons())   # ganzer Prompt: auch Titel, Termin, Teilnehmer
+    with aiserver.using(s, progress):                    # startet einen lokalen Server bei Bedarf (Startbefehl)
+        if progress:
+            progress(t(f"{tpl['name']} wird erstellt", f"creating {tpl['name']}"))
+        text, info = complete(s, SYSTEM, prompt)
     text = restore(strip_thinking(text), back)
     meta = {"source": Path(doc["source"]).name, "template": tpl["id"], "name": tpl["name"], "model": info["model"],
             "provider": s["provider"], "local": local, "pseudonymized": bool(back),
@@ -367,12 +404,27 @@ def refresh_names(json_path, doc):
 
 
 def preview(path, points=2, tasks=2):
-    """Für das Panel: die ersten Kernpunkte und offenen Aufgaben."""
+    """Für das Panel: die ersten Kernpunkte und offenen Aufgaben. Ohne Aufzählung (Fließtext wie die Kurzfassung)
+    der erste Absatz in "text" – das Panel kürzt ihn auf sechs Zeilen."""
     try:
         lines = Path(path).read_text(encoding="utf-8").splitlines()[1:]
     except OSError:
-        return {"points": [], "tasks": []}
+        return {"points": [], "tasks": [], "text": ""}
     items = [l.strip()[2:].strip() for l in lines if l.startswith(("- ", "* "))]   # nur oberste Ebene
     tk = [i[3:].strip() for i in items if i.startswith("[ ]")]
     pt = [i for i in items if not i.startswith(("[ ]", "[x]", "[X]"))]
-    return {"points": pt[:points], "tasks": tk[:tasks]}
+    return {"points": pt[:points], "tasks": tk[:tasks], "text": "" if items else first_paragraph(lines)}
+
+
+def first_paragraph(lines, limit=700):
+    """Erster Absatz Fließtext: ohne Überschriften, Tabellen, Zitate und Hervorhebungszeichen."""
+    para = []
+    for l in lines:
+        l = l.strip()
+        if not l or l.startswith(("#", "|", ">", "---")):
+            if para:
+                break
+            continue
+        para.append(l)
+    text = re.sub(r"\*\*|__", "", " ".join(para))
+    return text if len(text) <= limit else text[:limit].rsplit(" ", 1)[0] + " …"

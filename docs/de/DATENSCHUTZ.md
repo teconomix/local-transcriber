@@ -40,7 +40,8 @@ Sprechern und Termin-Teilnehmenden werden vorher durch Platzhalter ersetzt und i
 
 **Weiterarbeiten in Claude / Codex** öffnet das Programm mit vorbereitetem Text; abgeschickt wird erst, wenn du es dort tust.
 
-**Fehlerberichte** (Käfer im Panel) verschickt nicht die App: Sie legt eine ZIP-Datei in den Download-Ordner und
+**Fehlerberichte** (Käfer im Panel) verschickt nicht die App: Sie legt eine ZIP-Datei in ihren Datenordner
+(`~/.local/share/transcriber/reports/`, nach 14 Tagen gelöscht) und
 öffnet eine Mail an info@teconomix.net, die du selbst abschickst. Die Datei enthält Protokolle, Version, Mac-Modell,
 macOS, Freigaben, Audiogeräte und Einstellungen der App – keine Aufnahmen, Transkripte, Stimmdatenbank oder Glossar.
 Dateinamen, Termintitel, Namen und E-Mail-Adressen werden durch Platzhalter ersetzt, sofern du das nicht abschaltest.

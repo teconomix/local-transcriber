@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>From phone to minutes – record, transcribe and summarize conversations | Local Transcriber</title>
+  <meta name="description" content="The whole workflow with Local Transcriber: record on your phone or Mac, transcribed and named automatically, summarized with local AI, shared – and the original deleted afterwards. Free and open source.">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Local Transcriber">
+  <meta property="og:title" content="From phone to minutes – record, transcribe and summarize conversations">
+  <meta property="og:description" content="Record on your phone or Mac, transcribed automatically, summarized locally and shared – free and open source.">
+  <meta property="og:url" content="https://transcriber.teconomix.net/en/workflow.html">
+  <meta property="og:image" content="https://transcriber.teconomix.net/assets/og-en.png">
+  <meta property="og:locale" content="en_US">
+  <meta name="color-scheme" content="light dark">
+  <meta name="referrer" content="no-referrer">
+  <link rel="canonical" href="https://transcriber.teconomix.net/en/workflow.html">
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../style.css?v=0.10">
+  <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/arbeitsablauf.html">
+  <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/workflow.html">
+  <script src="../script.js?v=0.10" defer></script>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="../assets/icon.svg" alt="" width="28" height="28">Local Transcriber</a>
+    <nav class="nav" aria-label="Main navigation"><a class="opt" href="./?k=seo-workflow-en">Home</a><a class="lang" href="../de/arbeitsablauf.html" hreflang="de" lang="de">Deutsch</a></nav>
+  </div>
+</header>
+
+<main class="legal article wrap">
+  <h1>From phone to minutes – record, transcribe and summarize conversations</h1>
+  <p class="article-lead">You record a conversation on your phone. By the time you are back at your Mac, the transcript with speaker names is already next to it, with a descriptive file name and, if you like, minutes with tasks – ready to share. Afterwards you delete the recording, on the Mac and on the phone. This is how the parts of Local Transcriber fit together.</p>
+
+  <h2>1. Record</h2>
+  <ul>
+    <li><strong>On the Mac:</strong> <em>Start recording</em> in the panel – microphone and system audio as separate tracks. With Teams, Zoom, Meet &amp; co., a notification asks “Record?”; recording starts only when you click and ends with the call.</li>
+    <li><strong>On an Android phone:</strong> with a recorder app that saves to a regular folder (e.g. the open-source <em>Fossify Voice Recorder</em>) and <a href="https://syncthing.net">Syncthing</a>. Syncthing mirrors the recording folder, without any cloud, into a subfolder of <code>~/Transcriber</code>, such as <code>~/Transcriber/Phone</code>. If the files are named <code>Recording YYYY-MM-DD HH-MM</code>, they get a descriptive name later.</li>
+    <li><strong>On an iPhone:</strong> with the shortcut <a href="/assets/shortcut/Send%20to%20Transcriber.shortcut"><em>Send to Transcriber</em></a> (tap it on the iPhone › <em>Add Shortcut</em>; the app also offers a QR code and AirDrop for it). Then share a recording, e.g. in <em>Voice Memos</em> › <em>Send to Transcriber</em>: it travels via iCloud Drive to the Mac, the app moves it to <code>~/Transcriber/iPhone</code> and deletes it from iCloud. Turn it on under <em>Settings › Recording › iPhone</em>. Without any cloud, use AirDrop: with <em>“Take over recordings received via AirDrop”</em> the app picks up AirDrop audio from <code>~/Downloads</code> (macOS asks once for access to Downloads).</li>
+    <li><strong>Dictation</strong> is a third entry point, separate from this: hold right <kbd>⌘</kbd>, speak, release – the text appears at the cursor in any app.</li>
+  </ul>
+
+  <h2>2. Transcribe – without a click</h2>
+  <p>The folder watcher (offered by the installer) notices new files in <code>~/Transcriber</code> and its subfolders, waits until the transfer is complete, and puts the transcript and recognized speakers next to the recording. Recordings from the panel are transcribed by the app itself.</p>
+
+  <h2>3. Descriptive file name</h2>
+  <p><code>Recording 2026-10-23 22-52</code> becomes <code>2026-10-23 22-52 Budget planning Q4</code> – Apple Intelligence reads the transcript on your Mac (macOS 26). This happens while the app is running; for recordings that arrive from your phone overnight, turn on <em>Open at login</em> in the settings.</p>
+
+  <h2>4. Summarize – locally, or in the cloud with name protection</h2>
+  <p>In <em>Settings › AI</em>, choose a model and turn on <em>Summarize automatically after each transcription</em>: minutes with tasks, short summary, five-paragraph order, supervision note, key statements, follow-up email or your own template. With a local model (Ollama, LM Studio, MTPLX), nothing leaves the Mac. Cloud providers run only on click, and the participants' names are replaced by placeholders first.</p>
+
+  <h2>5. Share</h2>
+  <ul>
+    <li><strong>Share:</strong> by email (with subject, formatted, tasks as checkboxes), Messages, Notes or as a file.</li>
+    <li><strong>Continue</strong> in Claude, Claude Code or Codex – straight from the entry.</li>
+    <li><strong>AI agents</strong> such as Claude find, read and summarize conversations through the included MCP server.</li>
+    <li><strong>Obsidian:</strong> the <a href="obsidian-transcripts.html">plugin</a> turns each conversation into a note, with the summary and its tasks to tick off on top.</li>
+  </ul>
+
+  <h2>6. Done? Delete the original</h2>
+  <p>Especially for confidential conversations, the recording should not linger forever. The trash icon on the entry deletes <em>Recording only</em> (transcript and summary stay) or <em>everything</em>. If the Syncthing folder is set to “Send &amp; Receive”, the recording disappears from the phone as well – Syncthing takes care of that. If you like, Local Transcriber deletes all transcribed audio and video files in <code>~/Transcriber</code> automatically 30 days after transcription.</p>
+
+  <h2>Honestly: the limits</h2>
+  <p>Macs with Apple Silicon only (macOS 14+; descriptive names from macOS 26 with Apple Intelligence). Descriptive names and automatic summaries need the app to be running. You set up the way from your phone to the Mac yourself; Local Transcriber handles everything from the folder on. And getting everyone's consent before recording is up to you. Step by step with all settings: <a href="https://github.com/teconomix/local-transcriber/blob/main/docs/WORKFLOW.md">workflow in the documentation</a>.</p>
+
+  <h2>Install</h2>
+  <p>Open Terminal (<kbd>⌘</kbd> + <kbd>Space</kbd>, “Terminal”) and paste – the installer does the rest in about ten minutes:</p>
+  <div class="cmd">
+    <pre id="install-cmd-a">curl -fsSL https://transcriber.teconomix.net/k/seo-workflow-en/install.sh | bash</pre>
+    <button class="copy-btn" type="button" data-copied="Copied" data-copy="install-cmd-a" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>
+      <span aria-live="polite">Copy</span>
+    </button>
+  </div>
+  <p>Or with Homebrew: <code>brew install --cask teconomix/tap/local-transcriber</code>. Guide with pictures and a 80-second video: <a href="./?k=seo-workflow-en#installation">home page</a>.</p>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Local Transcriber · Open source (MIT) · no warranty</span>
+    <nav aria-label="Legal and links">
+      <a href="legal-notice.html">Legal notice</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="counseling.html">For counseling &amp; supervision</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

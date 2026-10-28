@@ -207,6 +207,31 @@ class Report(unittest.TestCase):
                 (config.DATA / n).unlink(missing_ok=True)
             (config.JOBS / "extern.json").unlink(missing_ok=True)
 
+    def test_report_redacts_folders_speakers_and_english_log(self):
+        import zipfile
+        from transcriber import report
+        tmp = Path(tempfile.mkdtemp(dir=_DATA))
+        kunde = tmp / "Transcriber" / "Kunde Quast" / "2026"
+        kunde.mkdir(parents=True)
+        doc = {"speakers": [{"name": "Wiebke von Sandau"}], "event": {"title": "Klausur Nordlicht", "attendees": [{"name": "Ole Brix"}]}}
+        (kunde / "a.transcript.json").write_text(json.dumps(doc))
+        config.CONFIG.write_text(json.dumps({"watch_dir": str(tmp / "Transcriber")}))
+        (config.DATA / "watch.log").write_text("watching /Volumes/Geheimplatte/Mandanten\n"
+                                               "   done: Erstgespräch Zander.txt  Wiebke von Sandau\n"
+                                               "2026-10-28 Kunde Quast/2026 Sandau Brix Klausur Nordlicht von der Aufnahmen\n")
+        try:
+            out = tmp / "bericht.zip"
+            report.build(out, "x")
+            with zipfile.ZipFile(out) as z:
+                log = z.read("protokolle/watch.log").decode()
+            for secret in ("Quast", "Wiebke", "Sandau", "Brix", "Nordlicht", "Zander", "Geheimplatte", "Mandanten"):
+                self.assertNotIn(secret, log)
+            self.assertIn("2026-10-28 ‹Ordner", log)                 # Zeitstempel bleiben lesbar
+            self.assertIn(" von der Aufnahmen", log)                  # Artikel/Präpositionen und App-Ordner bleiben
+        finally:
+            config.CONFIG.unlink(missing_ok=True)
+            (config.DATA / "watch.log").unlink(missing_ok=True)
+
     def test_report_zip_has_no_recordings_and_redacts_titles(self):
         import zipfile
         from transcriber import report
@@ -337,16 +362,20 @@ class Delete(unittest.TestCase):
     def tearDown(self):
         os.environ.pop("TRANSCRIBER_TRASH", None)
 
-    def make(self, name, jid, named=True):
+    def make(self, name, jid, named=True, folder=None, ext=".m4a", days=0):
         from transcriber import cleanup                          # noqa: F401  (Import prüfen)
-        audio = self.rec / f"{name}.m4a"
-        audio.write_bytes(b"\0" * 16)
+        d = folder or self.rec
+        d.mkdir(parents=True, exist_ok=True)
+        audio = d / f"{name}{ext}"
+        audio.write_bytes(name.encode() * 4)
+        jid = jid or pipeline.job_id(audio)                      # None: echte job_id (Inhalts-Hash)
         doc = sample()
         doc["source"], doc["job_id"] = str(audio), jid
-        jp = self.rec / f"{name}.transcript.json"
+        doc["created"] = time.strftime("%Y-%m-%d %H:%M", time.localtime(time.time() - days * 86400))
+        jp = d / f"{name}.transcript.json"
         jp.write_text(json.dumps(doc, ensure_ascii=False))
-        (self.rec / f"{name}.txt").write_text(render.markdown(doc, jp.name, plain=True))
-        (self.rec / f"{name}.event.json").write_text("{}")
+        (d / f"{name}.txt").write_text(render.markdown(doc, jp.name, plain=True))
+        (d / f"{name}.event.json").write_text("{}")
         (config.CACHE / jid).mkdir(parents=True, exist_ok=True)
         (config.CACHE / jid / "audio.wav").write_bytes(b"\0")
         v = np.ones(4, np.float32).tobytes()
@@ -398,6 +427,48 @@ class Delete(unittest.TestCase):
             cleanup.delete(audio)
         self.assertTrue(audio.exists())
 
+    def test_delete_failed_job_takes_sidecars_and_stale_lock(self):
+        """„Alles löschen“ ohne Transkript (Auftrag fehlgeschlagen): Begleitdateien, Lock-Rest und Status gehen mit."""
+        import subprocess
+        from transcriber import cleanup
+        audio = self.rec / "Kaputt.m4a"
+        audio.write_bytes(b"kaputt")
+        (self.rec / "Kaputt.error.txt").write_text("Traceback")
+        (self.rec / "Kaputt.event.json").write_text("{}")
+        dead = subprocess.Popen(["/usr/bin/true"]); dead.wait()
+        (self.rec / "Kaputt.lock").write_text(str(dead.pid))       # Rest eines abgebrochenen Laufs
+        (config.JOBS / "kaputt.json").write_text(json.dumps({"source": str(audio), "state": "failed"}))
+        r = cleanup.delete(audio)
+        self.assertEqual(list(self.rec.iterdir()), [])
+        self.assertEqual(len(r["trashed"]), 3)
+        self.assertFalse((config.JOBS / "kaputt.json").exists())
+
+    def test_cleanup_orphan_caches_and_missing_subfolder(self):
+        """Verwaiste Zwischenspeicher (> 1 Tag, nur ohne laufende Transkription); fehlender Unterordner in watch_dir."""
+        import fcntl
+        from transcriber import cleanup
+        sub = self.rec.parent / "Projekt"
+        a, j = self.make("Im Unterordner", "sub1", folder=sub)
+        shutil.rmtree(sub)                                           # ganzer Unterordner im Finder gelöscht
+        old, fresh = config.CACHE / "verwaist1", config.CACHE / "frisch1"
+        for d in (old, fresh):
+            d.mkdir(parents=True, exist_ok=True)
+            (d / "audio.wav").write_bytes(b"\0")
+        t2 = time.time() - 2 * 86400
+        for f in (old / "audio.wav", old):
+            os.utime(f, (t2, t2))
+        with open(config.DATA / "run.lock", "a") as lk:               # Transkription läuft: nichts Verwaistes anfassen
+            fcntl.flock(lk, fcntl.LOCK_EX)
+            cleanup.cleanup()
+        self.assertTrue(old.exists())
+        r = cleanup.cleanup()
+        self.assertFalse(old.exists())
+        self.assertTrue(fresh.exists())
+        self.assertFalse((config.CACHE / "sub1").exists())
+        self.assertEqual(self.count("embeddings", "sub1"), 1)        # Unterordner gelöscht: Stimmdaten bleiben
+        self.assertEqual(r["forgotten"], 0)                          # schon im ersten Lauf (unter Lock) aufgeräumt
+        shutil.rmtree(fresh)
+
     def test_cleanup_after_finder(self):
         from transcriber import cleanup
         a1, j1 = self.make("Nur Audio weg", "ddd4")
@@ -415,28 +486,44 @@ class Delete(unittest.TestCase):
         r = cleanup.cleanup()
         self.assertFalse((config.CACHE / "ddd4").exists())
         self.assertEqual(self.count("embeddings", "ddd4"), 1)        # Transkript noch da → Stimmen bleiben
-        self.assertEqual((self.count("jobs", "eee5"), self.count("embeddings", "eee5")), (0, 0))
+        # Audio und Transkript weg (evtl. nur archiviert): Zwischenspeicher und Eintrag weg, Stimmdaten bleiben (Björn 2026-10-28)
+        self.assertFalse((config.CACHE / "eee5").exists())
+        self.assertEqual((self.count("jobs", "eee5"), self.count("embeddings", "eee5"), self.count("clusters", "eee5")), (1, 1, 1))
+        self.assertIsNotNone(self.db.execute("SELECT id FROM persons WHERE name='Person eee5'").fetchone())
         self.assertFalse((config.JOBS / "eee5.json").exists())
         self.assertEqual(self.count("embeddings", "fff6"), 1)
         self.assertEqual(self.db.execute("SELECT transcript FROM jobs WHERE id='fff6'").fetchone()[0],
                          str(sub / "Verschoben.transcript.json"))
         self.assertEqual(self.count("jobs", "ggg7"), 1)
         self.assertEqual((r["forgotten"], r["relinked"]), (1, 1))
+        self.assertEqual(cleanup.cleanup()["forgotten"], 0)         # nächster Lauf: nichts mehr zu tun, keine Meldung
 
     def test_audio_after_days(self):
+        """Ganzer Ordner samt Unterordnern, Audio und Video, gezählt ab dem Transkript (nicht ab dem Dateidatum)."""
         from transcriber import cleanup
-        old, jo = self.make("Alt", "hhh8")
-        new, jn = self.make("Neu", "iii9")
+        old, jo = self.make("Alt", None, days=40)
+        new, jn = self.make("Neu", None)
+        handy = self.make("Handy alt", None, folder=self.rec.parent / "Handy", days=40)[0]
+        video = self.make("Webinar", None, folder=self.rec.parent / "Archiv" / "2026", ext=".mp4", days=40)[0]
+        hidden = self.make("Versteckt", None, folder=self.rec.parent / ".stversions", days=40)[0]
+        airdrop, _ = self.make("Altes Original", None, folder=self.rec.parent / "Handy")   # heute transkribiert
+        reused, _ = self.make("Neue Aufnahme", None, days=40)
+        reused.write_bytes(b"andere, noch nicht transkribierte Aufnahme")   # gleicher Name, neuer Inhalt
+        link = self.rec / "Verweis.m4a"
+        link.symlink_to(handy)                                       # Symlink: nie über ihn löschen
+        link.with_name("Verweis.transcript.json").write_text(json.dumps({"source": str(link), "job_id": pipeline.job_id(handy),
+                                                                          "created": "2020-01-01 00:00"}))
         untranscribed = self.rec / "Ohne Transkript.m4a"
         untranscribed.write_bytes(b"\0")
         t40 = time.time() - 40 * 86400
-        for p in (old, untranscribed):
+        for p in (old, untranscribed, airdrop, reused):
             os.utime(p, (t40, t40))
         r = cleanup.cleanup(audio_days=30)
-        self.assertEqual(r["audio_deleted"], [str(old)])
-        self.assertFalse(old.exists())
-        self.assertTrue(jo.exists() and new.exists() and untranscribed.exists())
-        self.assertEqual(self.count("embeddings", "hhh8"), 1)
+        self.assertEqual(sorted(r["audio_deleted"]), sorted(map(str, (old, handy, video))))
+        self.assertFalse(old.exists() or handy.exists() or video.exists())
+        self.assertTrue(jo.exists() and new.exists() and untranscribed.exists() and hidden.exists() and airdrop.exists())
+        self.assertTrue(reused.exists() and link.is_symlink())
+        self.assertEqual(self.count("embeddings", json.loads(jo.read_text())["job_id"]), 1)
 
 
 class TextFormat(unittest.TestCase):
@@ -838,6 +925,130 @@ class ProgressStatus(unittest.TestCase):
         self.assertEqual(json.loads(P.path.read_text())["state"], "done")
 
 
+class Library(unittest.TestCase):
+    """Fenster „Alle Transkriptionen“: Aufnahmedatum ohne Audio aus Termin bzw. Dateiname, Unterordner, offene Sprecher."""
+
+    def test_entries(self):
+        from transcriber import library
+        root = Path(tempfile.mkdtemp())
+        (root / "Handy").mkdir()
+        (root / ".stversions").mkdir()
+        doc = {"source": str(root / "Handy" / "gone.m4a"), "created": "2026-10-24 12:00", "duration": 600,
+               "event": {"title": "Termin", "start": "2026-10-01T08:00:00Z"},
+               "speakers": [{"letter": "A", "display": "Kim Beispiel", "status": "bestätigt", "speech_s": 300},
+                            {"letter": "B", "display": "Sprecher B", "status": "unbekannt", "speech_s": 200},
+                            {"letter": "C", "display": "Sprecher C", "status": "unbekannt", "speech_s": 3}]}
+        (root / "Handy" / "gone.transcript.json").write_text(json.dumps(doc))
+        doc2 = dict(doc, source=str(root / "2026-09-30 14-05 Runde.m4a"), event=None)
+        (root / "2026-09-30 14-05 Runde.transcript.json").write_text(json.dumps(doc2))
+        (root / ".stversions" / "alt.transcript.json").write_text(json.dumps(doc2))   # versteckte Ordner nicht
+        es = {e["title"]: e for e in library.entries(root)}
+        self.assertEqual(set(es), {"gone", "2026-09-30 14-05 Runde"})
+        g = es["gone"]
+        self.assertEqual((g["folder"], g["audio"], g["recorded_from"], g["open"]), ("Handy", False, "event", 1))
+        self.assertTrue(g["recorded"].startswith("2026-10-01 "))
+        self.assertEqual(g["speakers"], ["Kim Beispiel", "Sprecher B", "Sprecher C"])
+        r = es["2026-09-30 14-05 Runde"]
+        self.assertEqual((r["folder"], r["recorded"], r["recorded_from"]), ("", "2026-09-30 14:05", "name"))
+        shutil.rmtree(root)
+
+
+class AsrModel(unittest.TestCase):
+    """Modellwahl turbo / turbo-8bit (config „asr_model“): Standard, Ordner mit Verweisen für 8 Bit, eigener
+    Zwischenspeicher-Schlüssel – ohne Netz und ohne echtes Modell (snapshot_download wird ersetzt)."""
+
+    def setUp(self):
+        from transcriber import asr
+        self.asr = asr
+        self.snap = Path(tempfile.mkdtemp(dir=_DATA))
+        (self.snap / "model.safetensors").write_bytes(b"w")
+        (self.snap / "config.json").write_text("{}")
+        import huggingface_hub
+        self._orig = huggingface_hub.snapshot_download
+        huggingface_hub.snapshot_download = lambda repo, local_files_only=True: str(self.snap)
+
+    def tearDown(self):
+        import huggingface_hub
+        huggingface_hub.snapshot_download = self._orig
+        config.CONFIG.unlink(missing_ok=True)
+        shutil.rmtree(config.DATA / "models", ignore_errors=True)
+
+    def test_default_and_unknown(self):
+        orig = self.asr.installed
+        try:
+            for have, want in ((set(), "turbo-8bit"), ({"turbo"}, "turbo"), ({"turbo", "turbo-8bit"}, "turbo-8bit"),
+                               ({"turbo-8bit"}, "turbo-8bit")):
+                self.asr.installed = lambda k, h=have: k in h
+                self.assertEqual(self.asr.choice({}), want, have)            # neu: 8 Bit; nur FP16 da: bleibt FP16
+                self.assertEqual(self.asr.choice({"asr_model": "gibt-es-nicht"}), want, have)
+            self.assertEqual(self.asr.choice({"asr_model": "turbo-8bit"}), "turbo-8bit")   # Eingestelltes gilt
+        finally:
+            self.asr.installed = orig
+        cfg = {"asr_model": "turbo"}
+        self.assertEqual(self.asr.path(cfg), "mlx-community/whisper-large-v3-turbo")
+        self.assertEqual(self.asr.name(cfg), "whisper-turbo")
+
+    def test_remove_unused_only(self):
+        import huggingface_hub.constants as c
+        cache = Path(tempfile.mkdtemp(dir=_DATA))
+        orig, c.HF_HUB_CACHE = c.HF_HUB_CACHE, str(cache)
+        try:
+            config.CONFIG.write_text(json.dumps({"asr_model": "turbo-8bit"}))
+            self.asr.path()                                                   # Ordner mit Verweisen für 8 Bit
+            for rev, repo in (("a1", "whisper-large-v3-turbo"), ("b2", "whisper-large-v3-turbo-8bit")):  # wie im HF-Cache
+                r = cache / f"models--mlx-community--{repo}"
+                for d in ("blobs", "refs", f"snapshots/{rev}"):
+                    (r / d).mkdir(parents=True)
+                (r / "blobs" / "h1").write_bytes(b"1234")
+                (r / "refs" / "main").write_text(rev)               # Revisionen sind eindeutig, gelöscht wird nach ihnen
+                (r / "snapshots" / rev / "weights.safetensors").symlink_to("../../blobs/h1")
+            with self.assertRaises(RuntimeError):
+                self.asr.remove("turbo-8bit")                                 # eingestelltes nie
+            self.assertEqual(self.asr.remove("turbo"), 4)
+            self.assertFalse((cache / "models--mlx-community--whisper-large-v3-turbo").exists())
+            self.assertTrue((cache / "models--mlx-community--whisper-large-v3-turbo-8bit").exists())
+            config.CONFIG.write_text(json.dumps({"asr_model": "turbo"}))
+            self.asr.remove("turbo-8bit")                                     # auch der Ordner mit Verweisen
+            self.assertFalse(self.asr.local_dir("turbo-8bit").exists())
+        finally:
+            c.HF_HUB_CACHE = orig
+
+    def test_8bit_folder_for_mlx_whisper(self):
+        cfg = {"asr_model": "turbo-8bit"}
+        d = Path(self.asr.path(cfg))
+        self.assertEqual(d, config.DATA / "models" / "whisper-large-v3-turbo-8bit")
+        self.assertEqual((d / "weights.safetensors").resolve(), (self.snap / "model.safetensors").resolve())
+        self.assertEqual((d / "config.json").resolve(), (self.snap / "config.json").resolve())
+        self.assertEqual(self.asr.path(cfg), str(d))          # zweites Mal: Verweise bleiben, kein Fehler
+        self.assertEqual(self.asr.name(cfg), "whisper-turbo-8bit")
+
+    def test_missing_model_explains(self):
+        import huggingface_hub
+        def missing(repo, local_files_only=True):
+            raise OSError("nicht im Cache")
+        huggingface_hub.snapshot_download = missing
+        with self.assertRaises(RuntimeError) as e:
+            self.asr.path({"asr_model": "turbo-8bit"})
+        self.assertIn("transcriber model turbo-8bit --download", str(e.exception))
+        self.assertFalse(self.asr.installed("turbo-8bit"))
+
+    def test_cache_not_shared_between_models(self):
+        wav = Path(tempfile.mkdtemp(dir=_DATA)) / "audio.wav"
+        calls = []
+        orig = self.asr.transcribe
+        self.asr.transcribe = lambda w, terms=None, language="de": calls.append(self.asr.name()) or {
+            "text": "x", "words": [], "segments": []}
+        try:
+            config.CONFIG.write_text(json.dumps({"asr_model": "turbo"}))
+            pipeline._asr(wav, "de", None, repair=False)
+            pipeline._asr(wav, "de", None, repair=False)            # aus dem Zwischenspeicher
+            config.CONFIG.write_text(json.dumps({"asr_model": "turbo-8bit"}))
+            pipeline._asr(wav, "de", None, repair=False)            # anderes Modell → neu erkennen
+        finally:
+            self.asr.transcribe = orig
+        self.assertEqual(calls, ["whisper-turbo", "whisper-turbo-8bit"])
+
+
 class Summary(unittest.TestCase):
     """Zusammenfassung (feature/ki-nachbearbeitung): Vorlagen, Namen vor der Cloud, Ergebnisdatei – ohne Modell, ohne Netz."""
 
@@ -896,7 +1107,11 @@ class Summary(unittest.TestCase):
         self.assertNotIn("<think>", text)
         self.assertEqual(self.s.read_meta(out)["template"], "protokoll")
         self.assertEqual(self.s.preview(out), {"points": ["Kim Beispiel (?) und Sprecher C reden"],
-                                               "tasks": ["Sprecher C: Bericht schicken", "Alex Muster: Termin"]})
+                                               "tasks": ["Sprecher C: Bericht schicken", "Alex Muster: Termin"],
+                                               "text": ""})
+        # Fließtext (Kurzfassung): erster Absatz statt Stichpunkten, ohne Überschrift und Hervorhebung
+        out.write_text(out.read_text().split("\n", 1)[0] + "\n## Kurz\n\n**Kim** und Alex reden.\nEs geht um X.\n\nZweiter.\n")
+        self.assertEqual(self.s.preview(out), {"points": [], "tasks": [], "text": "Kim und Alex reden. Es geht um X."})
 
     def test_cloud_pseudonymized_and_only_on_click(self):
         config.CONFIG.write_text(json.dumps({"ai": {"provider": "openai", "model": "x"}}))
@@ -980,6 +1195,57 @@ class Summary(unittest.TestCase):
         self.assertEqual(text, "ok")
         self.assertIn("max_completion_tokens", sent[1])
         self.assertNotIn("temperature", sent[1])
+
+    def test_pseudonymize_forms(self):
+        """NFC, wie geschrieben oder GROSS, Genitiv; klein nicht („hell“ bei Person „Hell“); Artikel nie allein; „Januar“."""
+        doc = {"speakers": [{"name": unicodedata.normalize("NFD", "Jörg van der Berg")}],
+               "event": {"attendees": [{"name": "Jan Ohm"}, {"name": "Eva Hell"}]}}
+        text = "Jörgs Notiz, Jörg's Plan, JÖRG sagt: van der Berg kommt; der Plan von Jan im Januar, hell. Robin auch."
+        out, back = self.s.pseudonymize(text, doc, ["Robin Muster"])
+        for n in ("Jörg", "JÖRG", "Berg", "Jan ", "Robin"):
+            self.assertNotIn(n, out)
+        self.assertIn("Januar, hell.", out)                 # gewöhnliches Wort bleibt
+        self.assertIn("der Plan von [P", out)
+        self.assertIn("im Januar", out)
+        self.assertRegex(out, r"^\[P\d+\]s Notiz, \[P\d+\]'s Plan")
+        self.assertTrue(self.s.restore(out, back).startswith("Jörgs Notiz, Jörg's Plan, Jörg sagt: van der Berg"))
+        self.assertEqual(self.s.fill("Bitte: {{ transcript }}", {"transcript": "T"}), "Bitte: T")   # nicht doppelt
+
+    def test_cloud_title_and_database_names(self):
+        """Titel (Dateiname) und Personen der Stimmdatenbank gehen nicht in die Cloud."""
+        db = fresh_db()
+        speakers.person_id(db, "Robin Extern"); db.commit(); db.close()
+        doc = dict(self.doc, source=str(self.tmp / "Robin Extern Gespräch.m4a"))
+        (self.tmp / "Robin Extern Gespräch.m4a").write_bytes(b"\0")
+        jp = render.write(doc, self.tmp / "Robin Extern Gespräch", ["json"])["json"]
+        config.CONFIG.write_text(json.dumps({"ai": {"provider": "openai", "model": "x"}}))
+        os.environ["TRANSCRIBER_AI_KEY"] = "test"
+        try:
+            self.s.run(jp)
+        finally:
+            del os.environ["TRANSCRIBER_AI_KEY"]
+        self.assertNotIn("Robin", self.sent[-1][1])
+        self.assertNotIn("Extern", self.sent[-1][1])
+
+    def test_mcp_cloud_only_with_cloud_auto_and_unique(self):
+        import asyncio
+        from transcriber import mcp_server
+        calls = []
+        orig, self.s.run = self.s.run, lambda *a, **kw: calls.append((a, kw)) or (_ for _ in ()).throw(RuntimeError("stop"))
+        config.CONFIG.write_text(json.dumps({"watch_dir": str(self.tmp), "ai": {"provider": "openai", "model": "x"}}))
+        try:
+            with self.assertRaisesRegex(RuntimeError, "nur in der App per Klick"):
+                asyncio.run(mcp_server.summarize_transcript(str(self.jp)))
+            config.CONFIG.write_text(json.dumps({"watch_dir": str(self.tmp),
+                                                 "ai": {"provider": "openai", "model": "x", "cloud_auto": True}}))
+            shutil.copy(self.jp, self.tmp / "Zweites.transcript.json")
+            with self.assertRaisesRegex(KeyError, "mehrere"):        # Suchbegriff trifft zwei: nicht raten
+                asyncio.run(mcp_server.summarize_transcript("transcript"))
+            with self.assertRaisesRegex(RuntimeError, "stop"):
+                asyncio.run(mcp_server.summarize_transcript(str(self.jp)))
+            self.assertTrue(calls[-1][1]["allow_cloud"])
+        finally:
+            self.s.run = orig
 
     def test_helpers(self):
         self.assertTrue(self.s.is_local("http://127.0.0.1:18085/v1"))

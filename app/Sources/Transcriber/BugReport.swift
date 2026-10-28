@@ -73,7 +73,23 @@ enum BugReport {
         }
     }
 
-    /// ZIP-Datei im Download-Ordner erstellen; liefert ihren Pfad oder eine Fehlermeldung.
+    /// Ablage im eigenen Datenordner statt ~/Downloads (geschützter Ordner → Freigabe-Abfrage, Zugriff auf alles darin).
+    /// Das Mailprogramm bekommt die Datei über NSSharingService, braucht den Ort also nicht.
+    static let dir = Core.data.appendingPathComponent("reports")
+    static let keepDays = 14.0
+
+    /// Berichte älter als `keepDays` entfernen (bis dahin ist die Mail längst geschrieben).
+    static func purgeOld() {
+        let fm = FileManager.default, limit = Date().addingTimeInterval(-keepDays * 86400)
+        for f in (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        where f.pathExtension == "zip" {
+            if let d = (try? f.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate, d < limit {
+                try? fm.removeItem(at: f)
+            }
+        }
+    }
+
+    /// ZIP-Datei im Datenordner (reports/) erstellen; liefert ihren Pfad oder eine Fehlermeldung.
     @MainActor
     static func create(description: String, redact: Bool) async -> (url: URL?, error: String?) {
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("transcriber-report-\(UUID().uuidString)")
@@ -83,7 +99,8 @@ enum BugReport {
         try? description.write(to: desc, atomically: true, encoding: .utf8)
         if let d = try? JSONSerialization.data(withJSONObject: await appInfo(), options: [.prettyPrinted, .sortedKeys]) { try? d.write(to: info) }
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH-mm"
-        let dir = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first ?? FileManager.default.homeDirectoryForCurrentUser
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        purgeOld()
         let zip = dir.appendingPathComponent(String(localized: "Transcriber-Fehlerbericht") + " \(f.string(from: Date())).zip")
         let (ok, out) = await Core.run(["report", zip.path, "--description", desc.path, "--app-info", info.path] + (redact ? [] : ["--keep-names"]))
         return ok && FileManager.default.fileExists(atPath: zip.path) ? (zip, nil) : (nil, out.split(separator: "\n").suffix(3).joined(separator: "\n"))
@@ -153,7 +170,7 @@ struct ReportView: View {
                 NSWorkspace.shared.activateFileViewerSelecting([zip])
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(BugReport.recipient, forType: .string)
-                result = String(localized: "Kein Mailprogramm gefunden. Die Datei liegt im Download-Ordner (im Finder markiert); die Adresse \(BugReport.recipient) ist in der Zwischenablage – bitte die Datei an eine Mail hängen.")
+                result = String(localized: "Kein Mailprogramm gefunden. Die Datei ist im Finder markiert; die Adresse \(BugReport.recipient) ist in der Zwischenablage – bitte die Datei an eine Mail hängen.")
             }
         } else {
             result = String(localized: "Bericht konnte nicht erstellt werden: \(r.error ?? "?")")

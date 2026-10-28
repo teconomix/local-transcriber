@@ -40,7 +40,8 @@ other personal details in the content of the conversation remain). The provider'
 
 **Continue in Claude / Codex** opens that program with a prepared text; nothing is sent until you do so there.
 
-**Problem reports** (ladybug in the panel) are not sent by the app: it creates a ZIP file in your Downloads folder
+**Problem reports** (ladybug in the panel) are not sent by the app: it creates a ZIP file in its data folder
+(`~/.local/share/transcriber/reports/`, deleted after 14 days)
 and opens an email to info@teconomix.net, which you send yourself. The file contains logs, version, Mac model,
 macOS, permissions, audio devices and app settings – no recordings, transcripts, voice database or glossary. File
 names, event titles, names and email addresses are replaced by placeholders unless you switch that off.

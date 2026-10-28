@@ -32,7 +32,9 @@ Erneut ausführen = aktualisieren. Stimmdatenbank, Einstellungen und Transkripte
 oder älter benennt der Installer den Datenordner `~/Transkription` einmalig in `~/Transcriber` um (nichts wird kopiert).
 
 Optionen (hinter `bash -s --` anhängen, z. B. `curl -fsSL …/install.sh | bash -s -- --no-watch`):
-`--no-launch` (App nicht starten), `--no-watch` (keinen Ordnerwächter anbieten), `--yes` (keine Rückfragen).
+`--no-launch` (App nicht starten), `--no-watch` (keinen Ordnerwächter anbieten), `--yes` (keine Rückfragen),
+`--fp16` (Spracherkennung in 16 Bit, 1,6 GB, statt des Standards 8 Bit, 0,9 GB – gemessen gleich genau). Ein Update
+behält das gewählte Modell; wechseln lässt es sich später unter Einstellungen › Aufnahme › Spracherkennung.
 
 ### Mit Homebrew
 

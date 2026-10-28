@@ -11,7 +11,8 @@ import SwiftUI
 @MainActor
 final class Dictation: ObservableObject {
     enum State: Equatable { case idle, starting, recording, transcribing }
-    @Published var state: State = .idle
+    @Published var state: State = .idle { didSet { if state == .idle && reloadPending { modelChanged() } } }
+    private var reloadPending = false
     @Published var cleaning = false          // laufendes Diktat mit KI-Aufräumen (zweite Taste)
     @Published var trusted = AXIsProcessTrusted()
     @Published var lastInfo: String?
@@ -103,6 +104,19 @@ final class Dictation: ObservableObject {
         server?.terminate(); server = nil
     }
 
+    /// Nach einem Wechsel des Spracherkennungsmodells: laufenden Dienst beenden und mit dem neuen Modell starten
+    /// (nicht mitten in einem Diktat – dann, sobald es fertig ist).
+    func modelChanged() {
+        guard state == .idle else { reloadPending = true; return }
+        reloadPending = false
+        guard let s = server, s.isRunning else { return }
+        server = nil
+        Task { [weak self] in
+            await Task.detached { s.terminate(); s.waitUntilExit() }.value
+            if let self, self.enabled { self.startServer() }
+        }
+    }
+
     /// Nach Umschalten der Sprachverarbeitung: Engine passend neu vorbereiten.
     func settingsChanged() { if enabled { capture.prepare(voiceProcessing: voiceProcessing) } }
 
@@ -180,6 +194,8 @@ final class Dictation: ObservableObject {
         if cancelled || Date().timeIntervalSince(t) < Self.minHold { abort(); return }
         state = .transcribing
         let lang = language, clean = cleaning, screenTask = screenTask
+        // Ziel = die App beim Loslassen; bis zum Einfügen vergehen bis zu einigen Sekunden (KI-Aufräumen, Dienststart)
+        let target = NSWorkspace.shared.frontmostApplication?.processIdentifier
         self.screenTask = nil
         Task {
             let samples = await capture.stop()
@@ -189,7 +205,14 @@ final class Dictation: ObservableObject {
             indicator.hide()
             switch res {
             case .success(let r):
-                if !text.isEmpty { Self.insert(text + " ") }
+                if !text.isEmpty {
+                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == target { Self.insert(text + " ") }
+                    else {                    // inzwischen andere App vorn: nicht dort einfügen, Text nicht verlieren
+                        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string)
+                        lastError = String(localized: "App gewechselt – das Diktat liegt in der Zwischenablage.")
+                        appLog("Diktat: App gewechselt, Text in die Zwischenablage gelegt"); NSSound.beep()
+                    }
+                }
                 lastInfo = String(format: "%.1f s → %d ms", r.audioS, r.ms) + (text.isEmpty ? " (nichts erkannt)" : "")
                     + (note.isEmpty ? "" : ", \(note)")
             case .failure(let err):
@@ -217,7 +240,9 @@ final class Dictation: ObservableObject {
         let p = Core.process(["dictate-server"])
         let log = Core.data.appendingPathComponent("dictate.log")
         if !FileManager.default.fileExists(atPath: log.path) { FileManager.default.createFile(atPath: log.path, contents: nil) }
-        if let h = try? FileHandle(forWritingTo: log) { h.seekToEndOfFile(); p.standardError = h; p.standardOutput = h }
+        let h = try? FileHandle(forWritingTo: log)
+        if let h { h.seekToEndOfFile(); p.standardError = h; p.standardOutput = h }
+        defer { try? h?.close() }             // der Dienst hat seine eigene Kopie; sonst bleibt je Neustart ein Handle offen
         do { try p.run(); server = p } catch { lastError = String(localized: "Diktat-Dienst startet nicht: \(error.localizedDescription)") }
     }
 

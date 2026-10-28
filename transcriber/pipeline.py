@@ -35,7 +35,7 @@ def _asr(wav, language, terms, repair=True):
     Rohergebnis im Zwischenspeicher (Fassung asr.REPAIR): ältere Zwischenspeicher bekommen nur die Nachbesserung,
     keine neue Spracherkennung. Die geprüften Stellen stehen in r["repaired"]."""
     f = Path(wav).with_name(f"asr-{language}.json")
-    key = {"model": asr.MODEL, "terms": terms}
+    key = {"model": asr.name(), "terms": terms}
     c, dirty = None, False
     with contextlib.suppress(OSError, ValueError, KeyError):
         c = json.loads(f.read_text())
@@ -65,9 +65,20 @@ class Progress:
         self.status = {"source": str(src), "pid": os.getpid(), "started": time.time(), "state": "running",
                        "stage": "", "progress": 0.0, "message": "", "result": None}
         config.JOBS.mkdir(parents=True, exist_ok=True)
-        for old in config.JOBS.glob("*.json"):  # Statusdateien nach 2 Tagen aufräumen
-            if time.time() - old.stat().st_mtime > 2 * 86400:
-                old.unlink(missing_ok=True)
+        # Aufräumen: nur ältere Läufe derselben Quelle (die App zeigt je Quelle den jüngsten). Nicht nach Alter – das
+        # Panel listet bis zu 30 Tage oder alles; die frühere 2-Tage-Grenze leerte es beim nächsten Auftrag (2026-10-28).
+        # Zu gelöschten Aufnahmen räumen delete/cleanup die Statusdateien ab.
+        runs = {}
+        for old in config.JOBS.glob("*.json"):
+            try:
+                s = json.loads(old.read_text())
+            except (OSError, ValueError):
+                continue
+            runs.setdefault(s.get("source"), []).append((s.get("started") or 0, s.get("state"), old))
+        for same in runs.values():
+            for _, state, old in sorted(same, key=lambda r: r[0])[:-1]:
+                if state != "running":
+                    old.unlink(missing_ok=True)
         self.path = config.JOBS / f"{int(time.time() * 1000)}-{os.getpid()}.json"
         self._stop = threading.Event()
         self._lock = threading.Lock()  # _tick-Thread und Hauptthread schreiben dieselbe .tmp (2026-10-23: replace → FileNotFoundError)
@@ -206,8 +217,8 @@ def _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, du
         t["gap_filled_s"], t["asr_gaps"] = round(filled, 1), round(time.time() - t0, 1)
 
     def level(a, w):
-        i, j = int(max(w["start"] - 0.05, 0) * 16000), int((w["end"] + 0.05) * 16000)
-        return float(np.mean(a[i:j] ** 2)) if j > i else 0.0
+        s = a[int(max(w["start"] - 0.05, 0) * 16000):int((w["end"] + 0.05) * 16000)]
+        return float(np.mean(s ** 2)) if len(s) else 0.0    # Spur schon zu Ende: leer (sonst nan → immer Spur 2)
     by = {1: list(extra[1]), 2: list(extra[2])}
     for w in mixed:
         by[1 if level(x[0], w) >= level(x[1], w) else 2].append(w)
@@ -573,16 +584,6 @@ def assign_words(words, segs):
     return words
 
 
-def turns(words):
-    out = []
-    for w in words:
-        if out and out[-1]["speaker"] == w["speaker"] and w["start"] - out[-1]["end"] < 5:
-            out[-1]["text"] += " " + w["w"]; out[-1]["end"] = w["end"]
-        else:
-            out.append({"speaker": w["speaker"], "start": w["start"], "end": w["end"], "text": w["w"]})
-    return out
-
-
 def display_names(clusters, words):
     """Anzeigenamen: sicher/bestätigt → Name, vermutlich → „Name (?)“, unbekannt → „Sprecher A/B/…“ in Reihenfolge des Auftretens."""
     order = list(dict.fromkeys(w["speaker"] for w in words if w["speaker"]))
@@ -711,14 +712,14 @@ def _run(src, language, out_dir, formats, num_speakers, cfg, terms, rules, P, t)
     out_dir.mkdir(parents=True, exist_ok=True)     # --out mit neuem Ordner brach sonst erst beim Schreiben ab (96 %)
     stem = out_dir / src.stem
     doc = {"version": 1, "job_id": jid, "source": str(src), "created": time.strftime("%Y-%m-%d %H:%M"),
-           "model": asr.MODEL, "language": language, "language_set": language_set, "duration": dur, "tracks": info["tracks"], "track_mode": mode, "event": event,
+           "model": asr.name(cfg), "language": language, "language_set": language_set, "duration": dur, "tracks": info["tracks"], "track_mode": mode, "event": event,
            "track_relation": relation, "timing_s": {k: round(v, 1) for k, v in t.items()},
            "glossary": terms, "glossary_replacements": replaced, "speakers": [{k: v for k, v in c.items() if k != "embedding"} for c in clusters],
            "words": words, "diarization": segs, "overlaps": [[round(s, 2), round(e, 2)] for s, e in overlaps],
            "dropped": dropped,   # erfundene Phrasen und Schleifen (drop_hallucinations, drop_loops) – nachvollziehbar, nicht stumm weg
            "repaired": repaired}  # neu erkannte Stellen ohne Satzzeichen (asr.repair), auch abgelehnte
     db.execute("DELETE FROM clusters WHERE job_id=?", (jid,))
-    speakers.save_job(db, jid, src, f"{stem}.transcript.json", asr.MODEL, clusters)
+    speakers.save_job(db, jid, src, f"{stem}.transcript.json", asr.name(cfg), clusters)
     paths = render.write(doc, stem, formats)
     return doc, paths
 
@@ -825,8 +826,6 @@ MOVED = (".error.txt", ".event.json", ".summary.md")   # werden beim Umbenennen 
 
 def clean_stem(name):
     """Dateiname aus einem Titel: keine Pfad-/Sonderzeichen, einfache Leerzeichen, höchstens 90 Zeichen."""
-    import re
-    import unicodedata
     name = unicodedata.normalize("NFC", name)
     name = re.sub(r'[/\\:*?"<>|\n\r\t]+', " ", name)
     name = re.sub(r"\s+", " ", name).strip(" .-_")

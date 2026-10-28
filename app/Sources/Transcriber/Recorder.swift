@@ -30,6 +30,9 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
     private var micInput: AVAssetWriterInput?
     private var sysInput: AVAssetWriterInput?
     private var sessionStarted = false
+    private var writeFailed = false                 // nur auf `queue`
+    private var lastMicBuffer = Date()              // unter feedLock: letzter Mikrofonpuffer (checkMic)
+    private var micStalled = false
     private var sessionStart = CMTime.invalid
     private var nextPTS: [ObjectIdentifier: CMTime] = [:]   // je Spur: wo das nächste Sample liegen müsste
     /// Nur für den Selbsttest (--gap-test): Systemton bis zu diesem Zeitpunkt verwerfen, als liefe noch nichts.
@@ -85,6 +88,22 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
         return AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &dev) == noErr ? dev : nil
     }
 
+    /// Beim App-Start: versteckte „.Aufnahme ….m4a“ stammen von einer abgebrochenen Aufnahme (Absturz, Abmelden). Sichtbar
+    /// machen, damit sie als „ohne Transkript“ erscheinen statt still liegen zu bleiben. Winzige Reste (< 100 KB) bleiben.
+    static func recoverInterrupted(in folder: URL) {
+        let fm = FileManager.default
+        for f in (try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.fileSizeKey, .contentModificationDateKey])) ?? []
+        where f.lastPathComponent.hasPrefix(".") && f.pathExtension.lowercased() == "m4a" {
+            let v = try? f.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+            let dest = folder.appendingPathComponent(String(f.lastPathComponent.dropFirst()))
+            // < 2 min alt: läuft vielleicht gerade (zweite Instanz, z. B. --ui-test; Fragmente kommen alle 10 s)
+            guard (v?.fileSize ?? 0) >= 100_000, Date().timeIntervalSince(v?.contentModificationDate ?? Date()) > 120,
+                  !fm.fileExists(atPath: dest.path) else { continue }
+            do { try fm.moveItem(at: f, to: dest); appLog("Abgebrochene Aufnahme wiederhergestellt: \(dest.lastPathComponent)") }
+            catch { appLog("Abgebrochene Aufnahme \(f.lastPathComponent) nicht umbenannt: \(error.localizedDescription)") }
+        }
+    }
+
     func start(deviceID: String?, systemAudio: Bool, voiceProcessing: Bool, folder: URL) async throws {
         guard await AVCaptureDevice.requestAccess(for: .audio) else {
             throw NSError(domain: "Recorder", code: 1, userInfo: [NSLocalizedDescriptionKey: String(localized: "Kein Mikrofonzugriff (Systemeinstellungen › Datenschutz › Mikrofon)")])
@@ -93,11 +112,14 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH-mm"
         let base = String(localized: "Aufnahme \(f.string(from: Date()))")   // RecordingTitle.defaultStamp erkennt de und en
         var name = base, n = 2        // zweite Aufnahme in derselben Minute: „… 2“ statt die erste zu überschreiben
-        while FileManager.default.fileExists(atPath: folder.appendingPathComponent("\(name).m4a").path) { name = "\(base) \(n)"; n += 1 }
+        // auch eine versteckte Restdatei (abgebrochene Aufnahme derselben Minute) belegt den Namen – nie löschen
+        while ["", "."].contains(where: { FileManager.default.fileExists(atPath: folder.appendingPathComponent("\($0)\(name).m4a").path) }) {
+            name = "\(base) \(n)"; n += 1
+        }
         finalURL = folder.appendingPathComponent("\(name).m4a")
         tmpURL = folder.appendingPathComponent(".\(name).m4a")
-        try? FileManager.default.removeItem(at: tmpURL!)
-        queue.sync { self.writer = nil; self.sessionStarted = false }   // Puffer vor dem Writer werden verworfen
+        queue.sync { self.writer = nil; self.sessionStarted = false; self.writeFailed = false }   // Puffer vor dem Writer werden verworfen
+        feedLock.withLock { lastMicBuffer = Date(); micStalled = false }
 
         // Systemton zuerst: scheitert die Freigabe, wird ohne zweite Spur aufgenommen.
         var withSystem = false
@@ -115,6 +137,8 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
             catch { await MainActor.run { self.warning = String(localized: "Systemton nicht verfügbar (Bildschirmaufnahme-Freigabe?): \(error.localizedDescription)") } }
         }
 
+        // Scheitert ab hier etwas, liefen Systemton bzw. Mikrofon sonst weiter (oranger Punkt), ohne dass man stoppen kann.
+        do {
         // Mikrofon: mit Apple-Sprachverarbeitung über AVAudioEngine, sonst roh über AVCaptureSession.
         var micRate = 48000.0
         if Self.usesVP(voiceProcessing, deviceID) {
@@ -130,6 +154,9 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
         }
 
         let w = try AVAssetWriter(outputURL: tmpURL!, fileType: .m4a)
+        // In Fragmenten schreiben: bei Absturz/Kernel-Panic/kill -9 bleibt die Datei bis auf die letzten Sekunden lesbar –
+        // ohne fehlt der moov-Kopf und die ganze Aufnahme ist verloren (Test 2026-10-28: ffprobe „Invalid data“ bzw. 36 s)
+        w.movieFragmentInterval = CMTime(seconds: 10, preferredTimescale: 1)
         let mic = AVAssetWriterInput(mediaType: .audio, outputSettings: Self.aac(channels: 1, rate: micRate))
         mic.expectsMediaDataInRealTime = true
         w.add(mic)
@@ -140,6 +167,11 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
             w.add(s); sys = s
         }
         queue.sync { self.writer = w; self.micInput = mic; self.sysInput = sys; self.sessionStarted = false }
+        } catch {
+            appLog("Aufnahme nicht gestartet: \(error.localizedDescription)")
+            await stopCapture()
+            throw error
+        }
 
         let micName = deviceID.flatMap(Self.audioDeviceID(uid:)) ?? Self.defaultInputDevice()
         appLog("Aufnahme gestartet: \(name).m4a (\(withSystem ? "mit" : "ohne") Systemton, Mikrofon \(micName.flatMap { Self.deviceString($0, kAudioObjectPropertyName) } ?? "?"))")
@@ -148,6 +180,7 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
             let t = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
                 guard let self else { return }
                 self.elapsed = Date().timeIntervalSince(self.startDate)
+                self.checkMic()
             }
             RunLoop.main.add(t, forMode: .common)
             self.timer = t
@@ -273,15 +306,43 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
         stream = s
     }
 
-    func stop() async -> URL? {
+    private func stopCapture() async {
         session?.stopRunning(); session = nil
         if let e = engine { e.inputNode.removeTap(onBus: 0); e.stop(); engine = nil }
         if let s = stream { try? await s.stopCapture(); stream = nil }
         if #available(macOS 14.2, *), let t = tap as? ProcessTap { t.stop(); tap = nil }
+    }
+
+    /// Kommt länger kein Mikrofonpuffer (Gerät abgezogen, Engine nach Konfigurationswechsel stehengeblieben), sofort
+    /// warnen – sonst lief die Anzeige weiter und die Aufnahme enthielt nur noch den Systemton. Auf dem Hauptthread.
+    private func checkMic() {
+        feedLock.lock()
+        let silent = Date().timeIntervalSince(lastMicBuffer), report = silent > 4 && !micStalled
+        if report { micStalled = true }
+        feedLock.unlock()
+        guard report, elapsed > 5 else { return }
+        appLog(String(format: "Aufnahme: seit %.0f s kein Mikrofonton", silent))
+        warning = String(localized: "Das Mikrofon liefert keinen Ton mehr – bitte Aufnahme beenden und neu starten.")
+    }
+
+    /// Writer gescheitert (Platte voll, keine Schreibrechte): einmal melden, nicht erst beim Stoppen. Auf `queue`.
+    private func reportWriteFailure(_ w: AVAssetWriter) {
+        guard !writeFailed else { return }
+        writeFailed = true
+        appLog("Aufnahme: Schreiben gescheitert: \(w.error.map { "\($0)" } ?? "?")")
+        let msg = String(localized: "Aufnahme wird nicht gespeichert: \(w.error?.localizedDescription ?? String(localized: "unbekannt"))")
+        DispatchQueue.main.async { self.warning = msg }
+    }
+
+    func stop() async -> URL? {
+        await stopCapture()
         await MainActor.run { self.timer?.invalidate(); self.isRecording = false; self.level = 0 }
         let (w, mic, sys, started): (AVAssetWriter?, AVAssetWriterInput?, AVAssetWriterInput?, Bool) =
             queue.sync { let r = (writer, micInput, sysInput, sessionStarted); writer = nil; micInput = nil; sysInput = nil; return r }
-        guard let w, started else { return nil }
+        guard let w, started else {
+            if w != nil { appLog("Aufnahme beendet ohne Daten (kein Puffer geschrieben)") }
+            return nil
+        }
         mic?.markAsFinished(); sys?.markAsFinished()
         await w.finishWriting()
         guard w.status == .completed, let tmp = tmpURL, let fin = finalURL else {
@@ -306,11 +367,11 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
         guard let w = writer, let input, CMSampleBufferDataIsReady(sb) else { return }
         let pts = CMSampleBufferGetPresentationTimeStamp(sb)
         if !sessionStarted {
-            guard w.startWriting() else { return }
+            guard w.startWriting() else { reportWriteFailure(w); return }
             w.startSession(atSourceTime: pts)
             sessionStarted = true; sessionStart = pts; nextPTS = [:]
         }
-        guard w.status == .writing else { return }
+        guard w.status == .writing else { reportWriteFailure(w); return }
         let key = ObjectIdentifier(input)
         let rate = CMAudioFormatDescriptionGetStreamBasicDescription(CMSampleBufferGetFormatDescription(sb)!)?.pointee.mSampleRate ?? 48000
         var next = nextPTS[key] ?? sessionStart
@@ -400,6 +461,7 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
     }
 
     private func updateLevel(_ sb: CMSampleBuffer) {
+        feedLock.lock(); lastMicBuffer = Date(); micStalled = false; feedLock.unlock()   // nur Mikrofonpuffer kommen hierher
         guard Date().timeIntervalSince(lastLevelUpdate) > 0.1, let bb = CMSampleBufferGetDataBuffer(sb) else { return }
         lastLevelUpdate = Date()
         var len = 0; var ptr: UnsafeMutablePointer<Int8>?

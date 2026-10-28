@@ -1,7 +1,9 @@
 """MCP-Server für Claude Code (stdio). Die Transkription läuft als eigener Prozess (`transcriber transcribe`),
 damit die Modelle nach jedem Auftrag wieder aus dem Speicher verschwinden."""
 import asyncio
+import contextlib
 import json
+import signal
 import sys
 from pathlib import Path
 
@@ -35,8 +37,8 @@ async def transcribe(path: str, ctx: Context, language: str | None = None,
                      num_speakers: int | None = None, srt: bool = False) -> str:
     """Transcribe an audio or video file (readable transcript – .txt by default, .md if configured – plus JSON next to
     the file, optionally SRT).
-    language: Whisper language code, e.g. de (default), en, es, fr. Model: Whisper large-v3-turbo, glossary from
-    `transcriber vocab`. Pass num_speakers only if known for sure. If a transcription is already running, the job waits.
+    language: Whisper language code, e.g. de (default), en, es, fr. Model: Whisper large-v3-turbo as set in the app
+    (8-bit by default), glossary from `transcriber vocab`. Pass num_speakers only if known for sure. If a transcription is already running, the job waits.
     Takes about 1/30 of the recording length plus speaker separation."""
     exe = Path(sys.executable).with_name("transcriber")
     args = [str(exe), "transcribe", str(Path(path).expanduser()), "--progress", "json"]
@@ -65,7 +67,18 @@ async def transcribe(path: str, ctx: Context, language: str | None = None,
             except ValueError:
                 pass
 
-    await asyncio.gather(read_progress(), read_result(), p.wait())
+    try:
+        await asyncio.gather(read_progress(), read_result(), p.wait())
+    finally:
+        # Abgebrochen (Client-Timeout/Cancel): Kindprozess beenden, sonst rechnet er weiter und hält run.lock. Erst SIGINT –
+        # dann räumt pipeline.run <name>.lock und die Statusdatei auf –, nach 10 s hart.
+        def stop(sig):
+            if p.returncode is None:
+                with contextlib.suppress(ProcessLookupError):
+                    p.send_signal(sig)
+        if p.returncode is None:
+            stop(signal.SIGINT)
+            asyncio.get_running_loop().call_later(10, stop, signal.SIGKILL)
     if p.returncode or not result:
         return t("Fehlgeschlagen:", "Failed:") + "\n" + "\n".join(errors[-15:])
     doc, _ = pipeline.load_doc(result["json"])
@@ -169,13 +182,17 @@ def _recent(limit=10, query=None):
     return out
 
 
-def _resolve(transcript):
-    """Pfad oder Suchbegriff („“ = jüngstes Transkript) → Pfad des Transkripts."""
+def _resolve(transcript, unique=False):
+    """Pfad oder Suchbegriff („“ = jüngstes Transkript) → Pfad des Transkripts. unique: Suchbegriff muss genau ein
+    Transkript treffen (vor dem Senden in die Cloud nicht stillschweigend den jüngsten Treffer nehmen)."""
     if transcript and Path(transcript).expanduser().exists():
         return transcript
-    hits = _recent(1, transcript)
+    hits = _recent(2 if unique else 1, transcript)
     if not hits:
         raise KeyError(t(f"kein Transkript zu {transcript!r} gefunden", f"no transcript found for {transcript!r}"))
+    if unique and len(hits) > 1:
+        raise KeyError(t(f"{transcript!r} trifft mehrere Transkripte – bitte den Pfad angeben (recent_transcripts)",
+                         f"{transcript!r} matches several transcripts – pass the path (recent_transcripts)"))
     return hits[0]["transcript"]
 
 
@@ -218,8 +235,15 @@ def list_templates() -> str:
 async def summarize_transcript(transcript: str, template: str | None = None) -> str:
     """Summarize a transcript with the language model configured in the app (Settings › AI; local or cloud) and write
     <name>.summary.md next to it (replaces an earlier summary). template: id from list_templates (default: the one set
-    in the app). transcript: path or search term. Local models take about a minute for an hour of conversation."""
-    out, meta = await asyncio.to_thread(summarize.run, _resolve(transcript), template)
+    in the app). transcript: path or search term. Local models take about a minute for an hour of conversation.
+    A cloud model is used only if the app allows it without a click (Settings › AI); the search term must then match
+    exactly one transcript."""
+    s = summarize.settings()
+    cloud = not summarize.is_local(s["base_url"])
+    if cloud and not s["cloud_auto"]:                    # wie die App ohne Klick: Cloud nur mit „cloud_auto“
+        raise RuntimeError(t("Cloud-Modell nur in der App per Klick (Einstellungen › KI) – hier nicht erlaubt",
+                             "cloud model only via click in the app (Settings › AI) – not allowed here"))
+    out, meta = await asyncio.to_thread(summarize.run, _resolve(transcript, unique=cloud), template, allow_cloud=cloud)
     return (f"{out}\n{meta['name']} · {meta['model']} · {meta['seconds']} s\n\n"
             + out.read_text(encoding="utf-8").split("\n", 1)[1])
 
@@ -243,6 +267,7 @@ _add_prompts()
 
 
 def main():
+    config.secure_data()
     mcp.run()
 
 

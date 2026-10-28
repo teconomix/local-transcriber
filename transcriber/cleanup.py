@@ -1,13 +1,14 @@
 """Löschen und Aufräumen (seit 0.8).
 
 - delete(): eine Aufnahme ganz („Alles“) oder nur ihr Audio („Nur Aufnahme“, Transkript bleibt).
-- cleanup(): nach Löschen im Finder aufräumen; auf Wunsch Audio im Aufnahmeordner nach N Tagen löschen.
+- cleanup(): nach Löschen im Finder aufräumen; auf Wunsch Audio und Video in ~/Transcriber N Tage nach dem Transkript löschen.
 
 Sichtbare Dateien (Audio, Transkript, Begleitdateien) kommen in den Papierkorb – ein Versehen lässt sich rückgängig
 machen. Was nur Transcriber kennt, wird endgültig entfernt: der Zwischenspeicher (enthält Kopien des Audios), die
 Statusdateien der App und die Einträge der Stimmdatenbank. Björns Entscheidung 2026-10-20: „Nur Aufnahme“ behält
 Transkript, Stimm-Fingerabdrücke und den Eintrag in der App; „Alles“ entfernt auch die Stimmen aus diesem Gespräch.
 Anlass: Im Finder gelöscht, blieben Eintrag, drei WAV-Kopien und die Stimmdaten zurück."""
+import fcntl
 import json
 import os
 import re
@@ -19,9 +20,7 @@ from pathlib import Path
 from . import config, pipeline, render, speakers
 from .i18n import t as tr
 
-AUDIO_EXT = {".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg", ".opus", ".mp4", ".mov", ".m4v", ".mkv", ".webm", ".caf",
-             ".aiff", ".aif"}
-RECORDINGS = ("Aufnahmen", "Recordings")        # Aufnahmeordner der App in watch_dir (wie recordingsDir in der App)
+AUDIO_EXT = config.MEDIA_EXT
 
 
 def trash(p):
@@ -54,15 +53,19 @@ def _transcript_files(jp, src):
     return list(dict.fromkeys(out))
 
 
-def _status_files(src):
-    out = []
+def _status_by_source():
+    out = {}
     for f in config.JOBS.glob("*.json"):
         try:
-            if json.loads(f.read_text()).get("source") == str(src):
-                out.append(f)
+            s = json.loads(f.read_text()).get("source")
+            out.setdefault(str(Path(s).resolve()) if s else None, []).append(f)   # aufgelöst: /var ↔ /private/var
         except (OSError, ValueError):
             continue
     return out
+
+
+def _status_files(src):
+    return _status_by_source().get(str(Path(src).resolve()), [])
 
 
 def _forget(db, jid):
@@ -78,9 +81,24 @@ def _forget(db, jid):
     return n
 
 
+def _locks(src, jp):
+    return [p.with_name(p.name + ".lock") for p in {src.with_suffix(""), jp.parent / jp.name.removesuffix(".transcript.json")}
+            if p.with_name(p.name + ".lock").exists()]
+
+
+def _lock_alive(f):
+    """<name>.lock enthält die PID des Auftrags (pipeline.run). Rest eines abgebrochenen Laufs = Prozess weg."""
+    try:
+        os.kill(int(f.read_text().strip()), 0)
+    except (PermissionError, ValueError):                 # Prozess eines anderen Benutzers bzw. unlesbar: lieber „läuft“
+        return True
+    except OSError:
+        return False
+    return True
+
+
 def _locked(src, jp):
-    return any(p.with_name(p.name + ".lock").exists() for p in
-               {src.with_suffix(""), jp.parent / jp.name.removesuffix(".transcript.json")} if p)
+    return any(_lock_alive(f) for f in _locks(src, jp))
 
 
 def delete(path, audio_only=False):
@@ -109,9 +127,14 @@ def delete(path, audio_only=False):
         shutil.rmtree(cache, ignore_errors=True)
     voices = 0
     if not audio_only:
-        for f in (_transcript_files(jp, src) if jp else []):
+        # ohne Transkript (Auftrag fehlgeschlagen): trotzdem die Begleitdateien neben der Quelle (.error.txt, .event.json)
+        base = src.with_suffix("")
+        files = _transcript_files(jp, src) if jp else [base.with_name(base.name + e) for e in pipeline.SIDECARS]
+        for f in files:
             if trash(f):
                 gone.append(str(f))
+        for f in _locks(src, jp or src):                      # Reste abgebrochener Läufe (_locked hat geprüft)
+            f.unlink(missing_ok=True)
         if jid:
             voices = _forget(db, jid)
         for f in _status_files(src):
@@ -122,35 +145,80 @@ def delete(path, audio_only=False):
 _JOB_ID = re.compile(r'"job_id":\s*"([0-9a-f]+)"')
 
 
-def _find_transcript(jid, roots):
-    """Transkript eines Auftrags anderswo (im Finder verschoben): job_id steht am Anfang jeder .transcript.json."""
-    for root in roots:
-        for f in Path(root).rglob("*.transcript.json"):
+def _transcripts_by_job(root):
+    """Transkripte unter root nach job_id (im Finder verschoben): job_id steht am Anfang jeder .transcript.json."""
+    out = {}
+    for f in Path(root).rglob("*.transcript.json") if Path(root).is_dir() else []:
+        if f.is_symlink():
+            continue
+        try:
+            with open(f, encoding="utf-8") as h:
+                m = _JOB_ID.search(h.read(400))
+        except OSError:
+            continue
+        if m:
+            out.setdefault(m.group(1), f)
+    return out
+
+
+def _reachable(p, watch):
+    """Darf das Fehlen von p als „gelöscht“ gelten? /Volumes/<name>/…: nur bei eingehängtem Laufwerk (auch für Dateien
+    direkt im Wurzelordner). Unter watch_dir zählt auch ein fehlender Unterordner als gelöscht; sonst muss der Ordner
+    der Datei da sein (fehlt er, ist eher ein Laufwerk abgemeldet)."""
+    parts = p.parts
+    if len(parts) > 2 and parts[1] == "Volumes" and not os.path.ismount(os.path.realpath(Path("/Volumes", parts[2]))):
+        return False
+    if watch.is_dir() and p.is_relative_to(watch):
+        return True
+    return p.parent.exists()
+
+
+def _orphan_caches(db, now, dry_run):
+    """Zwischenspeicher ohne Eintrag in der Datenbank (abgebrochene/fehlgeschlagene Aufträge), älter als 1 Tag. Nur,
+    wenn gerade keine Transkription läuft (run.lock frei; sie legt ihren Zwischenspeicher vor dem Eintrag an)."""
+    if not config.CACHE.is_dir():
+        return []
+    known = {r[0] for r in db.execute("SELECT id FROM jobs")}
+    out = []
+    with open(config.DATA / "run.lock", "a") as lk:
+        try:
+            fcntl.flock(lk, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return []
+        for d in config.CACHE.iterdir():
+            if d.name in known or d.is_symlink() or not d.is_dir():
+                continue
             try:
-                with open(f, encoding="utf-8") as h:
-                    m = _JOB_ID.search(h.read(400))
+                newest = max([d.stat().st_mtime] + [f.stat().st_mtime for f in d.iterdir()])
             except OSError:
                 continue
-            if m and m.group(1) == jid:
-                return f
-    return None
+            if now - newest < 86400:
+                continue
+            out.append(d.name)
+            if not dry_run:
+                shutil.rmtree(d, ignore_errors=True)
+    return out
 
 
 def cleanup(audio_days=None, now=None, dry_run=False):
-    """Aufräumen. (1) Im Finder gelöscht: fehlt nur das Audio → Zwischenspeicher weg; fehlen Audio und Transkript →
-    wie „Alles“ (Zwischenspeicher, Stimmdatenbank, Eintrag). Vorsicht: nur, wenn der Ordner der Datei noch da ist (sonst
-    ist eher ein Laufwerk abgemeldet) und das Transkript nicht verschoben unter watch_dir liegt (dann nur Pfad nachziehen).
-    (2) audio_days: Audio im Aufnahmeordner, das fertig transkribiert und älter ist, wie „Nur Aufnahme“ löschen.
+    """Aufräumen (die App alle 10 min). (1) Im Finder gelöscht: fehlt nur das Audio → Zwischenspeicher weg; fehlen Audio
+    und Transkript → Zwischenspeicher und Eintrag in der App weg, die Stimmdatenbank bleibt (Björn 2026-10-28: das
+    Transkript kann auch nur archiviert sein; Stimmen entfernt „Alles löschen“ oder das Fenster „Stimmen“). Vorsicht: nichts bei
+    abgemeldetem Laufwerk (_reachable); liegt das Transkript verschoben unter watch_dir, nur den Pfad nachziehen.
+    (2) audio_days: Audio- und Videodateien in watch_dir samt Unterordnern, deren Transkript älter ist, wie
+    „Nur Aufnahme“ löschen (seit 0.10 der ganze Ordner, vorher nur der Aufnahmeordner der App).
+    (3) Verwaiste Zwischenspeicher (_orphan_caches).
     dry_run: nur auflisten (out["plan"]), nichts ändern. Liefert eine Zusammenfassung."""
     now = now or time.time()
     cfg = config.load()
     watch = Path(cfg["watch_dir"]).expanduser()
     db = speakers.connect()
     out = {"cache": 0, "forgotten": 0, "relinked": 0, "audio_deleted": [], "plan": []}
+    index = states = None                                    # Transkripte unter watch_dir nach job_id, Statusdateien: bei Bedarf
     for r in db.execute("SELECT id, source, transcript FROM jobs").fetchall():
         jid, src = r["id"], Path(r["source"] or "")
         jp = Path(r["transcript"]) if r["transcript"] else None
-        if src.exists() or not src.parent.exists():
+        if src.exists() or not _reachable(src, watch):
             continue
         if jp and jp.exists():                               # Audio weg, Transkript da: nur die Audio-Kopien
             if dry_run:
@@ -159,40 +227,74 @@ def cleanup(audio_days=None, now=None, dry_run=False):
             if (config.CACHE / jid).exists():
                 shutil.rmtree(config.CACHE / jid, ignore_errors=True); out["cache"] += 1
             continue
-        if jp and not jp.parent.exists():
+        if jp and not _reachable(jp, watch):
             continue
-        moved = _find_transcript(jid, [watch]) if watch.exists() else None
+        if index is None:
+            index, states = _transcripts_by_job(watch), _status_by_source()
+        moved = index.get(jid)
+        status = states.get(str(src.resolve()), [])
+        cache = (config.CACHE / jid).exists()
         if dry_run:
-            out["plan"].append(f"{'relink' if moved else 'vergessen'} {jid} ({src.name})")
+            if moved or cache or status:
+                out["plan"].append(f"{'relink' if moved else 'aufräumen'} {jid} ({src.name})")
             continue
         if moved:
             with db:
                 db.execute("UPDATE jobs SET transcript=? WHERE id=?", (str(moved), jid))
             out["relinked"] += 1
             continue
-        if (config.CACHE / jid).exists():
+        if cache:
             shutil.rmtree(config.CACHE / jid, ignore_errors=True); out["cache"] += 1
-        _forget(db, jid)
-        for f in _status_files(src):
+        for f in status:                                     # Stimmdaten bleiben (Björn 2026-10-28)
             f.unlink(missing_ok=True)
-        out["forgotten"] += 1
-    if audio_days:
+        if cache or status:                                  # Eintrag bleibt in der Datenbank: nur einmal zählen
+            out["forgotten"] += 1
+    if audio_days and watch.is_dir():
         limit = now - audio_days * 86400
-        for d in (watch / n for n in RECORDINGS):
-            if not d.is_dir():
+        for a in sorted(watch.rglob("*")):
+            if (a.suffix.lower() not in AUDIO_EXT or a.is_symlink() or not a.is_file()
+                    or any(p.startswith(".") for p in a.relative_to(watch).parts)):
                 continue
-            for a in d.iterdir():
-                if a.name.startswith(".") or a.suffix.lower() not in AUDIO_EXT or a.stat().st_mtime > limit:
+            jp = a.with_name(a.stem + ".transcript.json")
+            if not jp.exists() or a.with_name(a.stem + ".lock").exists():
+                continue                                     # nur fertig transkribierte Aufnahmen
+            if _transcribed_at(jp) > limit:
+                continue
+            try:                                             # gehört das Transkript zu genau dieser Datei?
+                doc = json.loads(jp.read_text())
+                if Path(doc["source"]).resolve() != a.resolve():
                     continue
-                jp = a.with_name(a.stem + ".transcript.json")
-                if not jp.exists() or a.with_name(a.stem + ".lock").exists():
-                    continue                                 # nur fertig transkribierte Aufnahmen
-                if dry_run:
-                    out["plan"].append(f"audio {a.name}")
+                # und zu diesem Inhalt? Neue Datei mit wiederverwendetem Namen („Neue Aufnahme.m4a“, „ZOOM0001.WAV“)
+                # und altem Originaldatum hätte sonst das alte Transkript – Hash nur für Löschkandidaten
+                if pipeline.job_id(a) != doc["job_id"]:
                     continue
-                try:
-                    delete(jp, audio_only=True)
-                    out["audio_deleted"].append(str(a))
-                except (OSError, RuntimeError, ValueError):
-                    continue
+            except (OSError, ValueError, KeyError):
+                continue
+            if dry_run:
+                out["plan"].append(f"audio {a.name}")
+                continue
+            try:
+                delete(jp, audio_only=True)
+                out["audio_deleted"].append(str(a))
+            except (OSError, RuntimeError, ValueError):
+                continue
+    orphans = _orphan_caches(db, now, dry_run)
+    if dry_run:
+        out["plan"] += [f"cache {d} (verwaist)" for d in orphans]
+    else:
+        out["cache"] += len(orphans)
     return out
+
+
+def _transcribed_at(jp):
+    """Zeitpunkt des Transkripts („created“, steht vorn in der Datei), sonst Änderungszeit der .transcript.json.
+    Nicht das Datum der Audiodatei: AirDrop, Finder und Syncthing behalten das Originaldatum – eine alte Aufnahme,
+    die heute in den Ordner kommt, wäre sonst gleich nach dem Transkribieren wieder weg."""
+    try:
+        with open(jp, encoding="utf-8", errors="replace") as f:
+            m = re.search(r'"created":\s*"(\d{4}-\d{2}-\d{2} \d{2}:\d{2})"', f.read(4096))
+        if m:
+            return time.mktime(time.strptime(m.group(1), "%Y-%m-%d %H:%M"))
+    except OSError:
+        pass
+    return jp.stat().st_mtime

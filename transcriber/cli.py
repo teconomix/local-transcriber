@@ -15,10 +15,12 @@
   transcriber rename TRANSKRIPT NEUER-NAME     Aufnahme samt Transkript umbenennen (Verweise werden mitgezogen)
   transcriber summarize TRANSKRIPT [--template ID] [--auto]   Zusammenfassung mit Sprachmodell → <name>.summary.md
   transcriber summarize --templates | --models  Vorlagen bzw. Modelle des eingestellten Servers zeigen
+  transcriber ai-server [--start | --stop [--if-idle]]   lokalen KI-Server per Startbefehl starten/beenden, sonst Status
   transcriber dictate-server                  Diktat-Dienst (startet die App; Modell bleibt geladen)
   transcriber dictate AUDIO [--language en]   Testdiktat über den laufenden Dienst
   transcriber report ZIP [--description DATEI] [--keep-names]   Fehlerbericht (ohne Aufnahmen/Transkripte)
-TRANSKRIPT = .transcript.json oder die .md daneben. SPRECHER = Buchstabe (B), Anzeigename oder SPEAKER_01."""
+  transcriber model [turbo|turbo-8bit] [--download] [--remove NAME] [--json]   Spracherkennungsmodell zeigen, wechseln, löschen
+TRANSKRIPT = .transcript.json oder das lesbare daneben (.txt/.md). SPRECHER = Buchstabe (B), Anzeigename oder SPEAKER_01."""
 import argparse
 import json
 import sys
@@ -44,10 +46,12 @@ USAGE_EN = """Command line.
   transcriber rename TRANSCRIPT NEW-NAME      rename recording and transcript (references are updated)
   transcriber summarize TRANSCRIPT [--template ID] [--auto]   summary by a language model → <name>.summary.md
   transcriber summarize --templates | --models  show templates or the models of the configured server
+  transcriber ai-server [--start | --stop [--if-idle]]   start/stop the local AI server via start command, else status
   transcriber dictate-server                  dictation service (started by the app; model stays loaded)
   transcriber dictate AUDIO [--language en]   test dictation via the running service
   transcriber report ZIP [--description FILE] [--keep-names]   bug report (no recordings/transcripts)
-TRANSCRIPT = .transcript.json or the .md next to it. SPEAKER = letter (B), display name or SPEAKER_01."""
+  transcriber model [turbo|turbo-8bit] [--download] [--remove NAME] [--json]   show, switch or delete the speech recognition model
+TRANSCRIPT = .transcript.json or the readable one next to it (.txt/.md). SPEAKER = letter (B), display name or SPEAKER_01."""
 
 
 def _progress_printer(mode):
@@ -200,6 +204,24 @@ def cmd_rename(a):
     print(json.dumps({k: str(v) for k, v in paths.items()}, ensure_ascii=False) if a.json else paths["source"])
 
 
+def cmd_ai_server(a):
+    from . import aiserver
+    if a.supervise:
+        return aiserver.supervise()
+    if a.start:
+        started = aiserver.ensure(progress=lambda m: print("  " + m, file=sys.stderr, flush=True))
+        print(t("gestartet", "started") if started else t("läuft bereits (oder kein Startbefehl)", "already running (or no start command)"))
+        return
+    if a.stop:
+        r = aiserver.stop(if_idle=a.if_idle)
+        print({"none": t("kein von Transcriber gestarteter Server", "no server started by Transcriber"),
+               "busy": t("wird gerade benutzt – bleibt an", "in use – stays on"),
+               "stopping": t("wird beendet", "stopping")}[r])
+        return
+    st = aiserver.status()
+    print(json.dumps(st, ensure_ascii=False) if a.json else "\n".join(f"{k}: {v}" for k, v in st.items()))
+
+
 def cmd_summarize(a):
     from . import summarize
     if a.templates:
@@ -256,6 +278,45 @@ def cmd_cleanup(a):
             f"Cleaned up: {r['forgotten']} deleted recordings, {r['cache']} caches, {len(r['audio_deleted'])} old recordings"))
 
 
+def cmd_library(a):
+    from . import library
+    items = library.entries()
+    if a.json:
+        print(json.dumps(items, ensure_ascii=False))
+        return
+    for e in sorted(items, key=lambda e: e["recorded"] or "", reverse=True):
+        print(f"{e['recorded'] or '?':16}  {round(e['duration'] / 60):4} min  {e['folder'] or '.':12}  {e['title']}")
+
+
+def cmd_model(a):
+    """Ohne Namen: eingestelltes Modell und was lokal liegt. Mit Namen: (mit --download erst laden, sonst muss es
+    schon da sein) bereitstellen und in config.json eintragen – gilt ab dem nächsten Auftrag, auch für den Wächter; der
+    Diktat-Dienst lädt es erst beim Neustart (die App startet ihn nach dem Wechsel neu). --remove: anderes Modell löschen."""
+    import os
+    if a.remove:
+        freed = asr.remove(a.remove)
+        if not a.json:
+            print(t(f"{a.remove} gelöscht ({freed / 1e9:.1f} GB frei)", f"{a.remove} deleted ({freed / 1e9:.1f} GB freed)"))
+    if a.name:
+        if a.download:
+            os.environ["HF_HUB_OFFLINE"] = "0"
+        asr.prepare(a.name, download=a.download)
+        cfg = json.loads(config.CONFIG.read_text()) if config.CONFIG.exists() else {}
+        cfg["asr_model"] = a.name
+        config.DATA.mkdir(parents=True, exist_ok=True)
+        tmp = config.CONFIG.with_suffix(".tmp")
+        tmp.write_text(json.dumps(cfg, ensure_ascii=False, indent=2, sort_keys=True))
+        tmp.replace(config.CONFIG)
+    cur = asr.choice()
+    items = [{"name": k, "repo": r, "installed": asr.installed(k), "current": k == cur} for k, (r, _) in asr.MODELS.items()]
+    if a.json:
+        print(json.dumps({"current": cur, "models": items}, ensure_ascii=False))
+        return
+    for i in items:
+        print(f"{'*' if i['current'] else ' '} {i['name']:11} {i['repo']:42} "
+              + (t("geladen", "downloaded") if i["installed"] else t("nicht geladen", "not downloaded")))
+
+
 def cmd_dictate_server(a):
     from . import dictate
     return dictate.serve()
@@ -277,6 +338,7 @@ def cmd_dictate(a):
 
 
 def main(argv=None):
+    config.secure_data()
     ap = argparse.ArgumentParser(prog="transcriber", description=t(__doc__, USAGE_EN), formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest="cmd", required=True)
     p = sp.add_parser("transcribe", help=t("Datei(en) transkribieren", "transcribe file(s)"))
@@ -307,6 +369,11 @@ def main(argv=None):
     p.add_argument("--templates", action="store_true", help=t("Vorlagen zeigen", "list templates"))
     p.add_argument("--models", action="store_true", help=t("Modelle des Servers zeigen (Verbindungstest)", "list the server's models (connection test)"))
     p.add_argument("--json", action="store_true"); p.set_defaults(f=cmd_summarize)
+    p = sp.add_parser("ai-server", help=t("lokalen KI-Server (Startbefehl) starten/beenden/zeigen", "start/stop/show the local AI server (start command)"))
+    p.add_argument("--start", action="store_true"); p.add_argument("--stop", action="store_true")
+    p.add_argument("--if-idle", action="store_true", help=t("mit --stop: nicht, solange er benutzt wird", "with --stop: not while in use"))
+    p.add_argument("--supervise", action="store_true", help=argparse.SUPPRESS)
+    p.add_argument("--json", action="store_true"); p.set_defaults(f=cmd_ai_server)
     p = sp.add_parser("report", help=t("Fehlerbericht als ZIP (ohne Aufnahmen/Transkripte)", "bug report as ZIP (no recordings/transcripts)"))
     p.add_argument("out"); p.add_argument("--description", metavar=t("DATEI", "FILE")); p.add_argument("--app-info", metavar=t("DATEI", "FILE"))
     p.add_argument("--keep-names", action="store_true", help=t("Dateinamen/Termintitel nicht unkenntlich machen", "do not redact file names/event titles"))
@@ -317,10 +384,16 @@ def main(argv=None):
                                            help=t("nur das Audio, Transkript und Stimmen bleiben", "audio only, keep transcript and voices"))
     p.add_argument("--json", action="store_true"); p.set_defaults(f=cmd_delete)
     p = sp.add_parser("cleanup", help=t("nach Löschen im Finder aufräumen", "clean up after deleting in Finder"))
-    p.add_argument("--audio-days", type=int, metavar="N", help=t("Audio im Aufnahmeordner nach N Tagen löschen (Transkript bleibt)",
-                                                                  "delete audio in the recordings folder after N days (transcript stays)"))
+    p.add_argument("--audio-days", type=int, metavar="N", help=t("Audio/Video in ~/Transcriber N Tage nach dem Transkript löschen (Transkript bleibt)",
+                                                                  "delete audio/video in ~/Transcriber N days after transcription (transcript stays)"))
     p.add_argument("--dry-run", action="store_true", help=t("nur anzeigen", "only show"))
     p.add_argument("--json", action="store_true"); p.set_defaults(f=cmd_cleanup)
+    p = sp.add_parser("library", help=t("alle Transkripte unter ~/Transcriber (mit Aufnahmedatum)", "all transcripts under ~/Transcriber (with recording date)"))
+    p.add_argument("--json", action="store_true"); p.set_defaults(f=cmd_library)
+    p = sp.add_parser("model", help=t("Spracherkennungsmodell zeigen oder wechseln", "show or switch the speech recognition model"))
+    p.add_argument("name", nargs="?", choices=list(asr.MODELS)); p.add_argument("--download", action="store_true", help=t("vorher laden (Netz)", "download first (network)"))
+    p.add_argument("--remove", choices=list(asr.MODELS), metavar="NAME", help=t("nicht genutztes Modell löschen", "delete an unused model"))
+    p.add_argument("--json", action="store_true"); p.set_defaults(f=cmd_model)
     p = sp.add_parser("dictate-server", help=t("Diktat-Dienst", "dictation service")); p.set_defaults(f=cmd_dictate_server)
     p = sp.add_parser("dictate", help=t("Testdiktat über den Dienst", "test dictation via the service")); p.add_argument("audio")
     p.add_argument("--language", choices=asr.LANGUAGES, metavar="CODE", default="de"); p.set_defaults(f=cmd_dictate)

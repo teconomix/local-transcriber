@@ -1,15 +1,127 @@
 """Spracherkennung mit Whisper large-v3-turbo (mlx-community/whisper-large-v3-turbo, FP16, aus dem HF-Cache).
 
 Modellwahl 2026-10-09 nach Vergleich mit gehörter Referenz (bench/ERGEBNIS.md): turbo vor Parakeet und Qwen3-ASR;
-large-v3 entfernt (2,5× langsamer, ungenauere Wortzeiten). Rückgabe: {"text", "words": [{w, start, end, p}], "segments"}."""
-import re
+large-v3 entfernt (2,5× langsamer, ungenauere Wortzeiten). Rückgabe: {"text", "words": [{w, start, end, p}], "segments"}.
 
-REPO = "mlx-community/whisper-large-v3-turbo"
-MODEL = "whisper-turbo"
+Zwei Modelle (config „asr_model“): turbo in FP16 oder in 8 Bit. 8 Bit gemessen gleich genau (WER 9,9 % wie FP16;
+2026-10-27 auf 70 Aufnahmen gegen large-v3 als Schiedsrichter gleichauf, bench/Q8.md), 0,86 statt 1,61 GB Platte,
+Metal-Spitze 1,8 statt 2,6 GB → Standard für neue Installationen. Bestehende (FP16 liegt, 8 Bit nicht, nichts
+eingestellt) bleiben bei FP16 – kein erzwungener Wechsel. 4 Bit kostete +2,3 Punkte und wird nicht angeboten."""
+import os
+import re
+from pathlib import Path
+
+from . import config
+
+# Name → (Hugging-Face-Repo, Kurzname fürs Transkript und den Zwischenspeicher-Schlüssel)
+MODELS = {"turbo": ("mlx-community/whisper-large-v3-turbo", "whisper-turbo"),
+          "turbo-8bit": ("mlx-community/whisper-large-v3-turbo-8bit", "whisper-turbo-8bit")}
+DEFAULT = "turbo-8bit"          # neue Installationen
+FP16 = "turbo"                  # liegt direkt im HF-Cache, braucht keinen Ordner mit Verweisen
 # Alle Sprachcodes, die Whisper kennt (mlx_whisper.tokenizer.LANGUAGES); welche die App anbietet, stellt man dort ein.
 LANGUAGES = ("en zh de es ru ko fr ja pt tr pl ca nl ar sv it id hi fi vi he uk el ms cs ro da hu ta no th ur hr bg lt "
              "la mi ml cy sk te fa lv bn sr az sl kn et mk br eu is hy ne mn bs kk sq sw gl mr pa si km sn yo so af "
              "oc ka be tg sd gu am yi lo uz fo ht ps tk nn mt sa lb my bo tl mg as tt haw ln ha ba jw su yue").split()
+
+
+def choice(cfg=None):
+    """Eingestelltes Modell (config „asr_model“). Nichts eingestellt: FP16, wenn nur das schon geladen ist (bestehende
+    Installation vor 0.10), sonst der Standard 8 Bit."""
+    k = (cfg or config.load()).get("asr_model")
+    if k in MODELS:
+        return k
+    return FP16 if installed(FP16) and not installed(DEFAULT) else DEFAULT
+
+
+def name(cfg=None):
+    return MODELS[choice(cfg)][1]
+
+
+def local_dir(key):
+    return config.DATA / "models" / MODELS[key][0].split("/")[1]
+
+
+def path(cfg=None):
+    """Was mlx_whisper als path_or_hf_repo bekommt. FP16: das Repo im HF-Cache. 8 Bit: ein Ordner unter DATA/models,
+    denn mlx-community/…-8bit ist für mlx-audio-plus abgelegt (model.safetensors), mlx-whisper 0.4.3 lädt nur
+    weights.safetensors/weights.npz. Die Gewichte sind bitgleich mit nn.quantize(bits=8, group_size=64) des
+    FP16-Modells (1053/1053 Tensoren verglichen) – nur der Dateiname passt nicht. prepare() legt Verweise an."""
+    key = choice(cfg)
+    if key == FP16:
+        return MODELS[key][0]
+    d = local_dir(key)
+    if not (d / "weights.safetensors").exists():
+        prepare(key, download=False)
+    return str(d)
+
+
+def installed(key):
+    """Liegt das Modell lokal (ohne Netz prüfbar)?"""
+    from huggingface_hub import snapshot_download
+    try:
+        snapshot_download(MODELS[key][0], local_files_only=True)
+        return True
+    except Exception:  # noqa: BLE001 – LocalEntryNotFoundError & Co.: nicht vorhanden
+        return False
+
+
+def remove(key):
+    """Nicht genutztes Modell löschen: aus dem HF-Cache und für 8 Bit den Ordner mit Verweisen. Das eingestellte Modell
+    und während einer laufenden Transkription (run.lock) nicht. Gibt die freigegebenen Bytes zurück.
+    Über scan_cache_dir statt rmtree: huggingface_hub 2.x legt die Gewichte im gemeinsamen Speicher hub/blobs/<xx>/
+    ab, der Repo-Ordner enthält nur Verweise – rmtree gab den Platz nicht frei (gesehen 2026-10-27)."""
+    import fcntl
+    import shutil
+    from huggingface_hub import scan_cache_dir
+    from huggingface_hub.constants import HF_HUB_CACHE
+    from .i18n import t
+    if key == choice():
+        raise RuntimeError(t("das eingestellte Modell lässt sich nicht löschen – erst wechseln",
+                             "the selected model cannot be deleted – switch first"))
+    lock = config.DATA / "run.lock"
+    if lock.exists():
+        with open(lock) as f:
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(f, fcntl.LOCK_UN)
+            except BlockingIOError:
+                raise RuntimeError(t("Transkription läuft – später löschen", "transcription running – delete later")) from None
+    freed = 0
+    if Path(HF_HUB_CACHE).is_dir():
+        info = scan_cache_dir(HF_HUB_CACHE)
+        for repo in (r for r in info.repos if r.repo_id == MODELS[key][0]):
+            plan = info.delete_revisions(*(v.commit_hash for v in repo.revisions))
+            freed += plan.expected_freed_size
+            plan.execute()
+            shutil.rmtree(repo.repo_path, ignore_errors=True)   # Reste ohne Revision (abgebrochener Download)
+    shutil.rmtree(local_dir(key), ignore_errors=True)
+    return freed
+
+
+def prepare(key, download=False):
+    """Modell bereitstellen: aus dem HF-Cache (download=True: vorher laden) und für 8 Bit den Ordner mit Verweisen
+    (weights.safetensors → model.safetensors, config.json) unter DATA/models anlegen. Fehler mit Hinweis, wenn es
+    fehlt – zur Laufzeit gilt HF_HUB_OFFLINE=1."""
+    from huggingface_hub import snapshot_download
+    from .i18n import t
+    repo = MODELS[key][0]
+    try:
+        snap = Path(snapshot_download(repo, local_files_only=not download))
+    except Exception as e:  # noqa: BLE001
+        raise RuntimeError(t(f"Spracherkennungsmodell {repo} ist nicht geladen – „transcriber model {key} --download“",
+                             f"speech recognition model {repo} is not downloaded – run \"transcriber model {key} --download\"")) from e
+    if key == FP16:
+        return snap
+    d = local_dir(key)
+    d.mkdir(parents=True, exist_ok=True)
+    for dst, src in (("weights.safetensors", "model.safetensors"), ("config.json", "config.json")):
+        target, link = (snap / src).resolve(), d / dst
+        if link.is_symlink() or link.exists():
+            if link.resolve() == target:
+                continue
+            link.unlink()
+        os.symlink(target, link)
+    return d
 
 
 def _prompt(terms, language):
@@ -35,7 +147,7 @@ def detect_language(wav, windows=8, min_share=0.75, min_p=0.8):
     a, _ = sf.read(str(wav), dtype="float32")
     if a.ndim > 1:
         a = a.mean(axis=1)
-    model = ModelHolder.get_model(REPO, mx.float16)     # derselbe Zwischenspeicher wie mlx_whisper.transcribe
+    model = ModelHolder.get_model(path(), mx.float16)     # derselbe Zwischenspeicher wie mlx_whisper.transcribe
     tops = []
     for k in range(1, windows + 1):
         x = a[int(len(a) * k / (windows + 1)):][:N_SAMPLES]
@@ -119,7 +231,7 @@ def repair(wav, r, language):
     out = []
     for s, e in spans:
         lo = max(s - 0.3, 0.0)
-        o = mlx_whisper.transcribe(a[int(lo * sr):int((e + 0.3) * sr)], path_or_hf_repo=REPO, language=language,
+        o = mlx_whisper.transcribe(a[int(lo * sr):int((e + 0.3) * sr)], path_or_hf_repo=path(), language=language,
                                    verbose=None, condition_on_previous_text=False, word_timestamps=True,
                                    initial_prompt=prompt)
         new = _strip_thanks([w for w in _words(o, lo) if s - 0.2 <= w["start"] < e + 0.2])
@@ -152,7 +264,7 @@ def transcribe(wav, terms=None, language="de"):
     if language not in LANGUAGES:
         raise ValueError(t(f"Sprache {language!r} nicht unterstützt, erlaubt: ", f"language {language!r} not supported, allowed: ")
                          + " ".join(LANGUAGES))
-    r = mlx_whisper.transcribe(str(wav), path_or_hf_repo=REPO, language=language, verbose=None,
+    r = mlx_whisper.transcribe(str(wav), path_or_hf_repo=path(), language=language, verbose=None,
                                condition_on_previous_text=False, word_timestamps=True,
                                initial_prompt=_prompt(terms, language))
     words = _words(r)

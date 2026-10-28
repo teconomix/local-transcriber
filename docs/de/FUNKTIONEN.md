@@ -19,6 +19,10 @@ Installation braucht Transcriber kein Internet – außer du wählst für die KI
 
 - **Whisper large-v3-turbo** über MLX auf der GPU: ~50-fache Echtzeit (47 min Audio in ~1 min), dazu die
   Sprechererkennung mit ~28-facher Echtzeit.
+- **Zwei Spracherkennungsmodelle:** Whisper turbo in 8 Bit (Standard bei neuen Installationen, 0,9 GB) oder 16 Bit
+  (1,6 GB) – gemessen gleich genau; 8 Bit braucht rund 0,8 GB weniger Arbeitsspeicher (auch beim Diktat). Wechseln
+  unter Einstellungen › Aufnahme › Spracherkennung (lädt das Modell bei Bedarf), dort auch das nicht genutzte löschen.
+  Installationen von vor 0.10 behalten 16 Bit. Kommandozeile: `transcriber model [turbo|turbo-8bit] [--download] [--remove NAME]`.
 - **Rund 100 Sprachen** (alle, die Whisper kennt). Zur Auswahl stehen anfangs Deutsch, Englisch, Spanisch und
   Französisch; weitere in den Einstellungen › Aufnahme › „Sprachen zur Auswahl“ an- oder abwählen. Am besten klappen
   weit verbreitete Sprachen, seltene deutlich schwächer. Ist eine Aufnahme eindeutig in einer anderen Sprache als
@@ -27,7 +31,7 @@ Installation braucht Transcriber kein Internet – außer du wählst für die KI
   Markdown `.md` wählbar in Einstellungen › Aufnahme), `<Name>.transcript.json`
   (vollständig, maschinenlesbar), optional `<Name>.srt` (Untertitel).
 - **Löschen:** nur die Aufnahme (Transkript bleibt) oder alles samt den Stimmen aus diesem Gespräch; auf Wunsch
-  Aufnahmen automatisch nach 30 Tagen. Arbeitskopien gehen immer mit.
+  alle transkribierten Audio- und Videodateien in `~/Transcriber` automatisch 30 Tage nach dem Transkript. Arbeitskopien gehen immer mit.
 - **Glossar** für Namen und Fachbegriffe: feste Ersetzungen nach der Erkennung, in der App unter Einstellungen › Glossar
   (oder `transcriber vocab 'dG = DG, D.G.'`); nachträglich auf vorhandene Transkripte anwendbar.
 - **Nachbessern:** Stellen, an denen Whisper ohne Satzzeichen weiterschreibt, werden einzeln neu erkannt und nur
@@ -86,6 +90,8 @@ lief, per Apple Intelligence aus dem Inhalt (macOS 26). Transkript und Stimmdate
 - **Lokal** über Ollama, LM Studio, MTPLX oder jeden Server mit Schnittstelle nach OpenAI-Art – das Gespräch verlässt den
   Mac nicht. **Cloud** über OpenAI, Anthropic, Mistral, OpenRouter mit eigenem Schlüssel: nur auf Klick (Automatik nur
   ausdrücklich), Namen vorher durch Platzhalter ersetzt (abschaltbar).
+- **Lokaler Server bei Bedarf:** Mit Startbefehl (z. B. `ollama serve`) startet Transcriber den Server, wenn er
+  gebraucht wird, und beendet ihn nach einstellbarer Zeit ohne Nutzung bzw. beim Beenden der App wieder.
 - Per Klick oder automatisch nach jeder Transkription; Ergebnis als `<Name>.summary.md` neben dem Transkript, im Panel
   die ersten Kernpunkte und Aufgaben. Neue Sprechernamen ziehen in die Zusammenfassung nach.
 - **Weiterarbeiten** in Claude, Claude Code oder Codex mit einem Klick (die App öffnet sich mit vorbereitetem Text,

@@ -54,7 +54,8 @@ def markdown(doc, json_name, plain=False):
             + t("erkannt, eingestellt war", "detected, setting was") + f" {doc['language_set']})" if doc.get("language_set") else ""),
          ""]
     ev = doc.get("event")
-    others = [a["name"] for a in (ev or {}).get("attendees", []) if not a.get("me") and a.get("status") != "abgesagt"]
+    others = [a["name"] for a in (ev or {}).get("attendees", [])
+              if (a.get("name") or "").strip() and not a.get("me") and a.get("status") != "abgesagt"]
     if ev:
         L[-1:] = [t("Termin", "Event") + f": {ev.get('title') or '–'}"
                   + (" · " + t("Teilnehmer", "Attendees") + f": {', '.join(others)}" if others else "") + "  ", ""]
@@ -133,13 +134,20 @@ def find_readable(stem, source_name):
     return None, None
 
 
+def _put(p, text):
+    """Erst daneben schreiben, dann ersetzen: ein Abbruch mittendrin hinterlässt kein halbes Transkript."""
+    tmp = p.with_name(f".{p.name}.tmp")
+    tmp.write_text(text)
+    tmp.replace(p)
+
+
 def write(doc, stem, formats, text_format=None):
     """text_format: "md"/"txt"; ohne Angabe das Format des vorhandenen eigenen Transkripts (Neu auswerten, Benennen
     behalten es bei), sonst die Einstellung text_format."""
     stem = Path(stem)
     paths = {}
     jp = stem.with_name(stem.name + ".transcript.json")
-    jp.write_text(json.dumps(doc, ensure_ascii=False, indent=1, default=float))
+    _put(jp, json.dumps(doc, ensure_ascii=False, indent=1, default=float))
     paths["json"] = jp
     if "md" in formats:
         src_name = Path(doc["source"]).name
@@ -149,7 +157,7 @@ def write(doc, stem, formats, text_format=None):
         if p.exists() and not is_ours(p, src_name):
             # fremde Datei gleichen Namens: nicht überschreiben, eigenes Transkript daneben ablegen
             p = stem.with_name(stem.name + ".transcript" + TEXT_EXT[fmt])
-        p.write_text(markdown(doc, jp.name, plain=fmt == "txt")); paths["md"] = p
+        _put(p, markdown(doc, jp.name, plain=fmt == "txt")); paths["md"] = p
     if "srt" in formats:
-        p = stem.with_name(stem.name + ".srt"); p.write_text(srt(doc)); paths["srt"] = p
+        p = stem.with_name(stem.name + ".srt"); _put(p, srt(doc)); paths["srt"] = p
     return paths

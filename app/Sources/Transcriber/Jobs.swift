@@ -5,11 +5,17 @@ import UserNotifications
 /// Ruft den Python-Kern auf (`transcriber transcribe`). Fortschritt kommt nicht aus der Prozessausgabe, sondern aus den
 /// Statusdateien unter ~/.local/share/transcriber/jobs/ – so erscheinen auch Aufträge von Wächter, CLI und MCP.
 /// Fehler der App zum Nachlesen: ~/.local/share/transcriber/app.log
+private let logQueue = DispatchQueue(label: "app-log")
+
 func appLog(_ msg: String) {
-    let line = "\(ISO8601DateFormatter().string(from: Date())) \(msg)\n"
-    let url = Core.data.appendingPathComponent("app.log")
-    if let h = try? FileHandle(forWritingTo: url) { h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close() }
-    else { try? line.write(to: url, atomically: true, encoding: .utf8) }
+    let line = Data("\(ISO8601DateFormatter().string(from: Date())) \(msg)\n".utf8)
+    // Eine Zeile nach der anderen und immer ans Ende (O_APPEND): Aufrufe aus mehreren Threads überschrieben sich sonst.
+    logQueue.sync {
+        let fd = open(Core.data.appendingPathComponent("app.log").path, O_WRONLY | O_APPEND | O_CREAT, 0o600)
+        guard fd >= 0 else { return }
+        line.withUnsafeBytes { _ = write(fd, $0.baseAddress, $0.count) }
+        close(fd)
+    }
 }
 
 enum Core {
@@ -46,6 +52,17 @@ enum Core {
                 try out.write(to: data.appendingPathComponent("config.json"), options: .atomic)
             } catch { appLog("config.json nicht geschrieben: \(error.localizedDescription)") }
         }
+    }
+    /// Spracherkennungsmodelle laut Kern (`transcriber model --json`: eingestellt, geladen). Das eingestellte entscheidet der
+    /// Kern (asr.choice – ohne Eintrag: FP16 bei älteren Installationen, sonst 8 Bit). Umschalten über
+    /// `transcriber model NAME --download`, Löschen über `--remove NAME`.
+    struct AsrModels { var current: String; var installed: Set<String> }
+    static func asrModels() async -> AsrModels? {
+        let (ok, out) = await run(["model", "--json"])
+        guard ok, let line = out.split(separator: "\n").last(where: { $0.hasPrefix("{") }),
+              let o = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
+              let cur = o["current"] as? String, let ms = o["models"] as? [[String: Any]] else { return nil }
+        return AsrModels(current: cur, installed: Set(ms.filter { $0["installed"] as? Bool == true }.compactMap { $0["name"] as? String }))
     }
     static func configJSON() -> [String: Any] {
         guard let d = try? Data(contentsOf: data.appendingPathComponent("config.json")),
@@ -87,11 +104,14 @@ enum Core {
         await withCheckedContinuation { cont in
             let p = process(args, env: env)
             let out = Pipe(); p.standardOutput = out; p.standardError = out
-            p.terminationHandler = { pr in
-                let s = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-                cont.resume(returning: (pr.terminationStatus == 0, s))
+            do { try p.run(); started?(p) } catch { cont.resume(returning: (false, error.localizedDescription)); return }
+            // Laufend lesen: erst nach dem Ende gelesen, blockiert der Kern bei > 64 KB Ausgabe (Pipe voll) und endet nie
+            // (`library --json` hatte 2026-10-28 schon 50 KB)
+            DispatchQueue.global().async {
+                let data = out.fileHandleForReading.readDataToEndOfFile()
+                p.waitUntilExit()
+                cont.resume(returning: (p.terminationStatus == 0, String(data: data, encoding: .utf8) ?? ""))
             }
-            do { try p.run(); started?(p) } catch { cont.resume(returning: (false, error.localizedDescription)) }
         }
     }
 }
@@ -128,6 +148,7 @@ final class Job: ObservableObject, Identifiable {
     @Published var summarizing: Date?            // Zusammenfassung läuft seit …
     var summaryProcess: Process?
     var language = "de"                          // Sprache dieses Transkripts (für „Neu auswerten“)
+    var activity: Double = 0                     // zuletzt bearbeitet (Sortierung und Zeitraum im Panel)
 
     init(id: String, source: URL, started: Date) { self.id = id; self.source = source; self.started = started }
 
@@ -169,11 +190,23 @@ final class JobManager: ObservableObject {
     @Published var untranscribed: [URL] = []
     /// Vorlagen für Zusammenfassungen (`transcriber summarize --templates`), mitgelieferte und eigene.
     @Published var templates: [SummaryTemplate] = []
+    /// Zugeklappte Einträge (nur Titel, Links, Anriss der Zusammenfassung). Neue Einträge sind offen.
+    @Published var collapsed = Set(UserDefaults.standard.stringArray(forKey: "collapsedJobs") ?? [])
+    /// Zählt jede Änderung an einem Transkript aus der App – das Fenster „Alle Transkriptionen“ liest dann neu ein.
+    @Published var changes = 0
     private var ticks = 0
     /// Nur Demo-Bild (--ui-test --demo): Liste nicht aus den Statusdateien neu einlesen.
     var frozen = false
     private var timer: Timer?
-    private var hiddenBefore: Double { UserDefaults.standard.double(forKey: "hiddenBefore") }
+    /// Panel: Einträge, die in den letzten N Tagen bearbeitet wurden (0 = alle), Einstellungen › Allgemein.
+    private var panelDays: Int { UserDefaults.standard.object(forKey: "panelDays") as? Int ?? 7 }
+    /// Reihenfolge im Panel, festgehalten beim Öffnen (resort) – solange es offen ist, springt nichts.
+    private var rank: [String: Int] = [:]
+    /// Sortierung im Panel (Einstellungen › Allgemein), Werte wie im Fenster „Alle Transkriptionen“.
+    private var panelSort: LibraryModel.Sort { LibraryModel.Sort(rawValue: UserDefaults.standard.string(forKey: "panelSort") ?? "") ?? .activity }
+    /// Aufnahmedatum je Transkript (aus `transcriber library`), nur für die Sortierung nach Aufnahmedatum
+    private var recorded: [String: String] = [:]
+    private var lastResort = Date.distantPast
     private var firstScan = true
 
     init() {
@@ -184,16 +217,18 @@ final class JobManager: ObservableObject {
         RunLoop.main.add(t, forMode: .common)   // .common: läuft auch, solange das Menüleistenfenster offen ist
         timer = t
         scan()
-        // Aufräumen: nach Löschen im Finder, und Aufnahmen nach 30 Tagen (Einstellung) – kurz nach dem Start, dann alle 10 min.
+        // Aufräumen: nach Löschen im Finder, und Audio 30 Tage nach dem Transkript (Einstellung) – kurz nach dem Start, dann alle 10 min.
         let c = Timer(timeInterval: 600, repeats: true) { [weak self] _ in Task { @MainActor in await self?.cleanup() } }
         RunLoop.main.add(c, forMode: .common)
         cleanupTimer = c
         Task { try? await Task.sleep(nanoseconds: 20_000_000_000); await cleanup() }
+        Recorder.recoverInterrupted(in: recordingsDir)   // vor jeder Aufnahme: versteckte Reste sind abgebrochen
+        ICloudInbox.start()                     // iPhone-Weg (Einstellung, Standard aus)
     }
     private var cleanupTimer: Timer?
 
     /// `transcriber cleanup`: im Finder Gelöschtes aufräumen (Zwischenspeicher, Stimmdatenbank, Eintrag); mit der
-    /// Einstellung „Aufnahmen nach 30 Tagen löschen“ auch das Audio alter, fertig transkribierter Aufnahmen.
+    /// Einstellung „Audio nach 30 Tagen löschen“ auch Audio/Video in ~/Transcriber, deren Transkript älter ist.
     func cleanup() async {
         guard !frozen else { return }
         let days = UserDefaults.standard.bool(forKey: "audioRetention") ? ["--audio-days", "30"] : []
@@ -218,6 +253,7 @@ final class JobManager: ObservableObject {
         // Mit Namen: 2026-10-20 ließ sich sonst nicht nachvollziehen, welcher Eintrag gelöscht worden war.
         appLog((audioOnly ? "Aufnahme gelöscht, Transkript bleibt: " : "Aufnahme samt Transkript gelöscht: ") + job.source.lastPathComponent)
         if audioOnly { job.audioGone = true } else { jobs.removeAll { $0.id == job.id } }
+        changes += 1
         return nil
     }
 
@@ -247,9 +283,69 @@ final class JobManager: ObservableObject {
         jobs.removeAll { $0.id == job.id }
     }
 
-    func clearFinished() {
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "hiddenBefore")
-        jobs.removeAll { $0.state != .running }
+    func toggleCollapsed(_ job: Job) {
+        if collapsed.contains(job.id) { collapsed.remove(job.id) } else { collapsed.insert(job.id) }
+        UserDefaults.standard.set(collapsed.sorted(), forKey: "collapsedJobs")
+    }
+
+    /// Beim Öffnen des Panels: zuletzt bearbeitet oben.
+    func resort() {
+        // Sichtbar werden und Tastaturfokus kommen beim Öffnen beide – einmal reicht
+        guard Date().timeIntervalSince(lastResort) > 1 else { return }
+        lastResort = Date()
+        let sort = panelSort
+        if sort == .recorded {
+            Task {
+                let (ok, out) = await Core.run(["library", "--json"])
+                if ok, let line = out.split(separator: "\n").last, let d = line.data(using: .utf8),
+                   let list = try? JSONDecoder().decode([LibraryEntry].self, from: d) {
+                    recorded = Dictionary(list.map { ($0.transcript, $0.recorded ?? "") }, uniquingKeysWith: { a, _ in a })
+                }
+                applyOrder(sort)
+            }
+        } else {
+            applyOrder(sort)
+        }
+    }
+
+    /// Laufende Aufträge oben, dann nach der gewählten Sortierung.
+    private func applyOrder(_ sort: LibraryModel.Sort) {
+        func before(_ a: Job, _ b: Job) -> Bool {
+            if (a.state == .running) != (b.state == .running) { return a.state == .running }
+            switch sort {
+            case .activity: return a.activity > b.activity
+            case .recorded:
+                let ra = a.jsonURL.flatMap { recorded[$0.path] } ?? "", rb = b.jsonURL.flatMap { recorded[$0.path] } ?? ""
+                return ra != rb ? ra > rb : a.activity > b.activity
+            case .title:
+                return a.source.deletingPathExtension().lastPathComponent
+                    .localizedStandardCompare(b.source.deletingPathExtension().lastPathComponent) == .orderedAscending
+            case .length: return a.duration > b.duration
+            }
+        }
+        rank = Dictionary(uniqueKeysWithValues: jobs.sorted(by: before).enumerated().map { ($1.id, $0) })
+        sortJobs()
+    }
+
+    /// Neue Einträge (seit dem Öffnen) oben, sonst die festgehaltene Reihenfolge.
+    private func sortJobs() {
+        jobs.sort { a, b in
+            switch (rank[a.id], rank[b.id]) {
+            case let (x?, y?): return x < y
+            case (nil, nil): return a.started > b.started
+            case (nil, _): return true
+            case (_, nil): return false
+            }
+        }
+    }
+
+    /// Zuletzt bearbeitet: letzter Lauf, Transkript neu geschrieben (Benennen, Bestätigen, Glossar, Umbenennen) oder
+    /// Zusammenfassung erzeugt – wie `transcriber library`.
+    private func activity(started: Double, status s: [String: Any]) -> Double {
+        guard let j = (s["result"] as? [String: String])?["json"] else { return started }
+        let summary = j.replacingOccurrences(of: ".transcript.json", with: "") + ".summary.md"
+        let m = [j, summary].compactMap { (try? FileManager.default.attributesOfItem(atPath: $0)[.modificationDate] as? Date)?.timeIntervalSince1970 }
+        return ([started] + m).max()!
     }
 
     private func scan() {
@@ -271,19 +367,23 @@ final class JobManager: ObservableObject {
             var state = Job.State(rawValue: s["state"] as? String ?? "") ?? .running
             if state == .running, let pid = s["pid"] as? Int32, kill(pid, 0) != 0 { state = .aborted }   // Prozess weg
             if state != .running && started < newest[src]! { continue }
-            if state != .running && (started < hiddenBefore || hidden.contains(id)) { continue }
-            if state != .running && Date().timeIntervalSince1970 - started > 86400 { continue }  // nur letzte 24 h
+            let active = activity(started: started, status: s)
+            if state != .running && hidden.contains(id) { continue }
+            if state != .running && panelDays > 0 && Date().timeIntervalSince1970 - active > Double(panelDays) * 86400 { continue }
             seen.insert(id)
+            // Erst jetzt sichtbar (Zeitraum vergrößert, Statusdatei wiederhergestellt): nicht als „gerade fertig“ melden
+            let known = jobs.contains { $0.id == id }
             let job = jobs.first { $0.id == id } ?? {
                 let j = Job(id: id, source: URL(fileURLWithPath: src), started: Date(timeIntervalSince1970: started))
                 jobs.append(j); return j
             }()
+            job.activity = active
             job.progress = s["progress"] as? Double ?? 0
             job.message = s["message"] as? String ?? ""
             let gone = state == .done && !FileManager.default.fileExists(atPath: job.source.path)
             if job.audioGone != gone { job.audioGone = gone }
             if job.state != state {
-                let wasRunning = job.state == .running
+                let wasRunning = known && job.state == .running
                 job.state = state
                 if state == .done, let r = s["result"] as? [String: String] {
                     job.mdURL = r["md"].map { URL(fileURLWithPath: $0) }
@@ -323,7 +423,11 @@ final class JobManager: ObservableObject {
         if hidden.contains(where: { !existing.contains($0) }) {
             UserDefaults.standard.set(hidden.filter { existing.contains($0) }.sorted(), forKey: "hiddenJobs")
         }
-        jobs.sort { $0.started > $1.started }
+        if collapsed.contains(where: { !existing.contains($0) }) {
+            collapsed = collapsed.filter { existing.contains($0) }
+            UserDefaults.standard.set(collapsed.sorted(), forKey: "collapsedJobs")
+        }
+        if firstScan { resort() } else { sortJobs() }
         firstScan = false
         if ticks % 5 == 0 { findUntranscribed() }
         ticks += 1
@@ -368,7 +472,7 @@ final class JobManager: ObservableObject {
     func name(_ job: Job, letter: String, name: String) async {
         guard let j = job.jsonURL else { return }
         let (ok, out) = await Core.run(["name", j.path, letter, name])
-        if ok { job.loadSpeakers(); await loadNames() } else { job.error = out }
+        if ok { job.loadSpeakers(); changes += 1; await loadNames() } else { job.error = out }
     }
 
     func loadNames() async {
@@ -392,7 +496,7 @@ final class JobManager: ObservableObject {
     func recheck(_ job: Job) async {
         guard let j = job.jsonURL else { return }
         let (ok, out) = await Core.run(["recheck", j.path])
-        if ok { job.loadSpeakers() } else { job.error = out }
+        if ok { job.loadSpeakers(); changes += 1 } else { job.error = out }
     }
 
     /// Glossar auf das fertige Transkript anwenden (`transcriber vocab --apply`, ohne neu zu rechnen).
@@ -424,6 +528,7 @@ final class JobManager: ObservableObject {
         job.mdURL = p["md"].map { URL(fileURLWithPath: $0) }
         job.jsonURL = p["json"].map { URL(fileURLWithPath: $0) }
         job.loadSummary()
+        changes += 1
         return nil
     }
 
@@ -460,6 +565,7 @@ final class JobManager: ObservableObject {
         job.summarizing = nil
         if ok {
             job.loadSummary()
+            changes += 1
         } else if !cancelled {
             let msg = out.split(separator: "\n").last.map(String.init) ?? ""
             appLog("Zusammenfassung fehlgeschlagen: \(out.suffix(500))")
@@ -474,11 +580,12 @@ final class JobManager: ObservableObject {
         guard let s = job.summary else { return }
         do { try FileManager.default.trashItem(at: s.url, resultingItemURL: nil) } catch { job.error = error.localizedDescription }
         job.loadSummary()
+        changes += 1
     }
 
     func confirm(_ job: Job) async {
         guard let j = job.jsonURL else { return }
         let (ok, out) = await Core.run(["confirm", j.path])
-        if ok { job.loadSpeakers() } else { job.error = out }
+        if ok { job.loadSpeakers(); changes += 1 } else { job.error = out }
     }
 }

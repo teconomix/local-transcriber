@@ -13,6 +13,8 @@ struct AISettings: View {
     @State private var cloudOnClick = !AI.cloudAuto
     @State private var pseudonymize = AI.settings["pseudonymize"] as? Bool ?? true
     @State private var handoff = AI.handoff
+    @State private var startCommand = AI.settings["start_command"] as? String ?? ""
+    @State private var idleStop = AI.settings["idle_stop_min"] as? Int ?? 15
     @State private var models: [String] = []
     @State private var testing = false
     @State private var testResult: (ok: Bool, text: String)?
@@ -55,6 +57,7 @@ struct AISettings: View {
                 if provider == "custom" {
                     TextField("Adresse", text: $baseURL, prompt: Text("http://localhost:8080/v1"))
                         .onSubmit { AI.set("base_url", baseURL) }
+                        .onChange(of: baseURL) { _, v in AI.set("base_url", v) }   // auch ohne Return (Reiter gewechselt)
                 } else {
                     LabeledContent("Adresse", value: url)
                 }
@@ -66,9 +69,23 @@ struct AISettings: View {
                         Menu("Auswahl") { ForEach(models, id: \.self) { m in Button(m) { model = m } } }.fixedSize()
                     }
                 }
+                if local {
+                    TextField("Startbefehl", text: $startCommand, prompt: Text("optional, z. B. ollama serve"))
+                        .onSubmit { AI.set("start_command", startCommand) }
+                        .onChange(of: startCommand) { _, v in AI.set("start_command", v.trimmingCharacters(in: .whitespaces)) }
+                    if !startCommand.trimmingCharacters(in: .whitespaces).isEmpty {
+                        Picker("Wieder beenden", selection: $idleStop) {
+                            ForEach([5, 15, 30, 60], id: \.self) { Text("nach \($0) min ohne Nutzung").tag($0) }
+                            Text("nie").tag(0)
+                        }
+                        .onChange(of: idleStop) { _, v in AI.set("idle_stop_min", v) }
+                    }
+                }
                 if !local {
                     SecureField("Schlüssel", text: $key, prompt: Text(AI.key(provider) == nil ? "API-Schlüssel" : "gespeichert – zum Ändern neu eingeben"))
                         .onSubmit { AI.setKey(key, for: provider); key = "" }
+                        // auch ohne Return sichern – sonst war ein eingefügter Schlüssel beim Reiterwechsel still weg
+                        .onChange(of: key) { _, v in if !v.isEmpty { AI.setKey(v, for: provider) } }
                 }
                 HStack {
                     Button("Verbindung testen") { Task { await test() } }.disabled(testing || url.isEmpty)
@@ -82,7 +99,7 @@ struct AISettings: View {
                 Text("Modell")
             } footer: {
                 Text(local
-                     ? "Lokal: Das Gespräch verlässt den Mac nicht. Ollama und LM Studio sind verbreitet, MTPLX ist auf Apple Silicon deutlich schneller. Jeder Server mit Schnittstelle nach OpenAI-Art geht über „Eigene Adresse“."
+                     ? "Lokal: Das Gespräch verlässt den Mac nicht. Ollama und LM Studio sind verbreitet, MTPLX ist auf Apple Silicon deutlich schneller. Jeder Server mit Schnittstelle nach OpenAI-Art geht über „Eigene Adresse“. Mit Startbefehl startet Transcriber den Server, wenn er nicht läuft, und beendet ihn nach der eingestellten Zeit ohne Nutzung bzw. beim Beenden der App wieder – einen selbst gestarteten Server lässt es in Ruhe."
                      : "Cloud: Das Transkript wird an diesen Anbieter geschickt. Der Schlüssel liegt im Schlüsselbund, nicht in Dateien.")
                     .font(.caption).foregroundStyle(local ? Color.secondary : Color.orange)
             }
@@ -172,6 +189,7 @@ struct TemplateEditor: View {
     @State private var name = ""
     @State private var desc = ""
     @State private var body_ = ""
+    @State private var confirmDelete = false
 
     private var target: URL { Core.data.appendingPathComponent("prompts/\(template.id).md") }
 
@@ -191,9 +209,12 @@ struct TemplateEditor: View {
                 .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
             HStack {
                 if template.custom {
-                    Button(template.builtin ? "Zurücksetzen" : "Löschen", role: .destructive) {
-                        try? FileManager.default.removeItem(at: target); done()
-                    }
+                    Button(template.builtin ? "Zurücksetzen" : "Löschen", role: .destructive) { confirmDelete = true }
+                        .confirmationDialog(template.builtin ? "Eigene Fassung verwerfen?" : "Vorlage löschen?", isPresented: $confirmDelete) {
+                            Button(template.builtin ? "Zurücksetzen" : "Löschen", role: .destructive) {
+                                try? FileManager.default.trashItem(at: target, resultingItemURL: nil); done()   // Papierkorb
+                            }
+                        }
                 }
                 Spacer()
                 Button("Abbrechen") { done() }.keyboardShortcut(.cancelAction)

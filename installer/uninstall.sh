@@ -22,6 +22,20 @@ plist="$HOME/Library/LaunchAgents/net.teconomix.transcriber.watch.plist"
 rm -rf "$HOME/Applications/Transcriber.app" && echo "  ✓ $(t "App entfernt" "App removed")"
 [[ -L "$HOME/.local/bin/transcriber" ]] && rm -f "$HOME/.local/bin/transcriber"
 
+# Whisper-Modelle vor den Programmdaten: das Löschen braucht deren Python (huggingface_hub 2.x hält die Gewichte im
+# gemeinsamen Speicher hub/blobs/, der Repo-Ordner enthält nur Verweise – rm -rf darauf gäbe keinen Platz frei).
+for R in mlx-community/whisper-large-v3-turbo mlx-community/whisper-large-v3-turbo-8bit; do
+    W="$HOME/.cache/huggingface/hub/models--${R//\//--}"
+    if [[ -d "$W" ]] && ask "$(t "Whisper-Modell ${R#*/} (evtl. auch von anderen Programmen genutzt) löschen?" "Delete the Whisper model ${R#*/} (possibly also used by other programs)?")"; then
+        if [[ -x "$DATA/venvs/app/bin/python" ]]; then
+            "$DATA/venvs/app/bin/python" -I -c "import sys; from huggingface_hub import scan_cache_dir
+i = scan_cache_dir()
+[i.delete_revisions(*(v.commit_hash for v in r.revisions)).execute() for r in i.repos if r.repo_id == sys.argv[1]]" "$R" 2>/dev/null
+        fi
+        rm -rf "$W" && echo "  ✓ $(t "Whisper-Modell gelöscht" "Whisper model deleted")"
+    fi
+done
+
 # Die Stimmdatenbank enthält biometrische Daten – sie wird nie verschoben oder kopiert: löschen oder liegen lassen.
 if [[ -f "$DATA/speakers.db" ]] && ! ask "$(t "Stimmdatenbank (gelernte Stimmen) löschen?" "Delete the voice database (learned voices)?")"; then
     find "$DATA" -mindepth 1 -maxdepth 1 ! -name speakers.db -exec rm -rf {} +
@@ -30,9 +44,5 @@ else
     rm -rf "$DATA" && echo "  ✓ $(t "Programmdaten und Stimmdatenbank entfernt ($DATA)" "Program data and voice database removed ($DATA)")"
 fi
 
-W="$HOME/.cache/huggingface/hub/models--mlx-community--whisper-large-v3-turbo"
-if [[ -d "$W" ]] && ask "$(t "Whisper-Modell (~3 GB, evtl. auch von anderen Programmen genutzt) löschen?" "Delete the Whisper model (~3 GB, possibly also used by other programs)?")"; then
-    rm -rf "$W" && echo "  ✓ $(t "Whisper-Modell gelöscht" "Whisper model deleted")"
-fi
 echo "$(t "Fertig. Deine Aufnahmen und Transkripte unter ~/Transcriber sind unverändert." "Done. Your recordings and transcripts in ~/Transcriber are unchanged.")"
 echo "$(t "Freigaben in Systemeinstellungen › Datenschutz & Sicherheit kannst du dort selbst entfernen." "You can remove permissions yourself in System Settings › Privacy & Security.")"
