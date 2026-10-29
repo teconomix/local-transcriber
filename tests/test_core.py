@@ -253,6 +253,11 @@ class Report(unittest.TestCase):
             self.assertNotIn("Geheimes Projekt", text)
             self.assertNotIn("Vertrauliche Runde", text)
             self.assertIn("Mikro geht nicht", text)
+            self.assertIn("speicher.json", files)
+            with zipfile.ZipFile(out) as z:
+                mem = json.loads(z.read("speicher.json"))
+            self.assertIn("transcriber", mem)                    # auf jedem Mac vorhanden, auch ohne laufende Prozesse
+            self.assertNotIn(str(tmp), json.dumps(mem))
         finally:
             config.CONFIG.unlink(missing_ok=True)
             (config.DATA / "app.log").unlink(missing_ok=True)
@@ -1047,6 +1052,29 @@ class AsrModel(unittest.TestCase):
         finally:
             self.asr.transcribe = orig
         self.assertEqual(calls, ["whisper-turbo", "whisper-turbo-8bit"])
+
+    def test_update_switches_fp16_once(self):
+        """0.11: Update stellt FP16 einmal auf 8 Bit um; danach bleibt eine bewusste FP16-Wahl."""
+        self.assertTrue(self.asr.default_switch({"asr_model": "turbo"}))
+        self.assertFalse(self.asr.default_switch({"asr_model": "turbo-8bit"}))
+        self.assertFalse(self.asr.default_switch({"asr_model": "turbo", "asr_8bit_switch": "2026-10-29"}))
+
+    def test_fresh_skips_cache(self):
+        """„Audio neu transkribieren“ / „Erneut transkribieren“: Spracherkennung neu, Zwischenspeicher danach erneuert."""
+        wav = Path(tempfile.mkdtemp(dir=_DATA)) / "audio.wav"
+        calls = []
+        orig = self.asr.transcribe
+        self.asr.transcribe = lambda w, terms=None, language="de": calls.append(1) or {
+            "text": f"x{len(calls)}", "words": [], "segments": []}
+        try:
+            pipeline._asr(wav, "de", None, repair=False)
+            pipeline._asr(wav, "de", None, repair=False)                       # Zwischenspeicher
+            r = pipeline._asr(wav, "de", None, repair=False, fresh=True)       # neu
+            again = pipeline._asr(wav, "de", None, repair=False)               # jetzt das neue Ergebnis
+        finally:
+            self.asr.transcribe = orig
+        self.assertEqual(len(calls), 2)
+        self.assertEqual((r["text"], again["text"]), ("x2", "x2"))
 
 
 class Summary(unittest.TestCase):

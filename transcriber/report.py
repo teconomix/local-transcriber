@@ -164,6 +164,71 @@ def _core_info():
             "disk_free_gb": round(du.free / 1e9, 1), "data_dir": str(config.DATA)}
 
 
+def _run(cmd):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=15).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def _footprint_mb(pid):
+    """Speicher eines Prozesses wie `footprint` (mit MLX/MPS-Puffern; `ps` zeigt die nicht)."""
+    m = re.search(r"Footprint:\s*([\d.]+)\s*(KB|MB|GB)", _run(["footprint", "-p", str(pid)]))
+    return round(float(m[1]) * {"KB": 1 / 1024, "MB": 1, "GB": 1024}[m[2]]) if m else None
+
+
+# Systemberichte, die auf Speichermangel, Einfrieren oder Abstürze deuten – nur Art und Zeitpunkt, keine Inhalte
+DIAG = re.compile(r"^(JetsamEvent|panic|Kernel|WindowServer|Transcriber|python[\d.]*|ffmpeg)[-_ ].*?(\d{4}-\d{2}-\d{2})-(\d{2})(\d{2})")
+
+
+def _memory_info():
+    """Arbeitsspeicher, Auslagerung und wer wie viel belegt – um Einfrieren durch Speichermangel belegen zu können
+    (Fehlerbericht 2026-10-29: M1 mit 16 GB fror zweimal ein, der Bericht hatte dazu keine Daten)."""
+    info = {}
+    sysctl = lambda k: _run(["sysctl", "-n", k]).strip()
+    with contextlib.suppress(ValueError):
+        info["total_gb"] = round(int(sysctl("hw.memsize")) / 2**30, 1)
+    info["pressure"] = {"1": "normal", "2": "warnung", "4": "kritisch"}.get(sysctl("kern.memorystatus_vm_pressure_level"), None)
+    if m := re.search(r"total = ([\d.]+)M\s+used = ([\d.]+)M", sysctl("vm.swapusage")):
+        info["swap_gb"] = {"total": round(float(m[1]) / 1024, 1), "used": round(float(m[2]) / 1024, 1)}
+    if m := re.search(r"sec = (\d+)", sysctl("kern.boottime")):
+        info["booted"] = time.strftime("%Y-%m-%d %H:%M", time.localtime(int(m[1])))
+    vm = _run(["vm_stat"])
+    if page := re.search(r"page size of (\d+)", vm):
+        stats = {k.strip().strip('"'): int(v) for k, v in re.findall(r"^([^:\n]+):\s+(\d+)\.", vm, re.M)}
+        gb = lambda k: round(stats.get(k, 0) * int(page[1]) / 2**30, 1)
+        info["vm_gb"] = {"free": gb("Pages free"), "wired": gb("Pages wired down"),
+                         "compressed": gb("Pages occupied by compressor")}
+        info["vm_counts"] = {k: stats.get(k) for k in ("Swapins", "Swapouts", "Pageouts")}
+    procs = []
+    for line in _run(["ps", "-axo", "pid=,rss=,args="]).splitlines():
+        parts = line.split(None, 2)
+        if len(parts) == 3 and parts[0].isdigit() and parts[1].isdigit():
+            procs.append((int(parts[0]), int(parts[1]), parts[2]))
+    ours = {}                               # je Unterbefehl Anzahl und Summe (MCP läuft je KI-Sitzung einmal)
+    for pid, _, args in procs:              # Kern-Prozesse: nur der Unterbefehl, keine Pfade
+        cmd = None
+        if "transcriber" in args.lower() and (m := re.search(r"\b(watch|dictate-server|transcribe|summarize|ai-server|mcp)\b", args)):
+            cmd = m[1]
+        elif args.endswith("/Transcriber.app/Contents/MacOS/Transcriber"):
+            cmd = "app"
+        if cmd:
+            o = ours.setdefault(cmd, {"count": 0, "footprint_mb": 0})
+            o["count"] += 1; o["footprint_mb"] += _footprint_mb(pid) or 0
+    info["transcriber"] = ours
+    top = sorted(procs, key=lambda p: -p[1])[:10]   # die größten Programme (Name ohne Pfad und Argumente)
+    info["top_rss_mb"] = [[Path(a.split(" -")[0]).name[:40], r // 1024] for _, r, a in top]
+    since = time.strftime("%Y-%m-%d", time.localtime(time.time() - 14 * 86400))
+    events = []
+    for d in (Path("/Library/Logs/DiagnosticReports"), Path.home() / "Library/Logs/DiagnosticReports"):
+        with contextlib.suppress(OSError):
+            for f in d.iterdir():
+                if (m := DIAG.match(f.name)) and m[2] >= since:
+                    events.append(f"{m[2]} {m[3]}:{m[4]} {m[1]}")
+    info["system_reports_14d"] = sorted(set(events))
+    return info
+
+
 def build(out, description="", app_info=None, redact=True):
     """ZIP-Datei schreiben; liefert die Liste der enthaltenen Dateien."""
     cfg = config.load()
@@ -175,6 +240,7 @@ def build(out, description="", app_info=None, redact=True):
             f"Dateinamen/Termintitel unkenntlich: {'ja' if redact else 'nein'}", "", "Beschreibung:", description.strip() or "–", ""]
     files["bericht.txt"] = red("\n".join(head))
     files["kern.json"] = red(json.dumps(_core_info(), ensure_ascii=False, indent=1, default=str))
+    files["speicher.json"] = red(json.dumps(_memory_info(), ensure_ascii=False, indent=1, default=str))
     if app_info:
         files["app.json"] = red(json.dumps(app_info, ensure_ascii=False, indent=1, default=str))
     for name in LOGS:

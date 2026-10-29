@@ -14,7 +14,8 @@
 #
 # Optionen: --no-launch (App nicht starten), --no-watch (Ordnerwächter nicht anbieten), --yes (keine Rückfragen),
 #           --fp16 (Whisper turbo in FP16, 1,6 GB, statt 8 Bit, 0,9 GB – gemessen gleich genau), --compact (8 Bit erzwingen)
-#           Ohne Option: neue Installation 8 Bit; ein Update behält das eingestellte Modell (ältere Installationen: FP16).
+#           Ohne Option: 8 Bit. Ein Update stellt FP16 einmalig auf 8 Bit um (seit 0.11); wer danach in der App wieder
+#           FP16 wählt, behält es.
 
 set -euo pipefail
 
@@ -140,10 +141,13 @@ main() {
     rm -rf "$DATA/models/speaker-diarization-community-1"
     tar -xzf "$tmp/pyannote-community-1.tar.gz" -C "$DATA/models"
     ok "$(t "Sprechererkennung" "Speaker recognition") (pyannote community-1, CC-BY-4.0)"
-    # Welches Modell: Option, sonst entscheidet der Kern (asr.choice: eingestellt > nur FP16 vorhanden > 8 Bit).
-    # Wechsel und Löschen danach in der App: Einstellungen › Aufnahme › Spracherkennung.
-    [[ -n "$MODEL" ]] || MODEL="$(HF_HUB_OFFLINE=1 "$DATA/venvs/app/bin/transcriber" model --json | "$DATA/venvs/app/bin/python" -c 'import json,sys; print(json.load(sys.stdin)["current"])')" \
-        || die "$(t "Kern antwortet nicht (transcriber model)." "Core does not respond (transcriber model).")"
+    # Welches Modell: Option, sonst entscheidet der Kern (eingestellt > nur FP16 vorhanden > 8 Bit; FP16 stellt ein
+    # Update einmalig auf 8 Bit um – asr.default_switch). Wechsel und Löschen danach in der App: Einstellungen › Aufnahme.
+    local switched=0
+    if [[ -z "$MODEL" ]]; then
+        read -r MODEL switched < <(HF_HUB_OFFLINE=1 "$DATA/venvs/app/bin/transcriber" model --json | "$DATA/venvs/app/bin/python" -c 'import json,sys; j=json.load(sys.stdin); s=bool(j.get("default_switch")); print("turbo-8bit" if s else j["current"], int(s))')
+        [[ -n "$MODEL" ]] || die "$(t "Kern antwortet nicht (transcriber model)." "Core does not respond (transcriber model).")"
+    fi
     local repo="$WHISPER" size="$(t "~1,6 GB" "~1.6 GB")" label="Whisper large-v3-turbo"
     if [[ "$MODEL" == turbo-8bit ]]; then repo="$WHISPER_8BIT"; size="$(t "~0,9 GB" "~0.9 GB")"; label="Whisper large-v3-turbo ($(t "8 Bit" "8-bit"))"; fi
     say "$(t "Spracherkennungsmodell laden ($label, $size – kann dauern)" "Downloading speech recognition model ($label, $size – may take a while)")"
@@ -151,8 +155,9 @@ main() {
     "$DATA/venvs/app/bin/python" -c "import sys; from huggingface_hub import snapshot_download, logging as l
 l.set_verbosity_error(); snapshot_download(sys.argv[1])" "$repo" >/dev/null || die "$(t "Whisper-Modell konnte nicht geladen werden (Hugging Face erreichbar?)." "Could not download the Whisper model (is Hugging Face reachable?).")"
     # In config.json festschreiben (8 Bit: dazu Ordner mit Verweisen für mlx-whisper anlegen)
-    HF_HUB_OFFLINE=1 "$DATA/venvs/app/bin/transcriber" model "$MODEL" >/dev/null || die "$(t "Modell ließ sich nicht einrichten." "Could not set up the model.")"
+    HF_HUB_OFFLINE=1 "$DATA/venvs/app/bin/transcriber" model "$MODEL" --update >/dev/null || die "$(t "Modell ließ sich nicht einrichten." "Could not set up the model.")"
     ok "$label"
+    [[ $switched -eq 0 ]] || ok "$(t "Auf 8 Bit umgestellt: gleich genau, weniger Arbeitsspeicher. Zurück auf 16 Bit: Einstellungen › Aufnahme › Spracherkennung" "Switched to 8-bit: just as accurate, less memory. Back to 16-bit: Settings › Recording › Speech recognition")"
 
     # 6. App ----------------------------------------------------------------------------------------
     say "$(t "App installieren" "Installing the app")"

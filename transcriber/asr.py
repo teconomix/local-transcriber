@@ -5,8 +5,9 @@ large-v3 entfernt (2,5× langsamer, ungenauere Wortzeiten). Rückgabe: {"text", 
 
 Zwei Modelle (config „asr_model“): turbo in FP16 oder in 8 Bit. 8 Bit gemessen gleich genau (WER 9,9 % wie FP16;
 2026-10-27 auf 70 Aufnahmen gegen large-v3 als Schiedsrichter gleichauf, bench/Q8.md), 0,86 statt 1,61 GB Platte,
-Metal-Spitze 1,8 statt 2,6 GB → Standard für neue Installationen. Bestehende (FP16 liegt, 8 Bit nicht, nichts
-eingestellt) bleiben bei FP16 – kein erzwungener Wechsel. 4 Bit kostete +2,3 Punkte und wird nicht angeboten."""
+Metal-Spitze 1,8 statt 2,6 GB → Standard für neue Installationen. Seit 0.11 stellt auch ein Update einmalig von FP16
+auf 8 Bit um (Björn 2026-10-29: die meisten Macs haben 16 GB, ein M1 mit 16 GB fror ein) – `default_switch`; wer danach
+wieder FP16 wählt, behält es. 4 Bit kostete +2,3 Punkte und wird nicht angeboten."""
 import os
 import re
 from pathlib import Path
@@ -31,6 +32,13 @@ def choice(cfg=None):
     if k in MODELS:
         return k
     return FP16 if installed(FP16) and not installed(DEFAULT) else DEFAULT
+
+
+def default_switch(cfg=None):
+    """Soll das Update auf 8 Bit umstellen? Nur einmal (config „asr_8bit_switch“ = Datum des Updates, das entschieden
+    hat) und nur, wenn noch FP16 eingestellt ist."""
+    cfg = cfg or config.load()
+    return not cfg.get("asr_8bit_switch") and choice(cfg) == FP16
 
 
 def name(cfg=None):

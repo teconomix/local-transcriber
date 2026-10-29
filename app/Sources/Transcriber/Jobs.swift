@@ -20,6 +20,9 @@ func appLog(_ msg: String) {
 
 enum Core {
     static let data = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/share/transcriber")
+    /// Höchstens 16 GB Arbeitsspeicher (physicalMemory meldet 17,2 GB): Transkription, Diktat-Dienst, Apple-Modell und
+    /// Call-App passen dort nicht gleichzeitig hinein – M1 mit 16 GB fror zweimal ein (Fehlerbericht 2026-10-29).
+    static let lowMemory = ProcessInfo.processInfo.physicalMemory <= 18_000_000_000
     /// TRANSCRIBER_CORE: anderer Kern zum Ausprobieren (Feature-Zweig mit eigener Umgebung, per LSEnvironment im Testbau).
     static let exe = ProcessInfo.processInfo.environment["TRANSCRIBER_CORE"].map { URL(fileURLWithPath: $0) }
         ?? data.appendingPathComponent("venvs/app/bin/transcriber")
@@ -258,6 +261,8 @@ final class JobManager: ObservableObject {
     }
 
     var running: [Job] { jobs.filter { $0.state == .running } }
+    /// Meldet nach jedem Durchgang, ob gerade transkribiert wird (auch Wächter, CLI, MCP) – für den Diktat-Dienst.
+    var onBusy: ((Bool) -> Void)?
 
     /// Gesamtfortschritt für die Menüleiste (nil = nichts läuft).
     var overallProgress: Double? {
@@ -266,10 +271,11 @@ final class JobManager: ObservableObject {
     }
 
     /// speakers: genaue Personenzahl (0 = automatisch, Obergrenze aus Kalender bzw. 15).
-    func add(_ url: URL, language: String, speakers: Int = 0) {
+    /// fresh: Spracherkennung neu statt aus dem Zwischenspeicher.
+    func add(_ url: URL, language: String, speakers: Int = 0, fresh: Bool = false) {
         launchError = nil
         let p = Core.process(["transcribe", url.path, "--language", language, "--progress", "json"]
-                             + (speakers > 0 ? ["--speakers", String(speakers)] : []))
+                             + (speakers > 0 ? ["--speakers", String(speakers)] : []) + (fresh ? ["--fresh"] : []))
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
         do { try p.run() } catch { launchError = String(localized: "Kern nicht startbar: \(error.localizedDescription) (\(Core.exe.path))"); appLog(launchError!) }
@@ -430,6 +436,7 @@ final class JobManager: ObservableObject {
         if firstScan { resort() } else { sortJobs() }
         firstScan = false
         if ticks % 5 == 0 { findUntranscribed() }
+        onBusy?(!running.isEmpty)
         ticks += 1
     }
 
@@ -445,9 +452,18 @@ final class JobManager: ObservableObject {
             return ["m4a", "mp3", "wav", "aac", "caf", "mp4", "mov"].contains(f.pathExtension.lowercased())
                 && !ignored.contains(f.path) && !busy.contains(f.path)
                 && Date().timeIntervalSince(modified) > 60                       // gerade beendet: Auftrag startet gleich
-                && ["transcript.json", "lock", "error.txt"].allSatisfy { !fm.fileExists(atPath: stem.path + "." + $0) }
+                && ["transcript.json", "error.txt"].allSatisfy { !fm.fileExists(atPath: stem.path + "." + $0) }
+                && !Self.lockAlive(stem.path + ".lock")
         }.sorted { $0.lastPathComponent < $1.lastPathComponent }
         if found != untranscribed { untranscribed = found }
+    }
+
+    /// <name>.lock enthält die PID des Auftrags. Bleibt nach einem Absturz oder Neustart liegen – dann zählt die Aufnahme
+    /// als „ohne Transkript“ (Fehlerbericht 2026-10-29: abgebrochener Auftrag tauchte sonst nirgends mehr auf).
+    static func lockAlive(_ path: String) -> Bool {
+        guard let s = try? String(contentsOfFile: path, encoding: .utf8) else { return false }
+        guard let pid = Int32(s.trimmingCharacters(in: .whitespacesAndNewlines)) else { return true }   // unlesbar: vorsichtig
+        return kill(pid, 0) == 0
     }
 
     func transcribeUntranscribed(language: String) {
@@ -484,12 +500,13 @@ final class JobManager: ObservableObject {
 
     /// Neu auswerten (andere Personenzahl): Der Kern nimmt Spracherkennung und Audio aus dem Zwischenspeicher, rechnet
     /// nur die Sprechertrennung neu und übernimmt eindeutige Bestätigungen. Der alte Eintrag weicht dem neuen Lauf.
-    func rerun(_ job: Job, speakers: Int) {
+    /// fresh = „Audio neu transkribieren“ bzw. „Erneut transkribieren“ nach Abbruch: alles neu, auch die Spracherkennung.
+    func rerun(_ job: Job, speakers: Int, fresh: Bool = false) {
         guard FileManager.default.fileExists(atPath: job.source.path) else {
             job.error = String(localized: "Audiodatei nicht gefunden"); return
         }
         hide(job)
-        add(job.source, language: job.language, speakers: speakers)
+        add(job.source, language: job.language, speakers: speakers, fresh: fresh)
     }
 
     /// Offene Stimmen neu mit der Stimmdatenbank abgleichen (Sekundenbruchteile, nichts wird neu gerechnet).

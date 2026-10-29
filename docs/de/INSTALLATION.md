@@ -33,8 +33,9 @@ oder älter benennt der Installer den Datenordner `~/Transkription` einmalig in 
 
 Optionen (hinter `bash -s --` anhängen, z. B. `curl -fsSL …/install.sh | bash -s -- --no-watch`):
 `--no-launch` (App nicht starten), `--no-watch` (keinen Ordnerwächter anbieten), `--yes` (keine Rückfragen),
-`--fp16` (Spracherkennung in 16 Bit, 1,6 GB, statt des Standards 8 Bit, 0,9 GB – gemessen gleich genau). Ein Update
-behält das gewählte Modell; wechseln lässt es sich später unter Einstellungen › Aufnahme › Spracherkennung.
+`--fp16` (Spracherkennung in 16 Bit, 1,6 GB, statt des Standards 8 Bit, 0,9 GB – gemessen gleich genau). Das Update
+auf 0.11 stellt 16 Bit einmalig auf 8 Bit um (die App sagt es); wer danach unter Einstellungen › Aufnahme ›
+Spracherkennung (oder mit `--fp16`) wieder 16 Bit wählt, behält es.
 
 ### Mit Homebrew
 

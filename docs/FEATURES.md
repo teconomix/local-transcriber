@@ -20,10 +20,10 @@ installation, Transcriber needs no internet connection – unless you explicitly
 
 - **Whisper large-v3-turbo** via MLX on the GPU: ~50× real time (47 min of audio in ~1 min), plus speaker
   recognition at ~28× real time.
-- **Two speech recognition models:** Whisper turbo in 8-bit (default for new installations, 0.9 GB) or 16-bit
+- **Two speech recognition models:** Whisper turbo in 8-bit (default, 0.9 GB) or 16-bit
   (1.6 GB) – measured just as accurate; 8-bit needs about 0.8 GB less memory (dictation too). Switch in Settings ›
-  Recording › Speech recognition (downloads the model if needed) and delete the unused one there. Installations
-  from before 0.10 keep 16-bit. Command line: `transcriber model [turbo|turbo-8bit] [--download] [--remove NAME]`.
+  Recording › Speech recognition (downloads the model if needed) and delete the unused one there. The update to
+  0.11 switches 16-bit to 8-bit once; choosing 16-bit again afterwards sticks. Command line: `transcriber model [turbo|turbo-8bit] [--download] [--remove NAME]`.
 - **About 100 languages** (all that Whisper knows). Initially offered are German, English, Spanish and French; select
   or deselect more in Settings › Recording › “Languages to choose from”. Widely spoken languages work best, rare ones
   noticeably worse. If a recording is clearly in another language than selected, the detected one is used.

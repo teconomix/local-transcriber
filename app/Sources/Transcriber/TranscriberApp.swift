@@ -91,6 +91,8 @@ struct TranscriberApp: App {
                     appDelegate.recorder = r; appDelegate.jobs = j
                     dictation.micBusy = { r.isRecording }
                     dictation.attachToRecording = { r.setMicFeed($0) }
+                    let d = dictation
+                    j.onBusy = { busy in d.transcriptionBusy(busy) }
                     calls.isRecording = { r.isRecording }
                     let c = calls
                     calls.startRecording = { Task { try? await Control.start(r, callMic: c.micUID) } }
@@ -264,6 +266,7 @@ struct PanelView: View {
     /// Oberkante des Panels beim Öffnen – AppKit behält beim Schrumpfen die Unterkante, das Panel löste sich dann von
     /// der Menüleiste (2026-10-28: lange Liste → ein Eintrag).
     @State private var panelTop: CGFloat?
+    @State private var switchNotice = false
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -335,6 +338,7 @@ struct PanelView: View {
             }
 
             if !jobs.untranscribed.isEmpty { untranscribedLine }
+            if switchNotice { switchNoticeLine }
 
             if jobs.jobs.isEmpty {
                 HStack {
@@ -346,7 +350,7 @@ struct PanelView: View {
                 HStack(spacing: 6) {
                     Text("Transkriptionen").font(.subheadline.weight(.semibold))
                     Spacer()
-                    Button("Alle") { openWindow(id: "library"); NSApp.activate(ignoringOtherApps: true) }
+                    Button("Alle Transkriptionen") { openWindow(id: "library"); NSApp.activate(ignoringOtherApps: true) }
                         .controlSize(.small).buttonStyle(.link)
                         .help("Alle Transkriptionen im Ordner ~/Transcriber")
                 }
@@ -373,6 +377,8 @@ struct PanelView: View {
         // Panel geöffnet → neu ordnen. onAppear kommt im Menüleistenfenster nur beim ersten Mal, das Fenster wird aber
         // bei jedem Öffnen zum Hauptfenster der Tastatur (Björn 2026-10-24: Reihenfolge änderte sich erst nach Neustart).
         .background(WindowReader { w in if panelWindow !== w { panelWindow = w } })
+        .task { switchNotice = Core.configJSON()["asr_switch_notice"] as? Bool ?? false
+                    || UserDefaults.standard.bool(forKey: "demoSwitchNotice") }   // Prüfbild (--ui-test)
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { n in
             if let w = n.object as? NSWindow, w === panelWindow { jobs.resort() }
         }
@@ -412,6 +418,23 @@ struct PanelView: View {
             Spacer(minLength: 4)
             Button("Transkribieren") { jobs.transcribeUntranscribed(language: language) }.controlSize(.small)
             Button("Ausblenden") { jobs.ignoreUntranscribed() }.controlSize(.small).buttonStyle(.link)
+        }
+        .font(.caption)
+    }
+
+    /// Einmal nach dem Update auf 0.11: Der Installer hat von 16 auf 8 Bit umgestellt (config „asr_switch_notice“,
+    /// asr.default_switch). Rückweg in den Einstellungen; „OK“ entfernt den Vermerk.
+    private var switchNoticeLine: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "memorychip").foregroundStyle(.tint)
+            Text("Spracherkennung auf 8 Bit umgestellt: gleich genau, weniger Arbeitsspeicher. 16 Bit lässt sich in den Einstellungen wieder wählen.")
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 4)
+            Button("Einstellungen") {
+                UserDefaults.standard.set("aufnahme", forKey: "settingsTab")
+                openWindow(id: "settings"); NSApp.activate(ignoringOtherApps: true)
+            }.controlSize(.small)
+            Button("OK") { Core.setConfig("asr_switch_notice", nil); switchNotice = false }.controlSize(.small).buttonStyle(.link)
         }
         .font(.caption)
     }
@@ -663,9 +686,14 @@ struct JobRow: View {
                 ProgressView(value: job.progress) { Text(job.message).font(.caption) }
             case .failed, .aborted:
                 Text(job.error ?? String(localized: "fehlgeschlagen")).font(.caption).foregroundStyle(.red).textSelection(.enabled)
-                Button("Fehler melden …") {
-                    ReportDraft.shared.text = String(localized: "Transkription fehlgeschlagen: \(job.error ?? "?")") + "\n\n"
-                    openWindow(id: "report"); NSApp.activate(ignoringOtherApps: true)
+                HStack(spacing: 6) {
+                    Button("Erneut transkribieren") { jobs.rerun(job, speakers: 0, fresh: true) }
+                        .disabled(!FileManager.default.fileExists(atPath: job.source.path))
+                    Text("·").foregroundStyle(.tertiary)
+                    Button("Fehler melden …") {
+                        ReportDraft.shared.text = String(localized: "Transkription fehlgeschlagen: \(job.error ?? "?")") + "\n\n"
+                        openWindow(id: "report"); NSApp.activate(ignoringOtherApps: true)
+                    }
                 }
                 .buttonStyle(.link).font(.caption)
             case .done:
@@ -702,7 +730,7 @@ struct JobRow: View {
                 .buttonStyle(.link)
             Text("·").foregroundStyle(.tertiary)
             Button("Neu auswerten") { rerunMenu() }.buttonStyle(.link)
-                .help("Namen neu zuordnen oder Sprecher neu trennen")
+                .help("Namen neu zuordnen, Audio neu transkribieren oder Sprecher neu trennen")
             if job.summary == nil && job.summarizing == nil {
                 Text("·").foregroundStyle(.tertiary)
                 Button("Zusammenfassen") { templateMenu() }.buttonStyle(.link)
@@ -897,6 +925,11 @@ struct JobRow: View {
         let glossHint = String(localized: "Ersetzungen aus Einstellungen › Glossar, ohne neu zu rechnen")
         if #available(macOS 14.4, *) { gloss.subtitle = glossHint } else { gloss.toolTip = glossHint }
         menu.addItem(gloss)
+        let fresh = ClosureMenuItem(title: String(localized: "Audio neu transkribieren")) { jobs.rerun(job, speakers: 0, fresh: true) }
+        let freshHint = String(localized: "Spracherkennung und Sprechertrennung ganz neu – dauert wie beim ersten Mal")
+        if #available(macOS 14.4, *) { fresh.subtitle = freshHint } else { fresh.toolTip = freshHint }
+        if job.audioGone { fresh.isEnabled = false }
+        menu.addItem(fresh)
         menu.addItem(.separator())
         let head = NSMenuItem(title: String(localized: "Sprecher neu trennen:"), action: nil, keyEquivalent: "")
         head.isEnabled = false

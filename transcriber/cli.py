@@ -24,6 +24,7 @@ TRANSKRIPT = .transcript.json oder das lesbare daneben (.txt/.md). SPRECHER = Bu
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 from . import asr, config
@@ -74,7 +75,7 @@ def cmd_transcribe(a):
         print(f"→ {f}", file=sys.stderr)
         try:
             doc, paths = pipeline.run(f, out_dir=a.out, formats=fmts, num_speakers=a.speakers,
-                                      progress=_progress_printer(a.progress), language=a.language)
+                                      progress=_progress_printer(a.progress), language=a.language, fresh=a.fresh)
         except Exception as e:  # weiter mit der nächsten Datei
             print("  " + t("FEHLER", "ERROR") + f": {e}", file=sys.stderr); rc = 1; continue
         if a.progress == "json":
@@ -300,9 +301,14 @@ def cmd_model(a):
     if a.name:
         if a.download:
             os.environ["HF_HUB_OFFLINE"] = "0"
+        switched = a.update and asr.default_switch() and a.name == asr.DEFAULT
         asr.prepare(a.name, download=a.download)
         cfg = json.loads(config.CONFIG.read_text()) if config.CONFIG.exists() else {}
         cfg["asr_model"] = a.name
+        if a.update:                     # Installer: die einmalige Umstellung ist entschieden – spätere Wahl bleibt
+            cfg.setdefault("asr_8bit_switch", time.strftime("%Y-%m-%d"))
+            if switched:
+                cfg["asr_switch_notice"] = True      # App zeigt einmal „auf 8 Bit umgestellt“
         config.DATA.mkdir(parents=True, exist_ok=True)
         tmp = config.CONFIG.with_suffix(".tmp")
         tmp.write_text(json.dumps(cfg, ensure_ascii=False, indent=2, sort_keys=True))
@@ -310,7 +316,7 @@ def cmd_model(a):
     cur = asr.choice()
     items = [{"name": k, "repo": r, "installed": asr.installed(k), "current": k == cur} for k, (r, _) in asr.MODELS.items()]
     if a.json:
-        print(json.dumps({"current": cur, "models": items}, ensure_ascii=False))
+        print(json.dumps({"current": cur, "models": items, "default_switch": asr.default_switch()}, ensure_ascii=False))
         return
     for i in items:
         print(f"{'*' if i['current'] else ' '} {i['name']:11} {i['repo']:42} "
@@ -346,6 +352,7 @@ def main(argv=None):
     p.add_argument("--language", choices=asr.LANGUAGES, metavar="CODE", help=t("Sprache, z. B. de, en, es, fr (Standard aus config.json, sonst de)", "language, e.g. de, en, es, fr (default from config.json, else de)"))
     p.add_argument("--speakers", type=int, help=t("feste Sprecherzahl (sonst 2–15 automatisch)", "fixed number of speakers (else 2–15 automatically)"))
     p.add_argument("--srt", action="store_true"); p.add_argument("--out", help=t("Ausgabeordner (sonst neben der Datei)", "output folder (else next to the file)"))
+    p.add_argument("--fresh", action="store_true", help=t("Spracherkennung neu statt aus dem Zwischenspeicher", "redo speech recognition instead of using the cache"))
     p.add_argument("--progress", choices=["text", "json"], default="text"); p.set_defaults(f=cmd_transcribe)
     p = sp.add_parser("who", help=t("Sprecherzuordnung anzeigen", "show speaker matches")); p.add_argument("transcript"); p.add_argument("speaker", nargs="?"); p.set_defaults(f=cmd_who)
     p = sp.add_parser("name", help=t("Sprecher benennen", "name a speaker")); p.add_argument("transcript"); p.add_argument("speaker"); p.add_argument("name"); p.set_defaults(f=cmd_name)
@@ -393,6 +400,7 @@ def main(argv=None):
     p = sp.add_parser("model", help=t("Spracherkennungsmodell zeigen oder wechseln", "show or switch the speech recognition model"))
     p.add_argument("name", nargs="?", choices=list(asr.MODELS)); p.add_argument("--download", action="store_true", help=t("vorher laden (Netz)", "download first (network)"))
     p.add_argument("--remove", choices=list(asr.MODELS), metavar="NAME", help=t("nicht genutztes Modell löschen", "delete an unused model"))
+    p.add_argument("--update", action="store_true", help=t("vom Installer: einmalige Umstellung auf 8 Bit vermerken", "from the installer: record the one-time switch to 8-bit"))
     p.add_argument("--json", action="store_true"); p.set_defaults(f=cmd_model)
     p = sp.add_parser("dictate-server", help=t("Diktat-Dienst", "dictation service")); p.set_defaults(f=cmd_dictate_server)
     p = sp.add_parser("dictate", help=t("Testdiktat über den Dienst", "test dictation via the service")); p.add_argument("audio")

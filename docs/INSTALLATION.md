@@ -33,8 +33,9 @@ installer renames the data folder `~/Transkription` to `~/Transcriber` (once, no
 
 Options (append after `bash -s --`, e.g. `curl -fsSL …/install.sh | bash -s -- --no-watch`):
 `--no-launch` (do not start the app), `--no-watch` (do not offer the folder watcher), `--yes` (no prompts),
-`--fp16` (16-bit speech recognition, 1.6 GB, instead of the default 8-bit, 0.9 GB – measured just as accurate). An update
-keeps the model you chose; switch later in Settings › Recording › Speech recognition.
+`--fp16` (16-bit speech recognition, 1.6 GB, instead of the default 8-bit, 0.9 GB – measured just as accurate). Updating to
+0.11 switches 16-bit to 8-bit once (the app says so); if you choose 16-bit again afterwards in Settings › Recording ›
+Speech recognition (or run the installer with `--fp16`), it stays.
 
 ### With Homebrew
 

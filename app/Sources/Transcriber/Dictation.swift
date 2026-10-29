@@ -54,6 +54,8 @@ final class Dictation: ObservableObject {
     private var activeKey: UInt16?
     private var screenTask: Task<String?, Never>?
     private var server: Process?
+    private var lastUse = Date.distantPast
+    private var pausedForJob = false
     private var trustTimer: Timer?
     private let capture = DictationCapture()
     private lazy var indicator = DictationIndicator(model: self)
@@ -114,6 +116,22 @@ final class Dictation: ObservableObject {
         Task { [weak self] in
             await Task.detached { s.terminate(); s.waitUntilExit() }.value
             if let self, self.enabled { self.startServer() }
+        }
+    }
+
+    /// Wenig Arbeitsspeicher (`Core.lowMemory`): Solange transkribiert wird, gibt der Diktat-Dienst sein Modell (~0,9–1,7 GB)
+    /// frei; danach startet er wieder. Ein Diktat in der Zwischenzeit startet ihn selbst (dauert dann einige Sekunden),
+    /// eine Minute nach dem letzten Diktat wird er wieder beendet.
+    func transcriptionBusy(_ busy: Bool) {
+        guard Core.lowMemory, enabled else { return }
+        if busy {
+            guard state == .idle, Date().timeIntervalSince(lastUse) > 60, let s = server, s.isRunning else { return }
+            if !pausedForJob { appLog("Diktat-Dienst pausiert, solange transkribiert wird (wenig Arbeitsspeicher)") }
+            pausedForJob = true; server = nil
+            Task.detached { s.terminate() }
+        } else if pausedForJob {
+            pausedForJob = false
+            startServer()
         }
     }
 
@@ -248,9 +266,11 @@ final class Dictation: ObservableObject {
 
     struct Result { let text: String; let ms: Int; let audioS: Double }
 
-    /// Dienst evtl. noch beim Laden (Kaltstart ~1,5 s) oder abgestürzt: einmal neu starten, bis 10 s warten.
+    /// Dienst evtl. noch beim Laden oder abgestürzt bzw. pausiert: einmal neu starten, bis 30 s warten (Kaltstart
+    /// auf einem M5 ~1,5 s, auf einem M1 mit 16 GB bis 14 s gemessen).
     private func recognize(_ samples: [Float], language: String) async -> Swift.Result<Result, Error> {
-        for attempt in 0..<20 {
+        lastUse = Date()
+        for attempt in 0..<60 {
             do { return .success(try await Task.detached { try Self.request(samples, language: language) }.value) }
             catch let e as SocketError where e.connect {
                 if attempt == 0 { startServer() }

@@ -27,19 +27,20 @@ def job_id(path):
     return h.hexdigest()[:12]
 
 
-def _asr(wav, language, terms, repair=True):
+def _asr(wav, language, terms, repair=True, fresh=False):
     """Spracherkennung mit Zwischenspeicher neben der WAV: Eine Neuauswertung (andere Sprecherzahl, „Neu auswerten“
     in der App) rechnet dann nur die Sprechertrennung neu. Gültig für dieselbe Aufnahme (Ordner = Inhalts-Hash),
     Sprache, Modell und Prompt; die Glossar-Ersetzungen laufen danach immer frisch.
     Danach auffällige Stellen neu erkennen (asr.repair, config „repair_flat“). Das Ergebnis liegt getrennt vom
     Rohergebnis im Zwischenspeicher (Fassung asr.REPAIR): ältere Zwischenspeicher bekommen nur die Nachbesserung,
-    keine neue Spracherkennung. Die geprüften Stellen stehen in r["repaired"]."""
+    keine neue Spracherkennung. Die geprüften Stellen stehen in r["repaired"].
+    fresh: Zwischenspeicher übergehen („Audio neu transkribieren“ in der App)."""
     f = Path(wav).with_name(f"asr-{language}.json")
     key = {"model": asr.name(), "terms": terms}
     c, dirty = None, False
     with contextlib.suppress(OSError, ValueError, KeyError):
         c = json.loads(f.read_text())
-        if c["key"] != key:
+        if c["key"] != key or fresh:
             c = None
     if c is None:
         c, dirty = {"key": key, "result": asr.transcribe(wav, terms=terms, language=language)}, True
@@ -148,7 +149,7 @@ def _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, du
     x = [sf.read(str(w), dtype="float32")[0] for w in tracks]
 
     P.start("asr", dur / RTFX["asr"], tr("Spracherkennung", "Speech recognition"))
-    t0 = time.time(); r = _asr(wav, language, terms if cfg["glossary_prompt"] else None, cfg.get("repair_flat", True))
+    t0 = time.time(); r = _asr(wav, language, terms if cfg["glossary_prompt"] else None, cfg.get("repair_flat", True), cfg.get("fresh_asr", False))
     t["asr"] = time.time() - t0
     replaced = glossary.apply(r["words"], rules)
     mixed = r["words"]
@@ -600,15 +601,18 @@ def display_names(clusters, words):
     return clusters
 
 
-def run(src, out_dir=None, formats=None, num_speakers=None, progress=None, cfg=None, language=None):
+def run(src, out_dir=None, formats=None, num_speakers=None, progress=None, cfg=None, language=None, fresh=False):
+    """fresh: Spracherkennung neu statt aus dem Zwischenspeicher, kein Nachziehen eines vorhandenen Transkripts."""
     cfg = cfg or config.load()
+    if fresh:
+        cfg = dict(cfg, fresh_asr=True)
     config.offline_env()
     src = Path(src).expanduser().resolve()
     language = language or cfg["language"]
     formats = formats or cfg["formats"]
     terms, rules = glossary.load(Path(cfg["vocab_file"]).expanduser())
     moved = None
-    if not num_speakers:                 # im Finder umbenannt/verschoben: Transkript nachziehen statt neu rechnen
+    if not num_speakers and not fresh:   # im Finder umbenannt/verschoben: Transkript nachziehen statt neu rechnen
         try:
             moved = adopt(src)
         except Exception as e:           # dann eben normal transkribieren
@@ -686,7 +690,7 @@ def _run(src, language, out_dir, formats, num_speakers, cfg, terms, rules, P, t)
         words, segs, clusters, replaced, overlaps, repaired = _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, dur)
     else:
         P.start("asr", dur / RTFX["asr"], tr("Spracherkennung", "Speech recognition"))
-        t0 = time.time(); r = _asr(wav, language, terms if cfg["glossary_prompt"] else None, cfg.get("repair_flat", True)); t["asr"] = time.time() - t0
+        t0 = time.time(); r = _asr(wav, language, terms if cfg["glossary_prompt"] else None, cfg.get("repair_flat", True), cfg.get("fresh_asr", False)); t["asr"] = time.time() - t0
         replaced, repaired = glossary.apply(r["words"], rules), r.get("repaired", [])
 
         P.start("diarize", dur / RTFX["diarize"], tr("Sprechertrennung", "Speaker separation"))

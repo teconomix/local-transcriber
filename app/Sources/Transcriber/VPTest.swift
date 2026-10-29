@@ -421,6 +421,12 @@ enum VPTest {
         client.summarizing = Date().addingTimeInterval(-34)
         jobs.frozen = true
         jobs.jobs = [running, budget, client]
+        if CommandLine.arguments.contains("--demo-aborted") {      // Prüfbild: abgebrochener Auftrag mit „Erneut transkribieren“
+            let aborted = Job(id: UUID().uuidString, source: URL(fileURLWithPath: en ? "/demo/2026-10-14 09-00 Weekly.m4a" : "/demo/2026-10-14 09-00 Wochenrunde.m4a"),
+                              started: Date().addingTimeInterval(-9000))
+            aborted.state = .aborted; aborted.error = String(localized: "abgebrochen (Prozess beendet)")
+            jobs.jobs.insert(aborted, at: 1)
+        }
     }
 
     /// Oberfläche ansehen ohne Mausklick: `open -n ~/Applications/Transcriber.app --args --ui-test`

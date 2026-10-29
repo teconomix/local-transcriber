@@ -175,7 +175,7 @@
 "Personen in der nächsten Aufnahme oder Datei – Auto erkennt selbst; danach wieder Auto" = "People in the next recording or file – Auto detects them itself; resets to Auto afterwards";
 "Namen neu zuordnen" = "Match names again";
 "Nur neuer Abgleich mit Stimmdatenbank" = "Only re-match against voice database";
-"Namen neu zuordnen oder Sprecher neu trennen" = "Match names again or separate speakers again";
+"Namen neu zuordnen, Audio neu transkribieren oder Sprecher neu trennen" = "Match names again, transcribe the audio again or separate speakers again";
 
 /* Umbenennen im Panel (2026-10-12) */
 "Neuer Name" = "New name";
@@ -377,3 +377,8 @@
 "App gewechselt – das Diktat liegt in der Zwischenablage." = "App switched – the dictation is on the clipboard.";
 "Eigene Fassung verwerfen?" = "Discard your version?";
 "Vorlage löschen?" = "Delete template?";
+"Erneut transkribieren" = "Transcribe again";
+"Audio neu transkribieren" = "Transcribe audio again";
+"Spracherkennung und Sprechertrennung ganz neu – dauert wie beim ersten Mal" = "Speech recognition and speaker separation from scratch – takes as long as the first time";
+"Spracherkennung auf 8 Bit umgestellt: gleich genau, weniger Arbeitsspeicher. 16 Bit lässt sich in den Einstellungen wieder wählen." = "Speech recognition switched to 8-bit: just as accurate, less memory. You can choose 16-bit again in Settings.";
+"OK" = "OK";
