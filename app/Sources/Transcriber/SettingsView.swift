@@ -119,6 +119,8 @@ struct RecordingSettings: View {
     @AppStorage("autoTranscribe") private var autoTranscribe = true
     @AppStorage("audioRetention") private var audioRetention = false
     @AppStorage("autoTitle") private var autoTitle = true
+    @AppStorage("nameDateFormat") private var nameFormat = RecordingName.standard
+    @State private var customFormat = false             // „Eigenes Format“ gewählt, auch solange das Feld noch leer ist
     @AppStorage("callDetect") private var callDetect = true
     @AppStorage("icloudInbox") private var icloudInbox = false
     @AppStorage("airdropInbox") private var airdropInbox = false
@@ -179,6 +181,23 @@ struct RecordingSettings: View {
                 Toggle("Transkribieren", isOn: $autoTranscribe)
                 Toggle("Sprechend benennen (Kalendertitel, sonst Apple-KI)", isOn: $autoTitle).disabled(!autoTranscribe)
                     .help("„Aufnahme 2026-10-10 14-03“ → „2026-10-10 14-03 Thema“; Transkript und Stimmdatenbank werden mitgezogen.")
+                Picker("Datum im Dateinamen", selection: Binding(
+                    get: { customFormat || !RecordingName.presets.contains(nameFormat) ? "custom" : nameFormat },
+                    set: { v in customFormat = v == "custom"; if v != "custom" { nameFormat = v } })) {
+                    ForEach(RecordingName.presets, id: \.self) { f in Text(verbatim: RecordingName.stamp(Date(), format: f)).tag(f) }
+                    Text("Eigenes Format …").tag("custom")
+                }
+                if customFormat || !RecordingName.presets.contains(nameFormat) {
+                    TextField("Format", text: $nameFormat, prompt: Text(verbatim: "yyMMdd HHmm"))
+                    Text("yyyy oder yy = Jahr, MM = Monat, dd = Tag, HH = Stunde, mm = Minute; dazwischen Leerzeichen, - _ oder Punkt.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    if RecordingName.valid(nameFormat) == nil {
+                        Text("Ungültig – es gilt der Standard.").font(.caption).foregroundStyle(.orange)
+                    }
+                }
+                Text(verbatim: "\(RecordingName.defaultName(Date())) → \(RecordingName.stamp(Date())) \(String(localized: "Thema"))")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .help("Gilt für neue Aufnahmen aus der App, per AirDrop und vom iPhone-Kurzbefehl; vorhandene Dateien behalten ihren Namen.")
                 Picker("Transkript speichern als", selection: $textFormat) {
                     Text("Text (.txt)").tag("txt")
                     Text("Markdown (.md)").tag("md")

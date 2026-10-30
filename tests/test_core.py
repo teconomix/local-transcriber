@@ -957,6 +957,18 @@ class Library(unittest.TestCase):
         self.assertEqual((r["folder"], r["recorded"], r["recorded_from"]), ("", "2026-09-30 14:05", "name"))
         shutil.rmtree(root)
 
+    def test_recorded_from_custom_name_formats(self):
+        """Einstellbares Datumsformat der App: yyMMdd HHmm, yyyyMMdd HHmm, Standardname – sonst kein Datum aus dem Namen."""
+        from transcriber import library
+        root = Path(tempfile.mkdtemp(dir=_DATA))
+        doc = {"created": "2026-11-01 09:00"}
+        for name, want in [("261030 1403 Budget.m4a", ("2026-10-30 14:03", "name")),
+                           ("20261030 1403 Budget.m4a", ("2026-10-30 14:03", "name")),
+                           ("Aufnahme 261030 1403.m4a", ("2026-10-30 14:03", "name")),
+                           ("261399 1403 Budget.m4a", ("2026-11-01 09:00", "transcript")),   # kein gültiges Datum
+                           ("Projekt 12345 Notizen.m4a", ("2026-11-01 09:00", "transcript"))]:
+            self.assertEqual(library.recorded(doc, root / name, {}), want, name)
+
 
 class AsrModel(unittest.TestCase):
     """Modellwahl turbo / turbo-8bit (config „asr_model“): Standard, Ordner mit Verweisen für 8 Bit, eigener

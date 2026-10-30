@@ -17,6 +17,7 @@ struct TranscriberApp: App {
         if CommandLine.arguments.contains("--vp-test") { VPTest.run(); exit(0) }
         if CommandLine.arguments.contains("--latency-test") { VPTest.latency(); exit(0) }
         if CommandLine.arguments.contains("--tap-test") { VPTest.tap(); exit(0) }
+        if CommandLine.arguments.contains("--name-test") { exit(RecordingName.selfTest() ? 0 : 1) }
         if CommandLine.arguments.contains("--calendar-test") { Task { await VPTest.calendar(); exit(0) } }
         if CommandLine.arguments.contains("--cleanup-test") { Task { await VPTest.cleanup(); exit(0) } }
         if let i = CommandLine.arguments.firstIndex(of: "--airdrop-test") {   // iPhone-Weg: AirDrop-Dateien in Downloads

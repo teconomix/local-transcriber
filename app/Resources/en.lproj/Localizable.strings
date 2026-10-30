@@ -382,3 +382,10 @@
 "Spracherkennung und Sprechertrennung ganz neu – dauert wie beim ersten Mal" = "Speech recognition and speaker separation from scratch – takes as long as the first time";
 "Spracherkennung auf 8 Bit umgestellt: gleich genau, weniger Arbeitsspeicher. 16 Bit lässt sich in den Einstellungen wieder wählen." = "Speech recognition switched to 8-bit: just as accurate, less memory. You can choose 16-bit again in Settings.";
 "OK" = "OK";
+"Datum im Dateinamen" = "Date in file names";
+"Eigenes Format …" = "Custom format …";
+"Format" = "Format";
+"yyyy oder yy = Jahr, MM = Monat, dd = Tag, HH = Stunde, mm = Minute; dazwischen Leerzeichen, - _ oder Punkt." = "yyyy or yy = year, MM = month, dd = day, HH = hour, mm = minute; separated by spaces, - _ or a dot.";
+"Ungültig – es gilt der Standard." = "Invalid – the default applies.";
+"Thema" = "Topic";
+"Gilt für neue Aufnahmen aus der App, per AirDrop und vom iPhone-Kurzbefehl; vorhandene Dateien behalten ihren Namen." = "Applies to new recordings from the app, via AirDrop and from the iPhone shortcut; existing files keep their names.";

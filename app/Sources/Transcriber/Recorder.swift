@@ -109,8 +109,7 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
             throw NSError(domain: "Recorder", code: 1, userInfo: [NSLocalizedDescriptionKey: String(localized: "Kein Mikrofonzugriff (Systemeinstellungen › Datenschutz › Mikrofon)")])
         }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH-mm"
-        let base = String(localized: "Aufnahme \(f.string(from: Date()))")   // RecordingTitle.defaultStamp erkennt de und en
+        let base = RecordingName.defaultName(Date())   // Datumsformat einstellbar; RecordingTitle.defaultStamp erkennt de und en
         var name = base, n = 2        // zweite Aufnahme in derselben Minute: „… 2“ statt die erste zu überschreiben
         // auch eine versteckte Restdatei (abgebrochene Aufnahme derselben Minute) belegt den Namen – nie löschen
         while ["", "."].contains(where: { FileManager.default.fileExists(atPath: folder.appendingPathComponent("\($0)\(name).m4a").path) }) {

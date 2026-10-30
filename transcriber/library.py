@@ -4,6 +4,7 @@ Aufnahmedatum: Dateidatum taugt nicht (synchronisierte Handy-Aufnahmen tragen da
 creation_time aus den Metadaten der Aufnahme, sonst Kalendertermin, sonst Zeitstempel im Dateinamen, sonst Datum des
 Transkripts. Die Metadaten liest ffprobe einmal je Datei; das Ergebnis liegt in DATA/library.json.
 """
+import contextlib
 import json
 import re
 import subprocess
@@ -53,6 +54,12 @@ def recorded(doc, src, cache):
     m = re.match(r"(\d{4}-\d{2}-\d{2})[ _](\d{2})-(\d{2})", src.name)
     if m:
         return f"{m[1]} {m[2]}:{m[3]}", "name"
+    # einstellbares Datumsformat der App (RecordingName): „261030 1403 …“, „20261030 1403 …“
+    m = re.match(r"(?:(?:Aufnahme|Recording) )?(\d{2}|\d{4})(\d{2})(\d{2})[ _.-](\d{2})(\d{2})\b", src.name)
+    if m:
+        y = m[1] if len(m[1]) == 4 else "20" + m[1]
+        with contextlib.suppress(ValueError):
+            return datetime(int(y), int(m[2]), int(m[3]), int(m[4]), int(m[5])).strftime("%Y-%m-%d %H:%M"), "name"
     return doc.get("created"), "transcript"
 
 

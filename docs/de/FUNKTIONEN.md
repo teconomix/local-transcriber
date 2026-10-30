@@ -68,6 +68,9 @@ Installation braucht Transcriber kein Internet – außer du wählst für die KI
 
 „2026-10-10 14-03 Budgetplanung Q4“ statt „Aufnahme 2026-10-10 14-03“ – aus dem Kalendertermin oder, wenn keiner
 lief, per Apple Intelligence aus dem Inhalt (macOS 26). Transkript und Stimmdatenbank werden mitgezogen.
+Das Datum im Namen ist einstellbar (Einstellungen › Aufnahme › „Datum im Dateinamen“): `2026-10-10 14-03`,
+`261010 1403`, `20261010 1403` oder ein eigenes Format, z. B. `yyMMdd_HHmm`. Gilt für Aufnahmen aus der App, per AirDrop
+und vom iPhone-Kurzbefehl; vorhandene Dateien behalten ihren Namen.
 
 ## Diktat überall
 

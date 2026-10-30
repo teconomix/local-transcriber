@@ -1,7 +1,8 @@
 import Foundation
 import FoundationModels
 
-/// Sprechende Dateinamen für App-Aufnahmen: „Aufnahme 2026-10-10 14-03“ → „2026-10-10 14-03 Budgetplanung Q4“.
+/// Sprechende Dateinamen für App-Aufnahmen: „Aufnahme 2026-10-10 14-03“ → „2026-10-10 14-03 Budgetplanung Q4“
+/// (Datum im eingestellten Format, RecordingName).
 /// Titel vom Apple Foundation Model (lokal) aus einem Auszug des fertigen Transkripts; umbenannt wird im Python-Kern
 /// (`transcriber rename`), der auch Transkript, Stimmdatenbank und Statusdateien mitzieht.
 /// Nur Aufnahmen mit Standardnamen, die fertig werden, während die App läuft – nichts wird nachträglich umbenannt.
@@ -9,10 +10,9 @@ enum RecordingTitle {
     static var enabled: Bool { UserDefaults.standard.object(forKey: "autoTitle") as? Bool ?? true }
 
     /// Datum/Uhrzeit aus dem Standardnamen, sonst nil (Datei wurde schon benannt oder stammt nicht aus der App).
+    /// Alle Datumsformate aus RecordingName (eingestelltes und Vorlagen).
     static func defaultStamp(_ url: URL) -> String? {
-        let name = url.deletingPathExtension().lastPathComponent
-        guard let m = name.wholeMatch(of: #/(?:Aufnahme|Recording) (\d{4}-\d{2}-\d{2} \d{2}-\d{2})(?:[ -]\d+)?/#) else { return nil }
-        return String(m.1)
+        RecordingName.split(url.deletingPathExtension().lastPathComponent)?.stamp
     }
 
     static let instructions = """

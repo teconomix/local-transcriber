@@ -62,14 +62,15 @@ enum ICloudInbox {
             let sig = [Int(st.st_size), Int(st.st_mtimespec.tv_sec)]
             now[f.path] = sig
             guard seen[f.path] == sig else { continue }   // erst im nächsten Takt, wenn unverändert
-            if let dest = move(f) { moved.append(dest); now.removeValue(forKey: f.path) }
+            // Kurzbefehl schreibt „Aufnahme JJJJ-MM-TT HH-MM“ – ins eingestellte Datumsformat (RecordingName)
+            if let dest = move(f, named: RecordingName.reformatted(f)) { moved.append(dest); now.removeValue(forKey: f.path) }
         }
         seen = now
         return moved
     }
 
     /// Koordiniert verschieben (iCloud erfährt so vom Wegzug), nie überschreiben: „Name 2.m4a“ … – bei
-    /// „Aufnahme JJJJ-MM-TT HH-MM 2“ greift der sprechende Name trotzdem (RecordingTitle.defaultStamp).
+    /// „Aufnahme <Datum> 2“ greift der sprechende Name trotzdem (RecordingTitle.defaultStamp).
     /// `named`: neuer Name ohne Endung (AirDrop-Eingang vergibt den Standardnamen).
     static func move(_ src: URL, named: String? = nil, label: String = "iCloud-Eingang") -> URL? {
         let fm = FileManager.default

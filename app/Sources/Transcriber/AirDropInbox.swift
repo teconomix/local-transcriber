@@ -33,15 +33,14 @@ enum AirDropInbox {
         return String(decoding: buf, as: UTF8.self).split(separator: ";").dropFirst(2).first == "sharingd"
     }
 
-    /// Standardname „Aufnahme/Recording JJJJ-MM-TT HH-MM“ für die Vorgabenamen von Sprachmemos („Neue Aufnahme 3“,
-    /// „New Recording 3“), damit der sprechende Name greift. Eigene Titel (oder Ortsnamen) bleiben.
+    /// Standardname „Aufnahme/Recording <Datum>“ für die Vorgabenamen von Sprachmemos („Neue Aufnahme 3“,
+    /// „New Recording 3“), damit der sprechende Name greift; Standardnamen in einem anderen Datumsformat werden ins
+    /// eingestellte umgeschrieben. Eigene Titel (oder Ortsnamen) bleiben.
     static func standardName(_ f: URL, date: Date) -> String? {
+        if RecordingTitle.defaultStamp(f) != nil { return RecordingName.reformatted(f) }
         let stem = f.deletingPathExtension().lastPathComponent
-        guard RecordingTitle.defaultStamp(f) == nil,
-              stem.wholeMatch(of: #/(?:Neue Aufnahme|New Recording)(?: \d+)?/#) != nil else { return nil }
-        let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd HH-mm"
-        let prefix = Locale.preferredLanguages.first?.hasPrefix("de") == true ? "Aufnahme" : "Recording"
-        return "\(prefix) \(df.string(from: date))"
+        guard stem.wholeMatch(of: #/(?:Neue Aufnahme|New Recording)(?: \d+)?/#) != nil else { return nil }
+        return RecordingName.defaultName(date)
     }
 
     @discardableResult

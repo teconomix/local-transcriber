@@ -68,6 +68,9 @@ installation, Transcriber needs no internet connection – unless you explicitly
 “2026-10-10 14-03 Budget planning Q4” instead of “Recording 2026-10-10 14-03” – from the calendar event or, if none
 was running, generated from the content by Apple Intelligence (macOS 26). The transcript and the voice database are
 updated accordingly.
+The date in the name can be set (Settings › Recording › “Date in file names”): `2026-10-10 14-03`, `261010 1403`,
+`20261010 1403` or a custom format such as `yyMMdd_HHmm`. Applies to recordings from the app, via AirDrop and from the
+iPhone shortcut; existing files keep their names.
 
 ## Dictation everywhere
 
