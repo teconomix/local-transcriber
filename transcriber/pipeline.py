@@ -11,7 +11,7 @@ import time
 import unicodedata
 from pathlib import Path
 
-from . import asr, audio, config, glossary, render, speakers
+from . import asr, audio, config, glossary, library, render, speakers
 from .i18n import t as tr
 
 # Erfahrungswerte (Vielfaches der Echtzeit auf MacLion) für die Fortschrittsanzeige
@@ -715,7 +715,11 @@ def _run(src, language, out_dir, formats, num_speakers, cfg, terms, rules, P, t)
     out_dir = Path(out_dir).expanduser().resolve() if out_dir else src.parent
     out_dir.mkdir(parents=True, exist_ok=True)     # --out mit neuem Ordner brach sonst erst beim Schreiben ab (96 %)
     stem = out_dir / src.stem
-    doc = {"version": 1, "job_id": jid, "source": str(src), "created": time.strftime("%Y-%m-%d %H:%M"),
+    created = time.strftime("%Y-%m-%d %H:%M")
+    # Aufnahmedatum (Ortszeit) wie im Fenster „Alle Transkriptionen“: Metadaten, Termin, Dateiname, sonst jetzt –
+    # Handy-Aufnahmen ohne Datum im Namen bekämen sonst das Importdatum (Obsidian-Plugin: Eigenschaft date)
+    recorded, recorded_from = library.recorded({"created": created, "event": event}, src, {})
+    doc = {"version": 1, "job_id": jid, "source": str(src), "created": created, "recorded": recorded, "recorded_from": recorded_from,
            "model": asr.name(cfg), "language": language, "language_set": language_set, "duration": dur, "tracks": info["tracks"], "track_mode": mode, "event": event,
            "track_relation": relation, "timing_s": {k: round(v, 1) for k, v in t.items()},
            "glossary": terms, "glossary_replacements": replaced, "speakers": [{k: v for k, v in c.items() if k != "embedding"} for c in clusters],

@@ -969,6 +969,25 @@ class Library(unittest.TestCase):
                            ("Projekt 12345 Notizen.m4a", ("2026-11-01 09:00", "transcript"))]:
             self.assertEqual(library.recorded(doc, root / name, {}), want, name)
 
+    def test_recorded_from_metadata(self):
+        """Handy-Aufnahme ohne Datum im Namen: creation_time (UTC) aus den Metadaten, in Ortszeit – nicht das Importdatum."""
+        from transcriber import audio, library
+        import subprocess
+        root = Path(tempfile.mkdtemp(dir=_DATA))
+        src = root / "Kk 20. Mai um 18_18.m4a"
+        subprocess.run([audio.tool("ffmpeg"), "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=16000:cl=mono", "-t", "0.2",
+                        "-metadata", "creation_time=2026-05-20T16:18:00Z", str(src)], check=True)
+        tz = os.environ.get("TZ")
+        os.environ["TZ"] = "Europe/Vienna"; time.tzset()
+        try:
+            self.assertEqual(library.recorded({"created": "2026-10-30 09:00"}, src, {}), ("2026-05-20 18:18", "metadata"))
+        finally:
+            if tz is None:
+                os.environ.pop("TZ")
+            else:
+                os.environ["TZ"] = tz
+            time.tzset()
+
 
 class AsrModel(unittest.TestCase):
     """Modellwahl turbo / turbo-8bit (config „asr_model“): Standard, Ordner mit Verweisen für 8 Bit, eigener

@@ -2,7 +2,7 @@
 # Spuren synchron, auch wenn der Systemton erst später kommt (Tap liefert nur, solange etwas abspielt).
 # Baut und installiert die App (app/build-app.sh) und nimmt zweimal auf (--gap-test): Systemton die ersten 2,5 s bzw.
 # 30 s verworfen, danach spielt afplay leise einen Ton. Prüft: Spuren gleich lang, Ton an der richtigen Stelle, Mikrofon
-# hört ihn höchstens 0,3 s später (Lautsprecher → Raum → Mikrofon), Lücke genau einmal gefüllt. Braucht Mikrofon + Systemaudio.
+# hört ihn höchstens 0,3 s später (Lautsprecher → Raum → Mikrofon; nur ohne Sprachverarbeitung messbar), Lücke genau einmal gefüllt. Braucht Mikrofon + Systemaudio.
 set -euo pipefail
 ROOT="${0:A:h:h}"
 PY="${TRANSCRIBER_PY:-$HOME/.local/share/transcriber/venvs/app/bin/python}"
@@ -20,23 +20,36 @@ run_case() {   # run_case LÜCKE [--vp]
   [[ -n "$f" ]] || { echo "✗ Lücke ${gap}s: keine Aufnahme entstanden"; rm -rf "$G"; return 1; }
   local fills; fills=$(tail -n +$((mark + 1)) $LOG | grep -c 'Stille in Systemton-Spur' || true)
   for i in 0 1; do ffmpeg -v error -y -i "$f" -map 0:a:$i -ac 1 -ar 16000 -f f32le "$G/t$i.raw"; done
-  "$PY" - "$G" "$gap" "$fills" <<'PY'
+  "$PY" - "$G" "$gap" "$fills" "$*" <<'PY'
 import sys, numpy as np
-g, gap, fills = sys.argv[1], float(sys.argv[2]), int(sys.argv[3])
+g, gap, fills, vp = sys.argv[1], float(sys.argv[2]), int(sys.argv[3]), "--vp" in sys.argv[4]
 mic, sys_ = (np.fromfile(f"{g}/t{i}.raw", dtype=np.float32) for i in (0, 1))
 e = np.array([np.sqrt(np.mean(sys_[j:j + 160] ** 2)) for j in range(0, len(sys_) - 160, 160)])
 onset = np.argmax(e > 1e-3) * 0.01 if (e > 1e-3).any() else None
 s0 = int(gap * 16000); a, m = sys_[s0:s0 + 40000], mic[s0:s0 + 40000]
-lag = (np.argmax(np.correlate(m - m.mean(), a - a.mean(), "full")) - (len(a) - 1)) / 16000
-# Mit Sprachverarbeitung entfernt die Echounterdrückung den Testton fast ganz aus dem Mikrofon (2026-10-20: nur 7 dB
-# über dem Rauschen, oft 0 dB) → Korrelation zufällig (−1,4 s). Ohne Sprachverarbeitung +8–9 dB, Versatz stabil ~0,1 s.
-# Versatz daher nur prüfen, wenn das Mikrofon den Ton mindestens 5 dB über dem Rauschen hört.
+# Versatz über die Lautstärkekurve (10 ms), nicht über die Wellenform: der Testton ist tonal, die Wellenform-Korrelation
+# hat viele fast gleich hohe Nebenspitzen. Gesucht wird nur in −0,5 … +1,0 s, gewertet nur, wenn das Mikrofon den Ton
+# ≥ 10 dB über dem Rauschen hört und die Kurven klar ähnlich sind (r ≥ 0,5) – meist +19…+25 dB, r 0,8–0,9; bei +2 dB
+# einmal r 0,58 und −0,12 s daneben.
+# Mit Sprachverarbeitung nie: die Echounterdrückung nimmt den Ton aus dem Mikrofon (2026-10-31, 4 Läufe: −5 … +5 dB,
+# Kurve verzerrt, Versatz zufällig +0,7/−0,5 s; früher −1,4 … +0,6 s) – das schwankende Ergebnis ließ den Test
+# wechselnd scheitern. Ohne Sprachverarbeitung stabil +0,10 s.
+logenv = lambda x: np.log(np.sqrt((x[:len(x) // 160 * 160].reshape(-1, 160) ** 2).mean(1)) + 1e-5)
+ea, em = logenv(a), logenv(m)
+def r_at(L):
+    x, y = (ea[:len(ea) - L], em[L:]) if L >= 0 else (ea[-L:], em[:len(em) + L])
+    n = min(len(x), len(y))
+    with np.errstate(all="ignore"): r = np.corrcoef(x[:n], y[:n])[0, 1] if n > 10 else -1
+    return -1 if np.isnan(r) else r      # Stille (konstante Kurve) → keine Aussage
+lag, r = max(((L / 100, r_at(L)) for L in range(-50, 101)), key=lambda t: t[1])
 db = lambda x: 10 * np.log10(np.mean(x ** 2) + 1e-12)
-heard = db(m) - db(mic[max(s0 - 80000, 0):max(s0 - 16000, 1)]) >= 5
+snr = db(m) - db(mic[max(s0 - 80000, 0):max(s0 - 16000, 1)])
+heard = not vp and snr >= 10 and r >= 0.5
 print(f"  Lücke {gap:g} s: Spuren {len(mic)/16000:.2f} / {len(sys_)/16000:.2f} s, Ton im Systemton ab {onset} s, "
-      + (f"Mikrofon {lag:+.3f} s" if heard else "Versatz nicht messbar (Mikrofon hört den Ton kaum)") + f", {fills}× gefüllt, Ton +{db(m) - db(mic[max(s0 - 80000, 0):max(s0 - 16000, 1)]):.0f} dB")
+      + (f"Mikrofon {lag:+.2f} s (r {r:.2f})" if heard else "Versatz nicht gemessen (" + ("Sprachverarbeitung" if vp else f"Mikrofon hört den Ton kaum, r {r:.2f}") + ")")
+      + f", {fills}× gefüllt, Ton {snr:+.0f} dB")
 ok = (abs(len(mic) - len(sys_)) < 0.8 * 16000 and onset is not None and onset >= gap - 0.5
-      and (not heard or 0 <= lag <= 0.3) and fills == 1)
+      and (not heard or -0.02 <= lag <= 0.3) and fills == 1)
 sys.exit(0 if ok else f"✗ Lücke {gap:g} s: Spuren nicht synchron")
 PY
   local rc=$?; rm -rf "$G"; return $rc
