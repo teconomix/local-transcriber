@@ -32,6 +32,14 @@ Oder mit Homebrew: `brew install --cask teconomix/tap/local-transcriber`. Fragen
 Ausführlich: [FUNKTIONEN.md](FUNKTIONEN.md) · Bedienung: [ANLEITUNG.md](ANLEITUNG.md) · Arbeitsablauf: [ARBEITSABLAUF.md](ARBEITSABLAUF.md) ·
 Installation: [INSTALLATION.md](INSTALLATION.md) · Datenschutz: [DATENSCHUTZ.md](DATENSCHUTZ.md)
 
+## Anleitungen
+
+- [Interviews transkribieren](https://transcriber.teconomix.net/de/interviews-transkribieren.html?k=gh-guides) – Forschung und Journalismus, mit Zeitstempeln
+- [Sprechererkennung am Mac](https://transcriber.teconomix.net/de/sprechererkennung-mac.html?k=gh-guides) – Sprecher offline trennen, benannte Stimmen wiedererkennen
+- [Diktieren am Mac](https://transcriber.teconomix.net/de/diktieren-mac.html?k=gh-guides) – Taste halten, sprechen, Text steht an der Schreibmarke
+- [Beratung und Supervision](https://transcriber.teconomix.net/de/beratung.html?k=gh-guides) – vertrauliche Gespräche bleiben auf dem Mac
+- [Transkripte in Obsidian](https://transcriber.teconomix.net/de/obsidian-transkripte.html?k=gh-guides) – Aufnahmen werden Notizen in deiner Vault
+
 ## Voraussetzungen
 
 Mac mit Apple Silicon (M1 oder neuer), macOS 14 Sonoma oder neuer (KI-Funktionen: macOS 26 mit Apple Intelligence),

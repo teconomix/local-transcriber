@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Speaker recognition on the Mac – offline, and voices are recognized again | Local Transcriber</title>
+  <meta name="description" content="Who said what? Local Transcriber separates speakers locally on your Mac (pyannote) and recognizes named voices in later recordings – no cloud, no account. Free and open source.">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Local Transcriber">
+  <meta property="og:title" content="Speaker recognition on the Mac – offline, and voices are recognized again">
+  <meta property="og:description" content="Separate speakers locally and recognize named voices again – free and open source.">
+  <meta property="og:url" content="https://transcriber.teconomix.net/en/speaker-recognition-mac.html">
+  <meta property="og:image" content="https://transcriber.teconomix.net/assets/og-en.png">
+  <meta property="og:locale" content="en_US">
+  <meta name="color-scheme" content="light dark">
+  <meta name="referrer" content="no-referrer">
+  <link rel="canonical" href="https://transcriber.teconomix.net/en/speaker-recognition-mac.html">
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../style.css?v=0.13">
+  <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/sprechererkennung-mac.html">
+  <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/speaker-recognition-mac.html">
+  <script src="../script.js?v=0.13" defer></script>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="../assets/icon.svg" alt="" width="28" height="28">Local Transcriber</a>
+    <nav class="nav" aria-label="Main navigation"><a class="opt" href="./?k=seo-speakers-en">Home</a><a class="lang" href="../de/sprechererkennung-mac.html" hreflang="de" lang="de">Deutsch</a></nav>
+  </div>
+</header>
+
+<main class="legal article wrap">
+  <h1>Speaker recognition on the Mac – offline, and voices are recognized again</h1>
+  <p class="article-lead">With more than two people, a transcript without names is hard to use. Local Transcriber separates the voices in a recording automatically and assigns a speaker to every word. Anyone you name once is recognized in later recordings. Everything runs on the Mac; neither audio nor voice profiles leave the computer.</p>
+
+  <h2>How it works</h2>
+  <ul>
+    <li><strong>Separate:</strong> pyannote (model community-1) works out how many voices a recording has and who speaks when. The transcript then shows “Speaker A”, “Speaker B” and so on.</li>
+    <li><strong>Name:</strong> You assign names below the finished transcript. Known voices and the attendees of the calendar event are suggested. The names are carried over into the transcript.</li>
+    <li><strong>Recognize:</strong> Named voices go into a local voice database. New recordings are matched against it, and every confirmation improves the references.</li>
+    <li><strong>Uncertainty stays visible:</strong> Confident matches appear as a name, probable ones as “Name (?)”, unknown voices as “Speaker A”. With under 15 seconds of speech, a match never counts as confident.</li>
+    <li><strong>Calls:</strong> Microphone and system audio are recorded as separate tracks. That keeps “me” and “the others” apart even when the speaker echoes back into the microphone (100 % in testing).</li>
+  </ul>
+
+  <h2>When the separation is off</h2>
+  <ul>
+    <li><strong>Set the number of people:</strong> The default is “Auto”. For the next recording or file, you can pick the exact number in the panel. If a calendar event is running, its attendees cap the number of speakers searched for.</li>
+    <li><strong>Separate speakers again:</strong> If two people were merged or one was split, analyze the recording again under “Re-analyze” – automatically or with 1–10 people.</li>
+    <li><strong>Match names again:</strong> Re-matches the speakers against the voice database in seconds, without separating the recording again.</li>
+  </ul>
+
+  <h2>Voice profiles are biometric data</h2>
+  <ul>
+    <li>The voice database stays on your Mac only (<code>~/.local/share/transcriber/speakers.db</code>), readable only by your user account.</li>
+    <li>Get the consent of everyone involved before you record and name voices. You can also leave a voice as “Speaker B”; then you are not storing it under a name.</li>
+    <li>Remove individual people and references in Settings › Voices or with <code>transcriber speakers forget NAME</code>. “Delete everything” on a recording also removes the voices from that conversation.</li>
+    <li>Voices can be exported and imported for a team (one voice print and the name per person, no recordings). The file is not encrypted; share it only with the consent of the people concerned.</li>
+  </ul>
+
+  <h2>Honestly: the limits</h2>
+  <ul>
+    <li>People who speak only briefly are recognized less well – hence the 15-second limit and the “(?)”. Check names when they matter.</li>
+    <li>Similar voices can get mixed up. Name your own voice before importing voices – otherwise you may be matched to a similar-sounding colleague.</li>
+    <li>Speaker recognition runs after the recording, not live.</li>
+    <li>Apple Silicon Macs only (M1 or newer), macOS 14 or newer.</li>
+  </ul>
+
+  <h2>For existing files too</h2>
+  <p>Besides your own recordings, the app processes existing audio and video files – see <a href="transcribe-interviews.html">Transcribe interviews</a>. For an overview of everything else: <a href="transcribe-without-cloud.html">Transcribe conversations without the cloud</a>.</p>
+
+  <h2>Install</h2>
+  <p>Open Terminal (<kbd>⌘</kbd> + <kbd>Space</kbd>, “Terminal”) and paste – the installer does the rest in about ten minutes.</p>
+  <div class="cmd">
+    <pre id="install-cmd-a">curl -fsSL https://transcriber.teconomix.net/k/seo-speakers-en/install.sh | bash</pre>
+    <button class="copy-btn" type="button" data-copied="Copied" data-copy="install-cmd-a" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>
+      <span aria-live="polite">Copy</span>
+    </button>
+  </div>
+  <p>Or with Homebrew: <code>brew install --cask teconomix/tap/local-transcriber</code>. Guide with pictures and an 80-second video: <a href="./?k=seo-speakers-en#installation">home page</a>. Source code: open source (MIT).</p>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Local Transcriber · Open source (MIT) · no warranty</span>
+    <nav aria-label="Legal and links">
+      <a href="legal-notice.html">Legal notice</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="counseling.html">For counseling &amp; supervision</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

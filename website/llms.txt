@@ -1,0 +1,30 @@
+# Local Transcriber
+
+> Free, open-source (MIT) menu bar app for macOS on Apple Silicon. It records meetings and calls, transcribes them with Whisper large-v3-turbo, recognizes speakers with pyannote and a local voice database, and offers dictation into any app. Everything runs on the Mac: no account, no subscription, no audio leaving the computer. Optional AI summaries use a local model or, only on click, a cloud provider of the user's choice with names replaced by placeholders.
+
+Requirements: Apple Silicon (M1 or newer), macOS 14 or newer, about 8 GB of free disk space, 16 GB of memory recommended. AI cleanup of dictation and AI-generated file names need macOS 26 with Apple Intelligence. Mac only; no Windows, Linux or iPhone app (iPhone recordings can be sent to the Mac). No live transcript while recording.
+
+Install: `brew install --cask teconomix/tap/local-transcriber` or `curl -fsSL https://transcriber.teconomix.net/k/llms/install.sh | bash`
+
+Recordings: users are responsible for obtaining the consent of everyone involved; the app makes no recording announcement.
+
+## Overview
+
+- [Home page (English)](https://transcriber.teconomix.net/en/?k=llms): features, installation, FAQ
+- [Startseite (Deutsch)](https://transcriber.teconomix.net/de/?k=llms): Funktionen, Installation, Fragen
+- [Source code](https://github.com/teconomix/local-transcriber): GitHub, MIT license
+
+## Topics
+
+- [Transcribe without the cloud](https://transcriber.teconomix.net/en/transcribe-without-cloud.html?k=llms): Teams, Zoom and Meet without a meeting bot
+- [Speaker recognition on the Mac](https://transcriber.teconomix.net/en/speaker-recognition-mac.html?k=llms): separate speakers offline, recognize named voices
+- [Dictation on the Mac](https://transcriber.teconomix.net/en/dictation-mac.html?k=llms): hold a key, speak, the text appears at the cursor
+- [Transcribe interviews](https://transcriber.teconomix.net/en/transcribe-interviews.html?k=llms): research and journalism, with timestamps
+- [Counseling and supervision](https://transcriber.teconomix.net/en/counseling.html?k=llms): confidential conversations
+- [Transcripts in Obsidian](https://transcriber.teconomix.net/en/obsidian-transcripts.html?k=llms): plugin that turns recordings into notes
+- [From phone to minutes](https://transcriber.teconomix.net/en/workflow.html?k=llms): the workflow from recording to sharing
+
+## Optional
+
+- [Features in detail](https://github.com/teconomix/local-transcriber/blob/main/docs/FEATURES.md)
+- [Privacy](https://github.com/teconomix/local-transcriber/blob/main/docs/PRIVACY.md)

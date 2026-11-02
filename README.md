@@ -32,6 +32,14 @@ Or with Homebrew: `brew install --cask teconomix/tap/local-transcriber`. Questio
 In detail: [docs/FEATURES.md](docs/FEATURES.md) · Usage: [docs/USER_GUIDE.md](docs/USER_GUIDE.md) · Workflow: [docs/WORKFLOW.md](docs/WORKFLOW.md) ·
 Installation: [docs/INSTALLATION.md](docs/INSTALLATION.md) · Privacy: [docs/PRIVACY.md](docs/PRIVACY.md)
 
+## Guides
+
+- [Transcribe interviews](https://transcriber.teconomix.net/en/transcribe-interviews.html?k=gh-guides) – research and journalism, with timestamps
+- [Speaker recognition on the Mac](https://transcriber.teconomix.net/en/speaker-recognition-mac.html?k=gh-guides) – separate speakers offline, recognize named voices
+- [Dictation on the Mac](https://transcriber.teconomix.net/en/dictation-mac.html?k=gh-guides) – hold a key, speak, the text appears at the cursor
+- [Counseling and supervision](https://transcriber.teconomix.net/en/counseling.html?k=gh-guides) – confidential conversations stay on your Mac
+- [Transcripts in Obsidian](https://transcriber.teconomix.net/en/obsidian-transcripts.html?k=gh-guides) – recordings become notes in your vault
+
 ## Requirements
 
 Mac with Apple Silicon (M1 or newer), macOS 14 Sonoma or newer (AI features: macOS 26 with Apple Intelligence),
