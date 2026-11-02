@@ -44,8 +44,19 @@ brew install --cask teconomix/tap/local-transcriber
 ```
 
 The cask runs the same installer (`--yes --no-watch`); `brew upgrade` updates, `brew uninstall local-transcriber`
-runs the uninstaller (without a terminal prompt it keeps the voice database and the Whisper model). The folder watcher
+removes the app and the watcher and keeps the program data, models and voice database (to remove those too, run
+`bash ~/.local/share/transcriber/uninstall.sh` first; it asks). The folder watcher
 is not offered here – run the curl installer once and answer “y” if you want it; upgrades keep it running.
+
+**Updating from 0.13 or older with Homebrew:** `brew upgrade` stops in the terminal without any message, because it
+first runs the uninstaller of the installed version, which waits for an answer it can never receive. By then the app
+and the watcher are already removed; your data stays. If this has already happened, press Ctrl-C. Then run once:
+
+```bash
+rm ~/.local/share/transcriber/uninstall.sh; brew upgrade --cask local-transcriber
+```
+
+If the watcher had been set up, it was removed in a stopped upgrade: run the curl installer once to set it up again.
 
 Questions or stuck? [GitHub Discussions](https://github.com/teconomix/local-transcriber/discussions).
 

@@ -24,8 +24,8 @@ cask "local-transcriber" do
     args:       ["#{staged_path}/install.sh", "--yes", "--no-watch"],
   }
 
-  # uninstall.sh fragt nach, ob Stimmdatenbank und Whisper-Modell gelöscht werden sollen; ohne Terminal-Eingabe
-  # bleiben beide liegen. Aufnahmen unter ~/Transcriber bleiben immer.
+  # Läuft auch bei brew upgrade. uninstall.sh erkennt, dass es kein Terminal im Vordergrund hat, und entfernt nur App und
+  # Wächter; Programmdaten, Modelle und Stimmdatenbank bleiben. Aufnahmen unter ~/Transcriber bleiben immer.
   uninstall script: {
     executable: "/bin/bash",
     args:       ["-c", 'f="$HOME/.local/share/transcriber/uninstall.sh"; [ -f "$f" ] && bash "$f" || true'],
@@ -37,5 +37,7 @@ cask "local-transcriber" do
     Folder watcher (optional, transcribes audio files dropped into ~/Transcriber):
       curl -fsSL __BASE__/install.sh | bash      # answer "y" to the watcher question
     Once set up, brew upgrade keeps it running.
+    brew uninstall removes the app and keeps its data. To remove that too, run this first:
+      bash ~/.local/share/transcriber/uninstall.sh
   EOS
 end

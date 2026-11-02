@@ -1,6 +1,9 @@
 #!/bin/bash
 # Transcriber deinstallieren. Aufnahmen und Transkripte unter ~/Transcriber bleiben IMMER erhalten.
 # Die Stimmdatenbank (biometrische Daten) und das Whisper-Modell werden nur nach Rückfrage gelöscht.
+# Ohne Terminal im Vordergrund (brew upgrade, brew uninstall) nur App und Wächter entfernen, Daten bleiben: Homebrew
+# startet Skripte in einer eigenen Prozessgruppe – ein read von /dev/tty hielte das Skript dort für immer an (bis 0.13),
+# und ein Upgrade ruft dieses Skript vor dem neuen Installer auf.
 set -uo pipefail
 
 DATA="$HOME/.local/share/transcriber"
@@ -9,6 +12,7 @@ DE=0
 _lang=$(defaults read -g AppleLanguages 2>/dev/null | awk 'NR==2' | tr -d ' ",') || _lang=""
 if [[ "${_lang:-${LANG:-}}" == de* ]]; then DE=1; fi
 t() { if [[ "$DE" == 1 ]]; then printf '%s' "$1"; else printf '%s' "$2"; fi; }   # t "deutsch" "english"
+foreground() { [[ "$(ps -o tpgid= -p $$ | tr -d ' ')" == "$(ps -o pgid= -p $$ | tr -d ' ')" ]]; }
 ask() {  # Frage über /dev/tty (read -p schrieb sie auf stderr → mit 2>/dev/null unsichtbar, bis 0.5.0)
     local a=""
     { printf '  %s %s ' "$1" "$(t '[j/N]' '[y/N]')" >/dev/tty && read -r a </dev/tty; } 2>/dev/null || return 1
@@ -18,9 +22,19 @@ ask() {  # Frage über /dev/tty (read -p schrieb sie auf stderr → mit 2>/dev/n
 echo "$(t "Transcriber deinstallieren" "Uninstalling Transcriber")"
 osascript -e 'quit app "Transcriber"' >/dev/null 2>&1 || true
 plist="$HOME/Library/LaunchAgents/net.teconomix.transcriber.watch.plist"
-[[ -f "$plist" ]] && { launchctl bootout "gui/$(id -u)" "$plist" 2>/dev/null; rm -f "$plist"; echo "  ✓ $(t "Ordnerwächter entfernt" "Folder watcher removed")"; }
+if [[ -f "$plist" ]]; then
+    launchctl bootout "gui/$(id -u)" "$plist" 2>/dev/null
+    # Ohne Terminal kann es ein Upgrade sein: der Installer setzt den Wächter aus watch.plist.saved wieder ein.
+    if foreground; then rm -f "$plist"; else mv "$plist" "$DATA/watch.plist.saved"; fi
+    echo "  ✓ $(t "Ordnerwächter entfernt" "Folder watcher removed")"
+fi
 rm -rf "$HOME/Applications/Transcriber.app" && echo "  ✓ $(t "App entfernt" "App removed")"
 [[ -L "$HOME/.local/bin/transcriber" ]] && rm -f "$HOME/.local/bin/transcriber"
+
+if ! foreground; then
+    echo "  ✓ $(t "Programmdaten, Modelle und Stimmdatenbank bleiben. Ganz entfernen: bash $DATA/uninstall.sh" "Program data, models and voice database kept. To remove them too: bash $DATA/uninstall.sh")"
+    exit 0
+fi
 
 # Whisper-Modelle vor den Programmdaten: das Löschen braucht deren Python (huggingface_hub 2.x hält die Gewichte im
 # gemeinsamen Speicher hub/blobs/, der Repo-Ordner enthält nur Verweise – rm -rf darauf gäbe keinen Platz frei).

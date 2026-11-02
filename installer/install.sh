@@ -192,6 +192,8 @@ for f in pathlib.Path(sys.argv[1]).glob('*.json'):
 
     # 7. Ordnerwächter (optional) -----------------------------------------------------------------
     local plist="$HOME/Library/LaunchAgents/net.teconomix.transcriber.watch.plist"
+    # brew upgrade: der Deinstaller hat den Wächter beiseitegelegt (uninstall.sh)
+    if [[ -f "$DATA/watch.plist.saved" && ! -f "$plist" ]]; then mkdir -p "$HOME/Library/LaunchAgents"; mv "$DATA/watch.plist.saved" "$plist"; fi
     if [[ -f "$plist" ]]; then
         launchctl bootout "gui/$(id -u)" "$plist" 2>/dev/null || true
         launchctl bootstrap "gui/$(id -u)" "$plist" && ok "$(t "Ordnerwächter neu gestartet" "Folder watcher restarted")"

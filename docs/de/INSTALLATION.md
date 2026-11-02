@@ -44,9 +44,19 @@ brew install --cask teconomix/tap/local-transcriber
 ```
 
 Der Cask führt denselben Installer aus (`--yes --no-watch`); `brew upgrade` aktualisiert, `brew uninstall
-local-transcriber` ruft den Deinstaller auf (ohne Rückfrage im Terminal bleiben Stimmdatenbank und Whisper-Modell
-liegen). Den Ordnerwächter bietet dieser Weg nicht an – bei Bedarf einmal den curl-Installer ausführen und mit „j“
+local-transcriber` entfernt App und Wächter, Programmdaten, Modelle und Stimmdatenbank bleiben (um auch sie zu entfernen,
+vorher `bash ~/.local/share/transcriber/uninstall.sh` ausführen; es fragt nach). Den Ordnerwächter bietet dieser Weg nicht an – bei Bedarf einmal den curl-Installer ausführen und mit „j“
 antworten; Updates lassen ihn weiterlaufen.
+
+**Update von 0.13 oder älter mit Homebrew:** `brew upgrade` bleibt ohne Meldung im Terminal stehen, weil es zuerst den
+Deinstaller der installierten Version ausführt, und der wartet auf eine Antwort, die ihn nie erreicht. App und Wächter
+sind dann schon entfernt, die Daten bleiben. Falls das schon passiert ist: mit Ctrl-C abbrechen. Dann einmal ausführen:
+
+```bash
+rm ~/.local/share/transcriber/uninstall.sh; brew upgrade --cask local-transcriber
+```
+
+War der Wächter eingerichtet, hat ein stehengebliebenes Update ihn entfernt: einmal den curl-Installer ausführen.
 
 Fragen oder hängt etwas? [Diskussionen auf GitHub](https://github.com/teconomix/local-transcriber/discussions).
 

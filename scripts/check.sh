@@ -88,6 +88,7 @@ step "Kern-Tests (Python)"                 "$PY" -m unittest -q tests.test_core
 step "Syntax der Skripte"                  syntax
 step "Installer: ~/Transkription → ~/Transcriber" tests/installer_migration.sh
 step "Installer: Rückfragen sichtbar bei curl | bash" tests/installer_prompt.sh
+step "Installer: Deinstaller hängt nicht unter Homebrew" tests/installer_brew.sh
 step "App: Übersetzungen vollständig (baut die App)" app/l10n-check.sh
 step "App: Versionsvergleich Update-Hinweis" tests/update_version.sh
 step "Export fürs öffentliche Repo (Namens-/Pfadprüfung)" export_check

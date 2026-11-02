@@ -267,6 +267,10 @@ struct PanelView: View {
     /// Oberkante des Panels beim Öffnen – AppKit behält beim Schrumpfen die Unterkante, das Panel löste sich dann von
     /// der Menüleiste (2026-10-28: lange Liste → ein Eintrag).
     @State private var panelTop: CGFloat?
+    /// Nutzbare Bildschirmhöhe; als Zustand, weil ein Bildschirmwechsel allein das Panel nicht neu aufbaut.
+    @State private var screenHeight = NSScreen.main?.visibleFrame.height ?? 800
+    /// Eigene Höhe des Inhalts, unabhängig von der Fensterhöhe.
+    @State private var contentHeight: CGFloat = 0
     @State private var switchNotice = false
     @Environment(\.openWindow) private var openWindow
 
@@ -373,6 +377,13 @@ struct PanelView: View {
         }
         .padding(14)
         .frame(width: 440)
+        .background(GeometryReader { g in
+            Color.clear.onAppear { contentHeight = g.size.height }
+                .onChange(of: g.size.height) { _, h in
+                    contentHeight = h
+                    if let w = panelWindow { fitPanel(w) }
+                }
+        })
         // Zu 80 % deckender Grund statt reinem Glas (90 % war zu viel): blaue Links waren vor blauem Schreibtischbild kaum lesbar (Björn, 2026-10-24).
         .background(Color(nsColor: .windowBackgroundColor).opacity(0.8).ignoresSafeArea())
         // Panel geöffnet → neu ordnen. onAppear kommt im Menüleistenfenster nur beim ersten Mal, das Fenster wird aber
@@ -385,11 +396,27 @@ struct PanelView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didChangeOcclusionStateNotification)) { n in
             guard let w = n.object as? NSWindow, w === panelWindow else { return }
-            if w.occlusionState.contains(.visible) { panelTop = w.frame.maxY; jobs.resort() } else { panelTop = nil }
+            if w.occlusionState.contains(.visible) { panelTop = w.frame.maxY; jobs.resort(); fitPanel(w) } else { panelTop = nil }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResizeNotification)) { n in
             guard let w = n.object as? NSWindow, w === panelWindow, let top = panelTop, abs(w.frame.maxY - top) > 0.5 else { return }
             w.setFrameTopLeftPoint(NSPoint(x: w.frame.minX, y: top))
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) { _ in
+            if let w = panelWindow { fitPanel(w) }
+        }
+    }
+
+    /// Höhe an den aktuellen Bildschirm und Inhalt anpassen: Nach dem Abstecken des großen Monitors blieb das Fenster
+    /// hoch, der kleinere Inhalt saß mittig darin (Fenster 1248, Inhalt 787, 230 pt zu tief; 2026-11-02). Die Höhe kommt
+    /// vom gemessenen Inhalt: `fittingSize` des Fensterinhalts half hier nicht.
+    private func fitPanel(_ w: NSWindow) {
+        screenHeight = (w.screen ?? NSScreen.main)?.visibleFrame.height ?? 800
+        DispatchQueue.main.async {   // erst nach dem Neuaufbau mit der neuen Höhe
+            guard let v = w.contentView else { return }
+            guard contentHeight > 0, abs(contentHeight - v.frame.height) > 0.5 else { return }
+            appLog("Panel: Höhe \(Int(v.frame.height)) → \(Int(contentHeight)) pt")
+            w.setContentSize(NSSize(width: v.frame.width, height: contentHeight))
         }
     }
 
@@ -441,7 +468,7 @@ struct PanelView: View {
     }
 
     /// Bildschirmhöhe minus Kopf, Aufnahmebereich, Update-Hinweis und Fußzeile (großzügig geschätzt).
-    private var maxListHeight: CGFloat { max(200, (NSScreen.main?.visibleFrame.height ?? 800) - 420) }
+    private var maxListHeight: CGFloat { max(200, screenHeight - 420) }
 
     private var status: String {
         if recorder.isRecording { return String(localized: "Aufnahme \(timeString(recorder.elapsed))") }
