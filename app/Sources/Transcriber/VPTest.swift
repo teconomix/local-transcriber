@@ -185,6 +185,26 @@ enum VPTest {
         appLog("Gap-Test: fertig → \(url?.path ?? "keine Datei")")
     }
 
+    /// Mikrofonausfall: `open -n ~/Applications/Transcriber.app --args --mic-stall-test ORDNER` – 7 s Aufnahme, dann
+    /// 7 s ohne Mikrofonpuffer (für checkMic), dann 4 s normal, Stopp. Die Warnung muss kommen und wieder verschwinden.
+    @MainActor
+    static func micStall(_ folder: URL) async {
+        let r = Recorder()
+        do { try await r.start(deviceID: nil, systemAudio: false, voiceProcessing: false, folder: folder) }
+        catch { appLog("Mic-Stall-Test: Start fehlgeschlagen: \(error.localizedDescription)"); return }
+        try? await Task.sleep(nanoseconds: 7_000_000_000)
+        r.testMicSilentUntil = Date().addingTimeInterval(7)
+        var seen = false
+        for t in 0..<11 {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            if r.warning != nil { seen = true }
+            appLog("Mic-Stall-Test: +\(t + 1) s Warnung: \(r.warning ?? "–")")
+        }
+        let cleared = r.warning == nil
+        let url = await r.stop()
+        appLog("Mic-Stall-Test: \(seen && cleared ? "bestanden" : "FEHLER") (Warnung gesehen \(seen), wieder weg \(cleared)) → \(url?.path ?? "keine Datei")")
+    }
+
     /// Mikrofonwechsel mitten in der Aufnahme (wie wenn die Call-App umstellt):
     /// `open -n ~/Applications/Transcriber.app --args --mic-switch-test ORDNER` – je 4 s Standard → anderes Mikrofon →
     /// Standard, mit Sprachverarbeitung, ohne Systemton. Ergebnis im app.log, Datei im ORDNER.

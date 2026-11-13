@@ -176,6 +176,10 @@ def _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, du
         per.append((segs, _merge_similar(clusters, segs, [], thr, keep)))
 
     echo = _echo_clusters(x[0], x[1], per[0][0], per[0][1])
+    loop, echo_of = _cross_track(x[0], x[1], per, cfg)
+    if loop:                     # Stimmen aus dem Raum laufen über den Call zurück → getrennt geht nicht, _run mischt
+        return {"loopback": loop}
+    echo |= set(echo_of)
     t["echo_clusters"] = len(echo)
     found = _overlaps(per[0][0], per[1][0], echo)
     regions = [r for r in found if _both_speaking(x[0], x[1], *r)]
@@ -233,6 +237,9 @@ def _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, du
     loose = [w for w in words if w["speaker"] is None]
     if loose:
         assign_words(loose, sorted(per[0][0] + per[1][0], key=lambda s: s["start"]))
+    for w in words:              # Lautsprecher-Echo, im Mikrofon lauter: gesprochen hat die Person der Call-Spur
+        if w["speaker"] in echo_of:
+            w["speaker"] = echo_of[w["speaker"]]
     mic = [w for w in words if (w["speaker"] or "").startswith("T1:")]
     me = _absorb_minor(per[0][1], mic, cfg, echo)
     call = [w for w in words if (w["speaker"] or "").startswith("T2:")]
@@ -359,6 +366,66 @@ def _echo_clusters(mic, call, segs, clusters, max_lag=0.15, rate=16000, thr=0.3)
         if vals and float(np.median(vals)) >= thr:
             out.add(c["label"])
     return out
+
+
+def _track_lag(mic, call, segs1, segs2, rate=16000, n_max=15):
+    """Versatz Call-Spur gegen Mikrofonspur in s (+ = Call-Spur später), Median über bis zu n_max Segmente des
+    Mikrofon-Clusters, in denen auch der Call-Cluster spricht. Über die Lautstärkekurve (10 ms), nicht die Wellenform:
+    Codec und Raum verändern die Form, die Kurve bleibt. Nur Fenster mit klarer Ähnlichkeit (r ≥ 0,5); unter 5 → None."""
+    import numpy as np
+    def env(a):
+        n = len(a) // 160
+        return np.log(np.sqrt((a[:n * 160].reshape(n, 160) ** 2).mean(1)) + 1e-5)
+    lags = []
+    for s in sorted(segs1, key=lambda s: s["start"] - s["end"]):
+        if not any(o["start"] < s["end"] + 1 and o["end"] > s["start"] - 1 for o in segs2):
+            continue
+        i, j = int(max(s["start"] - 1, 0) * rate), int((s["end"] + 2) * rate)
+        e1, e2 = env(mic[i:j]), env(call[i:j])
+        n = min(len(e1), len(e2))
+        if n < 200:
+            continue
+        e1, e2, best = e1[:n], e2[:n], (None, 0.5)
+        for L in range(-100, 201):                      # −1 … +2 s
+            a, b = (e1[:n - L], e2[L:]) if L >= 0 else (e1[-L:], e2[:n + L])
+            with np.errstate(all="ignore"):
+                r = np.corrcoef(a, b)[0, 1]
+            if r >= best[1]:
+                best = (L / 100, r)
+        if best[0] is not None:
+            lags.append(best[0])
+        if len(lags) >= n_max:
+            break
+    return float(np.median(lags)) if len(lags) >= 5 else None
+
+
+def _cross_track(mic, call, per, cfg, min_s=30.0):
+    """Dieselbe Stimme auf beiden Spuren (Kosinus ≥ cross_sim, je ≥ min_s Sprechzeit) – die Richtung des Versatzes
+    sagt, woher sie kommt:
+    - Call-Spur später (≥ loop_lag): Personen im Raum laufen über den Call zurück in den Systemton – ein Raumrechner
+      ist im selben Call (2026-11-11, 3 Personen im Raum + 1 remote: +0,31…+0,33 s; 2026-11-02: +0,17 s). Die Annahme „Spur 1 = hier,
+      Spur 2 = remote“ stimmt dann nicht; getrennt ausgewertet standen alle doppelt, und der Call-Codec legte eine
+      Person im Raum mit der remote zusammen (2/3 ihrer Wörter unter falschem Namen). → (loop, …): gemischt auswerten.
+    - Mikrofon später (≤ echo_lag): Lautsprecher-Echo einer remote Person, das _echo_clusters (Wellenform, ±0,15 s)
+      nicht erkannt hat (2026-11-09: Person doppelt). Gemessen −0,05…−0,14 s in 8 Calls. → (…, {Mikrofon: Call-Cluster}).
+    Gemessen: gleiche Person über beide Spuren 0,76–0,93, verschiedene ≤ 0,43."""
+    thr, loop, echo_of = cfg["cross_sim"], [], {}
+    for a in per[0][1]:
+        for b in per[1][1]:
+            if min(a["speech_s"], b["speech_s"]) < min_s:
+                continue
+            sim = float(speakers._unit(a["embedding"]) @ speakers._unit(b["embedding"]))
+            if sim < thr:
+                continue
+            lag = _track_lag(mic, call, [s for s in per[0][0] if s["speaker"] == a["label"]],
+                             [s for s in per[1][0] if s["speaker"] == b["label"]])
+            if lag is None:
+                continue
+            if lag >= cfg["loop_lag"]:
+                loop.append({"mic": a["label"], "call": b["label"], "sim": round(sim, 2), "lag_s": round(lag, 2)})
+            elif lag <= cfg["echo_lag"] and a["label"] not in echo_of:
+                echo_of[a["label"]] = b["label"]
+    return loop, echo_of
 
 
 def _absorb_minor(clusters, words, cfg, echo=(), share=0.25):
@@ -686,9 +753,12 @@ def _run(src, language, out_dir, formats, num_speakers, cfg, terms, rules, P, t)
 
     overlaps = []                        # Bereiche gleichzeitigen Sprechens (nur getrennte Spuren) – für die Ausgabe
     if mode == "getrennt":
-        cfg = dict(cfg, _others=others)
-        words, segs, clusters, replaced, overlaps, repaired = _run_tracks(tracks, wav, language, num_speakers, cfg, terms, rules, P, t, dur)
-    else:
+        res = _run_tracks(tracks, wav, language, num_speakers, dict(cfg, _others=others), terms, rules, P, t, dur)
+        if isinstance(res, dict):        # Raum über den Call zurück (_cross_track): wie eine Spur auswerten
+            mode, relation = "gemischt", dict(relation or {}, **res)
+        else:
+            words, segs, clusters, replaced, overlaps, repaired = res
+    if mode == "gemischt":
         P.start("asr", dur / RTFX["asr"], tr("Spracherkennung", "Speech recognition"))
         t0 = time.time(); r = _asr(wav, language, terms if cfg["glossary_prompt"] else None, cfg.get("repair_flat", True), cfg.get("fresh_asr", False)); t["asr"] = time.time() - t0
         replaced, repaired = glossary.apply(r["words"], rules), r.get("repaired", [])

@@ -162,7 +162,7 @@ struct SummaryInfo: Equatable {
         let points = items.filter { !$0.hasPrefix("[") }
         return SummaryInfo(url: u, name: meta["name"] as? String ?? "", local: meta["local"] as? Bool ?? true,
                            model: meta["model"] as? String ?? "", points: Array(points.prefix(2)), tasks: Array(tasks.prefix(2)),
-                           text: items.isEmpty ? firstParagraph(lines.dropFirst()) : "")
+                           text: items.isEmpty ? firstParagraph(lines.dropFirst(), limit: 6000) : "")   // ganz: das Panel kürzt selbst (SummaryText)
     }
 
     /// wie summarize.first_paragraph: ohne Überschriften, Tabellen, Zitate und Hervorhebungszeichen

@@ -683,6 +683,31 @@ class Tracks(unittest.TestCase):
         echo = (0.5 * np.concatenate([np.zeros(320, np.float32), b[:-320]])).astype(np.float32)
         self.assertFalse(pipeline._both_speaking(echo, b, 0, 2))              # Mikrofon = Echo der Call-Spur
 
+    def test_cross_track_loopback_and_echo(self):
+        """Dieselbe Stimme auf beiden Spuren: Call-Spur später = Raum über den Call zurück (→ gemischt), Mikrofon
+        später = Lautsprecher-Echo (→ Mikrofon-Cluster gehört zur Call-Person), andere Stimme = nichts."""
+        rate, rng = 16000, np.random.default_rng(1)
+        # 40 Sprechstöße à 1,5 s mit wechselnder Lautstärke, dazwischen Pausen → gut erkennbare Lautstärkekurve
+        sig, segs = np.zeros(rate * 160, np.float32), []
+        for k in range(40):
+            s = 2 + k * 3.9 + rng.uniform(0, 0.8)
+            sig[int(s * rate):int((s + 1.5) * rate)] = rng.normal(0, rng.uniform(0.05, 0.3), int(1.5 * rate))
+            segs.append((s, s + 1.5))
+        shift = lambda a, sec: np.roll(a, int(sec * rate))
+        e = lambda *v: np.array(v + (0,) * (256 - len(v)), dtype=np.float32)
+        cfg = dict(config.DEFAULTS)
+        def per(sim):
+            mk = lambda tr: [{"start": s, "end": e_, "speaker": f"T{tr}:A"} for s, e_ in segs]
+            return [(mk(1), [{"label": "T1:A", "speech_s": 60, "embedding": e(1, 0)}]),
+                    (mk(2), [{"label": "T2:A", "speech_s": 60, "embedding": e(sim, (1 - sim ** 2) ** 0.5)}])]
+        loop, echo = pipeline._cross_track(sig, 0.5 * shift(sig, 0.3), per(0.85), cfg)
+        self.assertEqual([(x["mic"], x["call"]) for x in loop], [("T1:A", "T2:A")])
+        self.assertAlmostEqual(loop[0]["lag_s"], 0.3, delta=0.02)
+        self.assertEqual(echo, {})
+        loop, echo = pipeline._cross_track(0.3 * shift(sig, 0.07), sig, per(0.85), cfg)
+        self.assertEqual((loop, echo), ([], {"T1:A": "T2:A"}))
+        self.assertEqual(pipeline._cross_track(sig, shift(sig, 0.3), per(0.4), cfg), ([], {}))   # andere Stimme
+
     def test_merge_similar_keeps_expected_count(self):
         """Ähnliche Cluster werden zusammengelegt, aber nie unter `keep` (Call-Spur: erwartete Zahl anderer Personen)."""
         e = lambda *v: np.array(v + (0,) * (256 - len(v)), dtype=np.float32)
@@ -726,6 +751,26 @@ class VoiceDatabase(unittest.TestCase):
                  (0.65, 600, False)]
         for score, secs, want in cases:
             self.assertEqual(speakers.sure_match(score, secs, cfg), want, (score, secs))
+
+    def test_close_second_person_is_not_sure(self):
+        """Zwei Personen fast gleich nah (Abstand < match_sure_margin) → nur „vermutlich“, mit Abstand → „sicher“."""
+        db = fresh_db()
+        rng = np.random.default_rng(5)
+        base, x, y = (speakers._unit(rng.normal(size=192)) for _ in range(3))
+        kim, nina = speakers._unit(base + 0.7 * x), speakers._unit(base + 0.7 * y)     # ähnlich (0,72)
+        for name, v in (("Kim Probe", kim), ("Nina Probe", nina)):
+            db.execute("INSERT INTO embeddings(person_id, vec, speech_s, origin) VALUES(?,?,?,?)",
+                       (speakers.person_id(db, name), v.tobytes(), 300, "named"))
+        db.commit()
+        between = [{"label": "SPEAKER_00", "speech_s": 600, "embedding": kim + 0.9 * nina}]
+        speakers.identify(db, between, config.load())
+        s = [x for _, x in between[0]["candidates"]]
+        self.assertGreaterEqual(s[0], 0.75); self.assertLess(s[0] - s[1], 0.10)
+        self.assertEqual((between[0]["name"], between[0]["status"]), ("Kim Probe", "vermutlich"))
+        clear = [{"label": "SPEAKER_00", "speech_s": 600, "embedding": kim}]
+        speakers.identify(db, clear, config.load())
+        self.assertEqual((clear[0]["name"], clear[0]["status"]), ("Kim Probe", "sicher"))
+        db.close()
 
     def test_first_name_resolves_to_single_person(self):
         db = fresh_db()

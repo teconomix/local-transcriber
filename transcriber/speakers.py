@@ -98,10 +98,11 @@ def identify(db, clusters, cfg=None):
     Sicher-Schwelle liegen (pyannote spaltet eine Stimme gelegentlich auf; verschiedene Personen lagen gemessen ≤ 0,45)."""
     cfg = cfg or config.load()
     C = centroids(db)
-    cand = []
+    cand, sims_of = [], {}
     for c in clusters:
         e = _unit(c["embedding"])
         sims = sorted(((float(e @ cv), pid) for pid, (_, cv, _, _) in C.items()), reverse=True)
+        sims_of[c["label"]] = sims
         c["candidates"] = [(C[pid][0], round(s, 3)) for s, pid in sims[:3]]
         for s, pid in sims:
             cand.append((s, c["label"], pid))
@@ -113,7 +114,10 @@ def identify(db, clusters, cfg=None):
         if c["person_id"] is not None or s < cfg["match_maybe"]:
             continue
         strong = s >= cfg["match_sure"]
-        sure = sure_match(s, c["speech_s"], cfg)
+        # Zweitbeste andere Person fast gleich nah → nicht „sicher“ (2026-11-13: 0,78 gegen 0,75 für eine andere Person war „sicher“).
+        # Richtig erkannte über 0,75 hatten gemessen ≥ 0,15 Abstand (33 bestätigte, Median 0,36).
+        second = next((x for x, q in sims_of[label] if q != pid), 0.0)
+        sure = sure_match(s, c["speech_s"], cfg) and s - second >= cfg["match_sure_margin"]
         if pid in taken and not (strong and taken[pid]):
             continue
         c.update(person_id=pid, name=C[pid][0], score=round(s, 3), status="sicher" if sure else "vermutlich")

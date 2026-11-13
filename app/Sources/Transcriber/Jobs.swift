@@ -97,6 +97,9 @@ enum Core {
         // ffmpeg: vom Installer unter DATA/bin, sonst Homebrew; ein Finder-Start hat beides nicht im PATH
         env["PATH"] = data.appendingPathComponent("bin").path + ":/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
         env["TRANSCRIBER_UI_LANG"] = uiLanguage
+        // Speicher-Protokollierung der App (Leck-Suche, `open --env MallocStackLogging=…`) nicht vererben: Python
+        // bricht damit beim Laden von ctypes ab (2026-11-13, KI-Server startete nicht)
+        for k in env.keys where k.hasPrefix("MallocStackLogging") { env[k] = nil }
         env.merge(extra) { _, new in new }
         p.environment = env
         return p
@@ -227,6 +230,7 @@ final class JobManager: ObservableObject {
         Task { try? await Task.sleep(nanoseconds: 20_000_000_000); await cleanup() }
         Recorder.recoverInterrupted(in: recordingsDir)   // vor jeder Aufnahme: versteckte Reste sind abgebrochen
         ICloudInbox.start()                     // iPhone-Weg (Einstellung, Standard aus)
+        MemoryWatch.start()
     }
     private var cleanupTimer: Timer?
 
@@ -335,7 +339,9 @@ final class JobManager: ObservableObject {
 
     /// Neue Einträge (seit dem Öffnen) oben, sonst die festgehaltene Reihenfolge.
     private func sortJobs() {
-        jobs.sort { a, b in
+        // Nur bei geänderter Reihenfolge zuweisen: läuft jede Sekunde, und jede Zuweisung baut alle Ansichten am
+        // JobManager neu auf (Einstellungen › KI: Speicherleck unter macOS 27, 2026-11-13)
+        let sorted = jobs.sorted { a, b in
             switch (rank[a.id], rank[b.id]) {
             case let (x?, y?): return x < y
             case (nil, nil): return a.started > b.started
@@ -343,6 +349,7 @@ final class JobManager: ObservableObject {
             case (_, nil): return false
             }
         }
+        if sorted.map(\.id) != jobs.map(\.id) { jobs = sorted }
     }
 
     /// Zuletzt bearbeitet: letzter Lauf, Transkript neu geschrieben (Benennen, Bestätigen, Glossar, Umbenennen) oder
@@ -384,8 +391,9 @@ final class JobManager: ObservableObject {
                 jobs.append(j); return j
             }()
             job.activity = active
-            job.progress = s["progress"] as? Double ?? 0
-            job.message = s["message"] as? String ?? ""
+            let progress = s["progress"] as? Double ?? 0, message = s["message"] as? String ?? ""
+            if job.progress != progress { job.progress = progress }   // jede Sekunde: nur Änderungen melden
+            if job.message != message { job.message = message }
             let gone = state == .done && !FileManager.default.fileExists(atPath: job.source.path)
             if job.audioGone != gone { job.audioGone = gone }
             if job.state != state {
@@ -424,7 +432,7 @@ final class JobManager: ObservableObject {
                 job.loadSummary()                // auch von CLI/MCP erzeugte oder im Finder gelöschte Zusammenfassungen
             }
         }
-        jobs.removeAll { !seen.contains($0.id) }
+        if jobs.contains(where: { !seen.contains($0.id) }) { jobs.removeAll { !seen.contains($0.id) } }   // sonst Meldung jede Sekunde
         let existing = Set(files.map(\.lastPathComponent))   // Ausblendliste klein halten
         if hidden.contains(where: { !existing.contains($0) }) {
             UserDefaults.standard.set(hidden.filter { existing.contains($0) }.sorted(), forKey: "hiddenJobs")

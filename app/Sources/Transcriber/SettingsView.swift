@@ -1,3 +1,5 @@
+import ApplicationServices
+import Combine
 import EventKit
 import ServiceManagement
 import SwiftUI
@@ -124,20 +126,7 @@ struct RecordingSettings: View {
     @AppStorage("callDetect") private var callDetect = true
     @AppStorage("icloudInbox") private var icloudInbox = false
     @AppStorage("airdropInbox") private var airdropInbox = false
-    @AppStorage("language") private var language = "de"
-    @AppStorage("languages") private var languages = Core.defaultLanguages
-    @State private var filter = ""
     @State private var textFormat = Core.textFormat
-    @EnvironmentObject var dictation: Dictation
-    @State private var asrModel = ""                       // leer, bis der Kern geantwortet hat
-    @State private var asrCurrent = ""             // was der Kern eingestellt hat (loadModels)
-    @State private var asrInstalled: Set<String> = []
-    @State private var asrBusy: String?                    // Hinweis während Laden/Löschen
-    @State private var asrError: String?
-    @State private var asrRemove: String?
-    static let asrLabels: [(id: String, label: LocalizedStringKey)] = [
-        ("turbo-8bit", "Whisper turbo, 8 Bit (0,9 GB)"), ("turbo", "Whisper turbo, 16 Bit (1,6 GB)")]
-
     var body: some View {
         Form {
             Section("Ton") {
@@ -146,37 +135,7 @@ struct RecordingSettings: View {
                 Toggle("Sprachverarbeitung fürs Mikrofon (Pegel, Rausch- und Echounterdrückung)", isOn: $voiceProcessing)
                     .help("Apple Voice Processing. Aus = Rohsignal.")
             }
-            Section("Spracherkennung") {
-                Picker("Modell", selection: $asrModel) {
-                    if asrModel.isEmpty { Text(verbatim: "…").tag("") }
-                    ForEach(Self.asrLabels, id: \.id) { Text($0.label).tag($0.id) }
-                }
-                .disabled(asrBusy != nil || asrModel.isEmpty)
-                .onChange(of: asrModel) { old, new in
-                    // new == asrCurrent: loadModels hat zurückgestellt (Wechsel gescheitert) – kein zweiter Wechsel
-                    guard !old.isEmpty, !new.isEmpty, new != old, new != asrCurrent, asrBusy == nil else { return }
-                    Task { await switchModel(to: new, from: old) }
-                }
-                Text("8 Bit erkennt gemessen gleich genau, braucht aber halb so viel Platz und rund 0,8 GB weniger Arbeitsspeicher. Ein noch nicht geladenes Modell wird beim Wechsel einmal aus dem Internet geladen; es gilt ab dem nächsten Auftrag.")
-                    .font(.caption).foregroundStyle(.secondary)
-                if let asrBusy {
-                    HStack(spacing: 6) { ProgressView().controlSize(.small); Text(asrBusy) }
-                }
-                ForEach(Self.asrLabels.filter { $0.id != asrModel && asrInstalled.contains($0.id) }, id: \.id) { m in
-                    HStack {
-                        Text("\(Text(m.label)) liegt noch auf diesem Mac, wird aber nicht genutzt.").font(.caption)
-                        Spacer()
-                        Button("Löschen …") { asrRemove = m.id }.disabled(asrBusy != nil)
-                    }
-                }
-                if let asrError { Text(asrError).font(.caption).foregroundStyle(.red) }
-            }
-            .task { await loadModels() }
-            .confirmationDialog("Nicht genutztes Modell löschen?", isPresented: Binding(get: { asrRemove != nil }, set: { if !$0 { asrRemove = nil } })) {
-                Button("Löschen", role: .destructive) { if let m = asrRemove { Task { await removeModel(m) } } }
-            } message: {
-                Text("Es lässt sich jederzeit wieder laden, indem du es hier auswählst. Andere Programme, die dasselbe Modell aus dem Hugging-Face-Zwischenspeicher nutzen, müssten es dann neu laden.")
-            }
+            ASRModelSection()
             Section("Nach der Aufnahme") {
                 Toggle("Transkribieren", isOn: $autoTranscribe)
                 Toggle("Sprechend benennen (Kalendertitel, sonst Apple-KI)", isOn: $autoTitle).disabled(!autoTranscribe)
@@ -245,24 +204,58 @@ struct RecordingSettings: View {
                 Toggle("Calls erkennen und Aufnahme anbieten", isOn: $callDetect)
                     .help("Nutzt Teams, Zoom, ein Browser … das Mikrofon, fragt eine Mitteilung „Aufnehmen?“. So gestartete Aufnahmen enden mit dem Call.")
             }
-            Section {
-                TextField("Suchen", text: $filter)
-                ForEach(Core.allLanguages.filter { filter.isEmpty || $0.1.localizedCaseInsensitiveContains(filter) }, id: \.0) { code, name in
-                    Toggle(name, isOn: binding(code))
-                }
-            } header: {
-                // Erklärung im Kopf statt als Fußzeile: unter ~100 Sprachen sah sie niemand.
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Sprachen zur Auswahl")
-                    Text("""
-                        Diese Sprachen stehen im Fenster zur Auswahl (Aufnahmen, Dateien, Diktat). Whisper erkennt rund 100 Sprachen; \
-                        am besten Englisch, Deutsch, Spanisch, Französisch und andere weit verbreitete, seltene deutlich schwächer.
-                        """)
-                        .font(.caption).fontWeight(.regular).foregroundStyle(.secondary)
-                }
-            }
+            LanguageSection()
         }
         .formStyle(.grouped)
+    }
+}
+
+/// Modellwahl. Stößt das Diktat nur an (`Dictation.current`), beobachtet es nicht: Hing der Reiter „Aufnahme“ am Diktat,
+/// baute jedes Diktat und jedes Kürzel mit der Diktattaste das Formular neu auf, und macOS 27 (RevealInteractionBridge)
+/// legte dabei jedes Mal eine nie freigegebene Beobachtung über alle ~120 Zeilen an – 26 GB nach 10 Tagen mit offenem
+/// Einstellungsfenster (nachgestellt 2026-11-13).
+struct ASRModelSection: View {
+    @State private var asrModel = ""                       // leer, bis der Kern geantwortet hat
+    @State private var asrCurrent = ""             // was der Kern eingestellt hat (loadModels)
+    @State private var asrInstalled: Set<String> = []
+    @State private var asrBusy: String?                    // Hinweis während Laden/Löschen
+    @State private var asrError: String?
+    @State private var asrRemove: String?
+    static let asrLabels: [(id: String, label: LocalizedStringKey)] = [
+        ("turbo-8bit", "Whisper turbo, 8 Bit (0,9 GB)"), ("turbo", "Whisper turbo, 16 Bit (1,6 GB)")]
+
+    var body: some View {
+        Section("Spracherkennung") {
+            Picker("Modell", selection: $asrModel) {
+                if asrModel.isEmpty { Text(verbatim: "…").tag("") }
+                ForEach(Self.asrLabels, id: \.id) { Text($0.label).tag($0.id) }
+            }
+            .disabled(asrBusy != nil || asrModel.isEmpty)
+            .onChange(of: asrModel) { old, new in
+                // new == asrCurrent: loadModels hat zurückgestellt (Wechsel gescheitert) – kein zweiter Wechsel
+                guard !old.isEmpty, !new.isEmpty, new != old, new != asrCurrent, asrBusy == nil else { return }
+                Task { await switchModel(to: new, from: old) }
+            }
+            Text("8 Bit erkennt gemessen gleich genau, braucht aber halb so viel Platz und rund 0,8 GB weniger Arbeitsspeicher. Ein noch nicht geladenes Modell wird beim Wechsel einmal aus dem Internet geladen; es gilt ab dem nächsten Auftrag.")
+                .font(.caption).foregroundStyle(.secondary)
+            if let asrBusy {
+                HStack(spacing: 6) { ProgressView().controlSize(.small); Text(asrBusy) }
+            }
+            ForEach(Self.asrLabels.filter { $0.id != asrModel && asrInstalled.contains($0.id) }, id: \.id) { m in
+                HStack {
+                    Text("\(Text(m.label)) liegt noch auf diesem Mac, wird aber nicht genutzt.").font(.caption)
+                    Spacer()
+                    Button("Löschen …") { asrRemove = m.id }.disabled(asrBusy != nil)
+                }
+            }
+            if let asrError { Text(asrError).font(.caption).foregroundStyle(.red) }
+    }
+    .task { await loadModels() }
+    .confirmationDialog("Nicht genutztes Modell löschen?", isPresented: Binding(get: { asrRemove != nil }, set: { if !$0 { asrRemove = nil } })) {
+        Button("Löschen", role: .destructive) { if let m = asrRemove { Task { await removeModel(m) } } }
+    } message: {
+        Text("Es lässt sich jederzeit wieder laden, indem du es hier auswählst. Andere Programme, die dasselbe Modell aus dem Hugging-Face-Zwischenspeicher nutzen, müssten es dann neu laden.")
+    }
     }
 
     private func loadModels() async {
@@ -278,7 +271,7 @@ struct RecordingSettings: View {
         let (ok, out) = await Core.run(["model", new, "--download"])
         asrBusy = nil
         if ok {
-            dictation.modelChanged()                  // Diktat-Dienst hält das alte Modell geladen
+            Dictation.current?.modelChanged()         // Diktat-Dienst hält das alte Modell geladen
         } else {
             appLog("Modellwechsel \(new) fehlgeschlagen: \(out)")
             asrError = out.split(separator: "\n").last.map(String.init) ?? out
@@ -296,6 +289,32 @@ struct RecordingSettings: View {
         }
         await loadModels()
     }
+}
+
+/// Sprachen zur Auswahl – eigene Ansicht ohne Datenobjekte, damit die vielen Schalter nur bei eigenen Änderungen neu entstehen.
+struct LanguageSection: View {
+    @AppStorage("language") private var language = "de"
+    @AppStorage("languages") private var languages = Core.defaultLanguages
+    @State private var filter = ""
+
+    var body: some View {
+        Section {
+            TextField("Suchen", text: $filter)
+            ForEach(Core.allLanguages.filter { filter.isEmpty || $0.1.localizedCaseInsensitiveContains(filter) }, id: \.0) { code, name in
+                Toggle(name, isOn: binding(code))
+            }
+        } header: {
+            // Erklärung im Kopf statt als Fußzeile: unter ~100 Sprachen sah sie niemand.
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Sprachen zur Auswahl")
+                Text("""
+                    Diese Sprachen stehen im Fenster zur Auswahl (Aufnahmen, Dateien, Diktat). Whisper erkennt rund 100 Sprachen; \
+                    am besten Englisch, Deutsch, Spanisch, Französisch und andere weit verbreitete, seltene deutlich schwächer.
+                    """)
+                    .font(.caption).fontWeight(.regular).foregroundStyle(.secondary)
+            }
+    }
+    }
 
     private func binding(_ code: String) -> Binding<Bool> {
         Binding(get: { languages.split(separator: ",").contains { $0 == code } }, set: { on in
@@ -309,7 +328,9 @@ struct RecordingSettings: View {
 }
 
 struct DictationSettings: View {
-    @EnvironmentObject var dictation: Dictation
+    /// Nur die Freigabe beobachten, nicht das ganze Diktat – jede Diktat-Änderung baute sonst das Formular neu auf
+    /// (Speicherleck unter macOS 27, siehe ASRModelSection).
+    @State private var trusted = Dictation.current?.trusted ?? AXIsProcessTrusted()
     @AppStorage("dictation") private var dictationOn = false
     @AppStorage("dictationKey") private var dictationKey = "rcmd"
     @AppStorage("dictationCleanKey") private var dictationCleanKey = "ropt"
@@ -322,8 +343,8 @@ struct DictationSettings: View {
         Form {
             Section {
                 Toggle("Diktat: Taste halten, sprechen, loslassen → Text an der Schreibmarke",
-                       isOn: Binding(get: { dictationOn }, set: { dictation.setEnabled($0) }))
-                if dictationOn && !dictation.trusted {
+                       isOn: Binding(get: { dictationOn }, set: { Dictation.current?.setEnabled($0) }))
+                if dictationOn && !trusted {
                     HStack {
                         Text("Freigabe „Bedienungshilfen“ fehlt").foregroundStyle(.orange)
                         Spacer()
@@ -355,10 +376,11 @@ struct DictationSettings: View {
                 Toggle("Ton, sobald das Mikrofon aufnimmt", isOn: $sound)
                 Toggle("Symbol an der Schreibmarke", isOn: $indicator)
                 Toggle("Sprachverarbeitung (startet ~1 s langsamer)", isOn: $dictationVP)
-                    .onChange(of: dictationVP) { _, _ in dictation.settingsChanged() }
+                    .onChange(of: dictationVP) { _, _ in Dictation.current?.settingsChanged() }
             }
         }
         .formStyle(.grouped)
+        .onReceive(Dictation.current?.$trusted.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { trusted = $0 }
     }
 }
 

@@ -10,6 +10,8 @@ import SwiftUI
 /// Braucht die Freigabe „Bedienungshilfen“ (Taste beobachten, Schreibmarke finden, ⌘V senden).
 @MainActor
 final class Dictation: ObservableObject {
+    /// Für Ansichten, die das Diktat nur anstoßen, aber nicht beobachten sollen (ASRModelSection).
+    static weak var current: Dictation?
     enum State: Equatable { case idle, starting, recording, transcribing }
     @Published var state: State = .idle { didSet { if state == .idle && reloadPending { modelChanged() } } }
     private var reloadPending = false
@@ -61,6 +63,7 @@ final class Dictation: ObservableObject {
     private lazy var indicator = DictationIndicator(model: self)
 
     init() {
+        Self.current = self
         // Selbsttests (--…-test) beenden sich per exit(): dort keinen Dienst starten, er bliebe verwaist zurück.
         if enabled && !CommandLine.arguments.contains(where: { $0.hasSuffix("-test") }) { activate() }
         // Der Dienst ist ein Kindprozess, überlebt das Beenden der App aber sonst (und hielte die Modelle im Speicher).
@@ -180,7 +183,11 @@ final class Dictation: ObservableObject {
     private func keyDown(_ code: UInt16, clean: Bool) {
         guard pressedAt == nil, state == .idle else { return }
         let shared = micBusy()
-        pressedAt = Date(); cancelled = false; lastError = nil; activeKey = code; cleaning = clean
+        pressedAt = Date(); cancelled = false; activeKey = code
+        // Nur echte Änderungen veröffentlichen: jedes ⌘-Kürzel mit der Diktattaste läuft hier durch, und jede Meldung
+        // baut offene Ansichten neu auf (Einstellungsfenster: Speicherleck unter macOS 27, 2026-11-13)
+        if lastError != nil { lastError = nil }
+        if cleaning != clean { cleaning = clean }
         // Bildschirmtext jetzt lesen (parallel zur Aufnahme), solange noch das Fenster vorn ist, in das diktiert wird.
         screenTask = clean && screenContext && DictationCleanup.unavailableReason == nil ? Task { await ScreenContext.capture() } : nil
         state = .starting
@@ -248,7 +255,7 @@ final class Dictation: ObservableObject {
         screenTask?.cancel(); screenTask = nil
         if state == .starting || state == .recording { Task { _ = await capture.stop() } }
         indicator.hide()
-        state = .idle
+        if state != .idle { state = .idle }
     }
 
     // MARK: Dienst

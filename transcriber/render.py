@@ -47,7 +47,10 @@ def markdown(doc, json_name, plain=False):
     """plain=True: dieselben Angaben ohne Markdown-Zeichen (für .txt) – Sprecherliste als Zeilen statt Tabelle."""
     L = [Path(doc["source"]).stem if plain else f"# {Path(doc['source']).stem}", "",
          t("Quelle", "Source") + f": {Path(doc['source']).name} · {mmss(doc['duration'])} min · {doc['tracks']} "
-         + t("Tonspur(en)", "audio track(s)") + "  ",
+         + t("Tonspur(en)", "audio track(s)")
+         + (" " + t("(gemischt ausgewertet: Stimmen aus dem Raum auch im Call)",
+                    "(analyzed as one: voices from the room also in the call)")
+            if (doc.get("track_relation") or {}).get("loopback") else "") + "  ",
          t("Erstellt", "Created") + f": {doc['created']} · " + t("Modell", "Model") + f": {doc['model']} · "
          + t("Sprecher", "Speakers") + ": pyannote community-1"
          + (" · " + t("Sprache", "Language") + f": {doc['language']} ("

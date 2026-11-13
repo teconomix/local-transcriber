@@ -37,6 +37,8 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
     private var nextPTS: [ObjectIdentifier: CMTime] = [:]   // je Spur: wo das nächste Sample liegen müsste
     /// Nur für den Selbsttest (--gap-test): Systemton bis zu diesem Zeitpunkt verwerfen, als liefe noch nichts.
     var testDropSystemUntil: Date?
+    /// Nur für den Selbsttest (--mic-stall-test): bis dahin sieht checkMic keine Mikrofonpuffer (Ton wird weiter geschrieben).
+    var testMicSilentUntil: Date?
     private var tmpURL: URL?
     private var finalURL: URL?
     private var startDate = Date()
@@ -314,14 +316,25 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
 
     /// Kommt länger kein Mikrofonpuffer (Gerät abgezogen, Engine nach Konfigurationswechsel stehengeblieben), sofort
     /// warnen – sonst lief die Anzeige weiter und die Aufnahme enthielt nur noch den Systemton. Auf dem Hauptthread.
+    /// Kommt der Ton zurück (oder endet die Aufnahme), verschwindet die Warnung wieder – sonst stand sie bis zur
+    /// nächsten Aufnahme im Panel, obwohl nur Sekunden fehlten (2026-11-11: 6 s bei Minute 16, Rest vollständig).
     private func checkMic() {
         feedLock.lock()
+        let stalled = micStalled
         let silent = Date().timeIntervalSince(lastMicBuffer), report = silent > 4 && !micStalled
         if report { micStalled = true }
         feedLock.unlock()
+        if !stalled, warning == Self.micStallWarning {
+            appLog("Aufnahme: Mikrofonton wieder da")
+            warning = nil
+        }
         guard report, elapsed > 5 else { return }
         appLog(String(format: "Aufnahme: seit %.0f s kein Mikrofonton", silent))
-        warning = String(localized: "Das Mikrofon liefert keinen Ton mehr – bitte Aufnahme beenden und neu starten.")
+        warning = Self.micStallWarning
+    }
+
+    private static var micStallWarning: String {
+        String(localized: "Das Mikrofon liefert keinen Ton mehr – bitte Aufnahme beenden und neu starten.")
     }
 
     /// Writer gescheitert (Platte voll, keine Schreibrechte): einmal melden, nicht erst beim Stoppen. Auf `queue`.
@@ -335,7 +348,10 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
 
     func stop() async -> URL? {
         await stopCapture()
-        await MainActor.run { self.timer?.invalidate(); self.isRecording = false; self.level = 0 }
+        await MainActor.run {
+            self.timer?.invalidate(); self.isRecording = false; self.level = 0
+            if self.warning == Self.micStallWarning { self.warning = nil }
+        }
         let (w, mic, sys, started): (AVAssetWriter?, AVAssetWriterInput?, AVAssetWriterInput?, Bool) =
             queue.sync { let r = (writer, micInput, sysInput, sessionStarted); writer = nil; micInput = nil; sysInput = nil; return r }
         guard let w, started else {
@@ -460,6 +476,7 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
     }
 
     private func updateLevel(_ sb: CMSampleBuffer) {
+        if let d = testMicSilentUntil, Date() < d { return }
         feedLock.lock(); lastMicBuffer = Date(); micStalled = false; feedLock.unlock()   // nur Mikrofonpuffer kommen hierher
         guard Date().timeIntervalSince(lastLevelUpdate) > 0.1, let bb = CMSampleBufferGetDataBuffer(sb) else { return }
         lastLevelUpdate = Date()

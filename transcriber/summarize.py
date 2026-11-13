@@ -405,7 +405,7 @@ def refresh_names(json_path, doc):
 
 def preview(path, points=2, tasks=2):
     """Für das Panel: die ersten Kernpunkte und offenen Aufgaben. Ohne Aufzählung (Fließtext wie die Kurzfassung)
-    der erste Absatz in "text" – das Panel kürzt ihn auf sechs Zeilen."""
+    der erste Absatz in "text" – das Panel zeigt bis zu zehn Zeilen, mehr per Klick."""
     try:
         lines = Path(path).read_text(encoding="utf-8").splitlines()[1:]
     except OSError:

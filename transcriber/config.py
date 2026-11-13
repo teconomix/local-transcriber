@@ -37,6 +37,7 @@ DEFAULTS = {
     # Stimmenabgleich (Kosinus). Gemessen 2026-10-08: gleiche Person 0,75–0,93, verschiedene ≤ 0,42.
     "match_sure": 0.75,            # ab 60 s; war 0,65 – falsche Personen kamen bis 0,65, richtige ab 0,80 (bench/SCHWELLEN.md)
     "match_maybe": 0.60,           # war 0,50 – Unbekannte bekamen bei 0,51 und 0,596 falsche Namen „(?)“ (bench/SCHWELLEN.md, 2026-10-24)
+    "match_sure_margin": 0.10,     # „sicher“ nur mit diesem Abstand zur zweitbesten Person (gemessen: 0,03 bei Verwechslung)
     "min_speech_s": 60,            # darunter gilt die strengere Schwelle match_sure_short
     "match_sure_short": 0.75,      # 15–60 s Sprechzeit: sicher erst ab dieser Ähnlichkeit (speakers.sure_match)
     "min_sure_s": 15,              # darunter nie „sicher“
@@ -49,6 +50,11 @@ DEFAULTS = {
     "copy_share": 0.9,
     "merge_sim": 0.6,              # Cluster einer Spur ab dieser Stimmähnlichkeit zusammenlegen
     "merge_sim_call": 0.7,         # dasselbe auf der Call-Spur (Codec: verschiedene Stimmen bis 0,63 ähnlich)
+    # Dieselbe Stimme auf beiden Spuren (pipeline._cross_track): Call-Spur ≥ loop_lag s später = Raum läuft über den Call
+    # zurück → gemischt; Mikrofon später (≤ echo_lag) = Lautsprecher-Echo einer remote Person
+    "cross_sim": 0.75,
+    "loop_lag": 0.10,
+    "echo_lag": 0.05,
 }
 
 

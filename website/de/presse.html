@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fakten für Listen und Artikel | Local Transcriber</title>
+  <meta name="description" content="Kurzbeschreibungen, Fakten, Voraussetzungen, Bildschirmfotos und Links für alle, die Local Transcriber eintragen oder darüber schreiben möchten – die kostenlose Open-Source-App für lokale Transkription mit Sprechererkennung am Mac.">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Local Transcriber">
+  <meta property="og:title" content="Local Transcriber – Fakten für Listen und Artikel">
+  <meta property="og:description" content="Beschreibungen, Fakten, Bildschirmfotos und Links an einem Ort.">
+  <meta property="og:url" content="https://transcriber.teconomix.net/de/presse.html">
+  <meta property="og:image" content="https://transcriber.teconomix.net/assets/og-de.png">
+  <meta property="og:locale" content="de_AT">
+  <meta name="color-scheme" content="light dark">
+  <meta name="referrer" content="no-referrer">
+  <link rel="canonical" href="https://transcriber.teconomix.net/de/presse.html">
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../style.css?v=0.15">
+  <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/presse.html">
+  <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/press.html">
+  <script src="../script.js?v=0.15" defer></script>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="../assets/icon.svg" alt="" width="28" height="28">Local Transcriber</a>
+    <nav class="nav" aria-label="Hauptnavigation"><a class="opt" href="./?k=presse">Zur Startseite</a><a class="lang" href="../en/press.html" hreflang="en" lang="en">English</a></nav>
+  </div>
+</header>
+
+<main class="legal article wrap">
+  <h1>Fakten für Listen und Artikel</h1>
+  <p class="article-lead">Alles, was man braucht, um Local Transcriber einzutragen oder zu beschreiben, an einem Ort: Beschreibungen in drei Längen, die wichtigsten Fakten, Voraussetzungen, Bildschirmfotos und Links. Alle Angaben beziehen sich auf die aktuelle Version.</p>
+
+  <h2>In einer Zeile</h2>
+  <p>Local Transcriber – Besprechungen, Calls und Diktate auf dem Mac transkribiert, mit Sprechererkennung und ohne Cloud.</p>
+
+  <h2>In etwa 50 Wörtern</h2>
+  <p>Local Transcriber ist eine kostenlose Open-Source-App für die Menüleiste von Macs mit Apple Silicon. Sie nimmt Besprechungen und Calls auf, transkribiert sie mit Whisper, erkennt mit pyannote, wer gesprochen hat, und schreibt auf Tastendruck in jede App. Alles läuft lokal: kein Konto, kein Abo, kein Ton verlässt den Rechner.</p>
+
+  <h2>In etwa 120 Wörtern</h2>
+  <p>Local Transcriber ist eine Menüleisten-App für macOS, die Gespräche aufnimmt, transkribiert und die Sprecher erkennt – vollständig auf dem Mac. Mikrofon und Systemton landen auf getrennten Spuren; Videocalls in Teams, Zoom, Meet und anderen Apps werden erkannt, und die Aufnahme endet mit dem Call. Die Spracherkennung nutzt Whisper large-v3-turbo auf der Grafikeinheit von Apple Silicon (MLX), die Sprechertrennung pyannote mit einer lokalen Stimmdatenbank: Wer einmal benannt ist, wird beim nächsten Mal erkannt. Taste halten diktiert Text in jede App. Auf Wunsch schreibt ein lokales oder ein Cloud-Sprachmodell nach Wahl Protokolle oder Zusammenfassungen – Cloud nur auf Klick, Namen durch Platzhalter ersetzt. Die App ist kostenlos und Open Source (MIT).</p>
+
+  <h2>Fakten</h2>
+  <ul>
+    <li><strong>Name:</strong> Local Transcriber (in der Menüleiste „Transcriber“)</li>
+    <li><strong>Kategorie:</strong> Transkription, Sprechererkennung, Diktat; Menüleisten-App für macOS</li>
+    <li><strong>Preis und Lizenz:</strong> kostenlos, Open Source (MIT); kein Konto, kein Abo, kein Lizenzserver</li>
+    <li><strong>Voraussetzungen:</strong> Mac mit Apple Silicon (M1 oder neuer), macOS 14 Sonoma oder neuer, etwa 8 GB freier Speicher, 16 GB Arbeitsspeicher empfohlen. KI-Funktionen auf dem Gerät (Diktat aufräumen, Dateinamen): macOS 26 mit Apple Intelligence. Intel-Macs werden nicht unterstützt.</li>
+    <li><strong>Sprachen:</strong> Deutsch und Englisch (Oberfläche und Dokumentation)</li>
+    <li><strong>Technik:</strong> App in Swift/SwiftUI, Kern in Python; Whisper large-v3-turbo über MLX, pyannote speaker-diarization-community-1, ffmpeg, SQLite</li>
+    <li><strong>Tempo:</strong> eine Stunde Audio samt Sprechererkennung in etwa drei bis vier Minuten (Grafikeinheit von Apple Silicon)</li>
+    <li><strong>Datenschutz:</strong> Ton, Transkripte und Stimmprofile bleiben auf dem Mac; Internet nur für die Installation und für ein Cloud-Modell, falls man eines wählt</li>
+    <li><strong>Ausgabe:</strong> reiner Text oder Markdown, JSON mit Zeitstempel je Wort, SRT</li>
+    <li><strong>Für Fortgeschrittene:</strong> Befehlszeile, Ordnerwächter, MCP-Server für KI-Agenten, Plugin für Obsidian</li>
+    <li><strong>Entwickler:</strong> Björn Rabethge (<a href="impressum.html">Impressum</a>)</li>
+  </ul>
+
+  <h2>Installieren</h2>
+  <div class="cmd">
+    <pre id="install-cmd-a">curl -fsSL https://transcriber.teconomix.net/k/presse/install.sh | bash</pre>
+    <button class="copy-btn" type="button" data-copied="Kopiert" data-copy="install-cmd-a" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>
+      <span aria-live="polite">Kopieren</span>
+    </button>
+  </div>
+  <p>Oder mit Homebrew: <code>brew install --cask teconomix/tap/local-transcriber</code>. Für einen Listeneintrag passt am besten der allgemeine Befehl ohne den Pfad <code>/k/presse</code>: <code>curl -fsSL https://transcriber.teconomix.net/install.sh | bash</code>.</p>
+
+  <h2>Bilder und Video</h2>
+  <ul>
+    <li>Bildschirmfotos: <a href="../assets/ui-aufnahme.png">Panel mit Aufnahme</a> · <a href="../assets/ui-diktat.png">Diktat</a> · <a href="../assets/ui-kalender.png">Kalender</a> · <a href="../assets/ui-ki.png">KI-Auswertung</a></li>
+    <li>Vorschaubild (1200 × 630): <a href="../assets/og-de.png">og-de.png</a> · App-Symbol: <a href="../assets/icon.svg">icon.svg</a></li>
+    <li>Demo-Video (80 s): <a href="../assets/video/demo-de.mp4">demo-de.mp4</a> · Titelbild: <a href="../assets/video/poster-de.jpg">poster-de.jpg</a></li>
+  </ul>
+
+  <h2>Links</h2>
+  <ul>
+    <li>Website: <a href="https://transcriber.teconomix.net/">transcriber.teconomix.net</a></li>
+    <li>Quellcode und Dokumentation: <a href="https://github.com/teconomix/local-transcriber">github.com/teconomix/local-transcriber</a></li>
+    <li>Plugin für Obsidian: <a href="https://github.com/teconomix/obsidian-local-transcriber">github.com/teconomix/obsidian-local-transcriber</a></li>
+    <li>Fragen und Korrekturen: <a href="https://github.com/teconomix/local-transcriber/discussions">GitHub Discussions</a></li>
+  </ul>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Local Transcriber · Open Source (MIT) · ohne Gewähr</span>
+    <nav aria-label="Rechtliches und Links">
+      <a href="impressum.html">Impressum</a>
+      <a href="datenschutz.html">Datenschutz</a>
+      <a href="lokal-transkribieren.html">Transkribieren ohne Cloud</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

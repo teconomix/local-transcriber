@@ -33,6 +33,10 @@ struct TranscriberApp: App {
             let gap = CommandLine.arguments.firstIndex(of: "--gap").flatMap { Double(CommandLine.arguments[$0 + 1]) } ?? 2.5
             Task { await VPTest.gap(folder, voiceProcessing: CommandLine.arguments.contains("--vp"), gap: gap); exit(0) }
         }
+        if let i = CommandLine.arguments.firstIndex(of: "--mic-stall-test"), i + 1 < CommandLine.arguments.count {
+            let folder = URL(fileURLWithPath: CommandLine.arguments[i + 1])
+            Task { await VPTest.micStall(folder); exit(0) }
+        }
         if let i = CommandLine.arguments.firstIndex(of: "--mic-switch-test"), i + 1 < CommandLine.arguments.count {
             let folder = URL(fileURLWithPath: CommandLine.arguments[i + 1])
             Task { await VPTest.micSwitch(folder); exit(0) }
@@ -836,7 +840,7 @@ struct JobRow: View {
                     Label { Text(t).lineLimit(2) } icon: { Image(systemName: "square").foregroundStyle(.secondary) }
                 }
                 if !sum.text.isEmpty {
-                    Text(sum.text).lineLimit(6).foregroundStyle(.secondary).help(sum.text)
+                    SummaryText(text: sum.text)
                 }
             }
             .font(.caption)
@@ -1056,5 +1060,37 @@ struct JobRow: View {
         guard !n.isEmpty else { return }
         editing.remove(s.letter); names[s.letter] = nil
         Task { await jobs.name(job, letter: s.letter, name: n) }
+    }
+}
+
+
+/// Kurzfassung im Panel: bis zu 10 Zeilen (eine Kurzfassung mit 3–4 Sätzen passt ganz hinein), längere klappt ein Klick
+/// auf den Text oder „ganze Kurzfassung …“ auf. Vorher 6 Zeilen und Tooltip – macOS kürzt lange Tooltips, die ganze
+/// Kurzfassung gab es nur über „Öffnen“ (Björn 2026-11-13, Variante C aus den Mockups).
+struct SummaryText: View {
+    let text: String
+    var lines = 10
+    @State private var open = false
+    @State private var fullH: CGFloat = 0
+    @State private var shownH: CGFloat = 0
+    private var cut: Bool { fullH > shownH + 1 }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(text).lineLimit(open ? nil : lines).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .background(GeometryReader { g in
+                    Color.clear.onAppear { shownH = g.size.height }.onChange(of: g.size.height) { _, h in shownH = h }
+                })
+                .background(Text(text).fixedSize(horizontal: false, vertical: true).hidden()   // ganze Höhe: abgeschnitten?
+                    .background(GeometryReader { g in
+                        Color.clear.onAppear { fullH = g.size.height }.onChange(of: g.size.height) { _, h in fullH = h }
+                    }))
+                .contentShape(Rectangle())
+                .onTapGesture { if cut || open { open.toggle() } }
+            if cut || open {
+                Button(open ? "weniger" : "ganze Kurzfassung …") { open.toggle() }.buttonStyle(.link)
+            }
+        }
     }
 }
