@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+  <title>Local Transcriber – releases</title>
+  <subtitle>New versions of Local Transcriber, a free, open-source Mac app that transcribes meetings, calls and dictation locally.</subtitle>
+  <id>https://transcriber.teconomix.net/releases.xml</id>
+  <link rel="self" type="application/atom+xml" href="https://transcriber.teconomix.net/releases.xml"/>
+  <link rel="alternate" type="text/html" href="https://transcriber.teconomix.net/en/?k=feed"/>
+  <icon>https://transcriber.teconomix.net/assets/icon.svg</icon>
+  <author><name>Björn Rabethge</name></author>
+  <updated>2026-11-13T20:40:44Z</updated>
+  <entry>
+    <title>Local Transcriber 0.15: memory leak fixed, short summaries fit the panel</title>
+    <id>https://transcriber.teconomix.net/releases/0.15</id>
+    <link rel="alternate" type="text/html" href="https://transcriber.teconomix.net/en/?k=feed"/>
+    <updated>2026-11-13T20:40:44Z</updated>
+    <summary>The app stays lean even after days of running, short summaries fit the panel, and calls from a room with its own call computer are separated cleanly. Release notes: https://github.com/teconomix/local-transcriber/releases/tag/v0.15</summary>
+  </entry>
+  <entry>
+    <title>Local Transcriber 0.14: Homebrew upgrades no longer hang, panel fits the screen again</title>
+    <id>https://transcriber.teconomix.net/releases/0.14</id>
+    <link rel="alternate" type="text/html" href="https://transcriber.teconomix.net/en/?k=feed"/>
+    <updated>2026-11-02T20:33:01Z</updated>
+    <summary>Homebrew upgrades no longer hang, and the panel fits the screen again after you unplug a monitor. Release notes: https://github.com/teconomix/local-transcriber/releases/tag/v0.14</summary>
+  </entry>
+  <entry>
+    <title>Local Transcriber 0.13: the real recording date, for the Obsidian plugin 0.3.0</title>
+    <id>https://transcriber.teconomix.net/releases/0.13</id>
+    <link rel="alternate" type="text/html" href="https://transcriber.teconomix.net/en/?k=feed"/>
+    <updated>2026-10-31T21:16:44Z</updated>
+    <summary>The real recording date in every transcript – for the Obsidian plugin 0.3.0. Release notes: https://github.com/teconomix/local-transcriber/releases/tag/v0.13</summary>
+  </entry>
+</feed>
