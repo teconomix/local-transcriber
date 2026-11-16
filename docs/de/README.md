@@ -14,7 +14,13 @@ kein Abo, kein Lizenzserver, kein Audio, das den Rechner verlässt.
 curl -fsSL https://transcriber.teconomix.net/k/github/install.sh | bash
 ```
 
-Oder mit Homebrew: `brew install --cask teconomix/tap/local-transcriber`. Fragen: [Diskussionen](https://github.com/teconomix/local-transcriber/discussions).
+Oder mit Homebrew (Updates dann mit `brew upgrade`):
+
+```bash
+brew install --cask teconomix/tap/local-transcriber
+```
+
+Apple Silicon, macOS 14 oder neuer. Fragen: [Diskussionen](https://github.com/teconomix/local-transcriber/discussions).
 
 ## Was es kann
 
@@ -31,6 +37,34 @@ Oder mit Homebrew: `brew install --cask teconomix/tap/local-transcriber`. Fragen
 
 Ausführlich: [FUNKTIONEN.md](FUNKTIONEN.md) · Bedienung: [ANLEITUNG.md](ANLEITUNG.md) · Arbeitsablauf: [ARBEITSABLAUF.md](ARBEITSABLAUF.md) ·
 Installation: [INSTALLATION.md](INSTALLATION.md) · Datenschutz: [DATENSCHUTZ.md](DATENSCHUTZ.md)
+
+## So sieht ein Transkript aus
+
+Reiner Text neben der Aufnahme (auf Wunsch Markdown, JSON und SRT). Beispiel mit einem ausgedachten Gespräch, im echten
+Ausgabeformat:
+
+```text
+2026-11-12 Projektstart
+
+Quelle: 2026-11-12 Projektstart.m4a · 47:23 min · 2 Tonspur(en)
+Erstellt: 2026-11-12 10:47 · Modell: whisper-large-v3-turbo · Sprecher: pyannote community-1
+
+Sprecher:
+  Ich – 17:00 min – sicher (0.86)
+  Alex – 16:20 min – bestätigt
+  Sprecher C – 10:10 min – unbekannt
+
+[00:00:03] Ich: Danke, dass ihr Zeit habt. Fangen wir mit dem Zeitplan an?
+
+[00:00:09] Alex: Ja. Der Entwurf steht, die Prüfung dauert bis Freitag.
+
+[00:00:16] Ich: Gut, dann bleibt der Start am 20.
+
+[00:00:21] Sprecher C: Ich schicke die Folien heute an alle.
+```
+
+„Sprecher C“ einmal benennen, dann wird die Stimme in den nächsten Aufnahmen erkannt. Wie alles zusammenspielt, von der
+Aufnahme bis zur KI-Zusammenfassung: [Arbeitsablauf](https://transcriber.teconomix.net/de/arbeitsablauf.html?k=gh-example).
 
 ## Anleitungen
 

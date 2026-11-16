@@ -14,7 +14,13 @@ runs locally on the Mac – no account, no subscription, no license server, no a
 curl -fsSL https://transcriber.teconomix.net/k/github/install.sh | bash
 ```
 
-Or with Homebrew: `brew install --cask teconomix/tap/local-transcriber`. Questions: [Discussions](https://github.com/teconomix/local-transcriber/discussions).
+Or with Homebrew (updates then with `brew upgrade`):
+
+```bash
+brew install --cask teconomix/tap/local-transcriber
+```
+
+Apple Silicon, macOS 14 or newer. Questions: [Discussions](https://github.com/teconomix/local-transcriber/discussions).
 
 ## What it does
 
@@ -31,6 +37,34 @@ Or with Homebrew: `brew install --cask teconomix/tap/local-transcriber`. Questio
 
 In detail: [docs/FEATURES.md](docs/FEATURES.md) · Usage: [docs/USER_GUIDE.md](docs/USER_GUIDE.md) · Workflow: [docs/WORKFLOW.md](docs/WORKFLOW.md) ·
 Installation: [docs/INSTALLATION.md](docs/INSTALLATION.md) · Privacy: [docs/PRIVACY.md](docs/PRIVACY.md)
+
+## What a transcript looks like
+
+Plain text next to the recording (Markdown, JSON and SRT on request). Example with a made-up conversation, in the real
+output format:
+
+```text
+2026-11-12 Project kickoff
+
+Source: 2026-11-12 Project kickoff.m4a · 47:23 min · 2 audio track(s)
+Created: 2026-11-12 10:47 · Model: whisper-large-v3-turbo · Speakers: pyannote community-1
+
+Speakers:
+  Me – 17:00 min – confident (0.86)
+  Alex – 16:20 min – confirmed
+  Speaker C – 10:10 min – unknown
+
+[00:00:03] Me: Thanks for making time. Shall we start with the timeline?
+
+[00:00:09] Alex: Yes. The draft is ready, the review takes until Friday.
+
+[00:00:16] Me: Good, then we keep the launch on the 20th.
+
+[00:00:21] Speaker C: I'll send the slides to everyone today.
+```
+
+Name “Speaker C” once, and the voice is recognized in the next recordings. How the pieces fit together, from recording
+to AI summary: [workflow](https://transcriber.teconomix.net/en/workflow.html?k=gh-example).
 
 ## Guides
 
