@@ -19,12 +19,12 @@
   <meta name="color-scheme" content="light dark">
   <meta name="referrer" content="no-referrer">
   <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=0.15">
+  <link rel="stylesheet" href="../style.css?v=0.15-1">
   <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/">
   <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/">
   <link rel="alternate" hreflang="x-default" href="https://transcriber.teconomix.net/">
   <link rel="alternate" type="application/atom+xml" title="Local Transcriber – releases" href="https://transcriber.teconomix.net/releases.xml">
-  <script src="../script.js?v=0.15" defer></script>
+  <script src="../script.js?v=0.15-1" defer></script>
   <script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Local Transcriber", "operatingSystem": "macOS 14 or newer (Apple Silicon)", "applicationCategory": "BusinessApplication", "description": "Free open-source macOS menu bar tool: meetings, calls and dictation are transcribed locally on your Mac, with speaker recognition – no cloud, no account, no subscription.", "url": "https://transcriber.teconomix.net/en/", "inLanguage": ["de", "en"], "license": "https://opensource.org/licenses/MIT", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}, "author": {"@type": "Person", "name": "Björn Rabethge"}, "softwareVersion": "0.15", "downloadUrl": "https://transcriber.teconomix.net/install.sh"}</script>
 </head>
 <body>
@@ -62,6 +62,7 @@
             </button>
           </div>
           <p class="install-version">Version <span data-version>0.15</span> · November 13, 2026 · macOS 14 or later</p>
+          <button class="btn share-btn" type="button" data-share hidden>Not at your Mac? Send yourself the link</button>
         </div>
 
         <div class="hero-links">
@@ -241,8 +242,8 @@
         </li>
       </ol>
       <figure class="demo-video">
-        <video controls preload="none" playsinline width="1920" height="1080" poster="../assets/video/poster-en.jpg?v=0.15" aria-label="Local Transcriber demo video">
-          <source src="../assets/video/demo-en.mp4?v=0.15" type="video/mp4">
+        <video controls preload="none" playsinline width="1920" height="1080" poster="../assets/video/poster-en.jpg?v=0.15-1" aria-label="Local Transcriber demo video">
+          <source src="../assets/video/demo-en.mp4?v=0.15-1" type="video/mp4">
         </video>
         <figcaption>An 80-second tour: record a call, recognize speakers, summarize with AI, share by email, dictate. With soft music.</figcaption>
       </figure>
@@ -359,6 +360,7 @@
             <p><strong>About Gatekeeper:</strong> The app is not (yet) notarized by Apple. The installer sets it up so that it starts anyway.</p>
             <p><strong>Uninstall:</strong> <code>bash ~/.local/share/transcriber/uninstall.sh</code> (with Homebrew: <code>brew uninstall local-transcriber</code>). Your recordings and transcripts are kept.</p>
             <p><strong>Stuck?</strong> Ask in the <a href="https://github.com/teconomix/local-transcriber/discussions">GitHub Discussions</a> – other users can help there too.</p>
+            <p><strong>Useful to you?</strong> A star on <a href="https://github.com/teconomix/local-transcriber">GitHub</a> helps others find Local Transcriber.</p>
           </div>
         </div>
       </div>

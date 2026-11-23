@@ -174,6 +174,8 @@ kbd {
 .copy-btn:hover { background: rgba(255,255,255,.12); }
 .copy-btn svg { width: 16px; height: 16px; }
 .copy-btn[hidden] { display: none; }
+.share-btn { margin-top: 14px; font-family: inherit; cursor: pointer; }
+.share-btn[hidden] { display: none; }
 
 .hero-links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
 .btn {

@@ -34,3 +34,17 @@
     a.setAttribute("href", u.pathname + u.search + u.hash);
   });
 })();
+
+// Teilen-Knopf für Besucher am Handy, Tablet oder Windows-PC: installieren geht nur am Mac – Link an sich selbst
+// schicken (mit ?k=share, damit die Tageszählung sieht, ob jemand so zurückkommt). Nur sichtbar, wenn der Browser
+// teilen kann und kein Mac ist (das iPad meldet sich als Mac, hat aber Touch). Nichts wird gespeichert.
+(function () {
+  if (!navigator.share) return;
+  if (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints < 2) return;
+  document.querySelectorAll("[data-share]").forEach(function (btn) {
+    btn.hidden = false;
+    btn.addEventListener("click", function () {
+      navigator.share({ title: document.title, url: location.origin + location.pathname + "?k=share" }).catch(function () {});
+    });
+  });
+})();

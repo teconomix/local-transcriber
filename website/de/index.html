@@ -19,12 +19,12 @@
   <meta name="color-scheme" content="light dark">
   <meta name="referrer" content="no-referrer">
   <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=0.15">
+  <link rel="stylesheet" href="../style.css?v=0.15-1">
   <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/">
   <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/">
   <link rel="alternate" hreflang="x-default" href="https://transcriber.teconomix.net/">
   <link rel="alternate" type="application/atom+xml" title="Local Transcriber – releases" href="https://transcriber.teconomix.net/releases.xml">
-  <script src="../script.js?v=0.15" defer></script>
+  <script src="../script.js?v=0.15-1" defer></script>
   <script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Local Transcriber", "operatingSystem": "macOS 14 oder neuer (Apple Silicon)", "applicationCategory": "BusinessApplication", "description": "Kostenloses Open-Source-Werkzeug für die macOS-Menüleiste: Meetings, Calls und Diktate werden lokal auf dem Mac transkribiert, mit Sprechererkennung – ohne Cloud, ohne Konto, ohne Abo.", "url": "https://transcriber.teconomix.net/de/", "inLanguage": ["de", "en"], "license": "https://opensource.org/licenses/MIT", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}, "author": {"@type": "Person", "name": "Björn Rabethge"}, "softwareVersion": "0.15", "downloadUrl": "https://transcriber.teconomix.net/install.sh"}</script>
 </head>
 <body>
@@ -62,6 +62,7 @@
             </button>
           </div>
           <p class="install-version">Version <span data-version>0.15</span> · 13. November 2026 · macOS 14 oder neuer</p>
+          <button class="btn share-btn" type="button" data-share hidden>Gerade nicht am Mac? Link an dich selbst schicken</button>
         </div>
 
         <div class="hero-links">
@@ -241,8 +242,8 @@
         </li>
       </ol>
       <figure class="demo-video">
-        <video controls preload="none" playsinline width="1920" height="1080" poster="../assets/video/poster-de.jpg?v=0.15" aria-label="Demo-Video von Local Transcriber">
-          <source src="../assets/video/demo-de.mp4?v=0.15" type="video/mp4">
+        <video controls preload="none" playsinline width="1920" height="1080" poster="../assets/video/poster-de.jpg?v=0.15-1" aria-label="Demo-Video von Local Transcriber">
+          <source src="../assets/video/demo-de.mp4?v=0.15-1" type="video/mp4">
         </video>
         <figcaption>Rundgang in 80 Sekunden: Call aufnehmen, Sprecher erkennen, mit KI auswerten, per Mail teilen, diktieren. Mit leiser Musik.</figcaption>
       </figure>
@@ -359,6 +360,7 @@
             <p><strong>Hinweis zu Gatekeeper:</strong> Die App ist (noch) nicht von Apple notarisiert. Der Installer richtet sie so ein, dass sie trotzdem startet.</p>
             <p><strong>Deinstallieren:</strong> <code>bash ~/.local/share/transcriber/uninstall.sh</code> (mit Homebrew: <code>brew uninstall local-transcriber</code>). Aufnahmen und Transkripte bleiben erhalten.</p>
             <p><strong>Hängt etwas?</strong> Frag in den <a href="https://github.com/teconomix/local-transcriber/discussions">Diskussionen auf GitHub</a> – dort helfen auch andere Nutzer.</p>
+            <p><strong>Hilft dir das Werkzeug?</strong> Ein Stern auf <a href="https://github.com/teconomix/local-transcriber">GitHub</a> hilft anderen, Local Transcriber zu finden.</p>
           </div>
         </div>
       </div>
