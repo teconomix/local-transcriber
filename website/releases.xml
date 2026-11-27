@@ -7,7 +7,14 @@
   <link rel="alternate" type="text/html" href="https://transcriber.teconomix.net/en/?k=feed"/>
   <icon>https://transcriber.teconomix.net/assets/icon.svg</icon>
   <author><name>Björn Rabethge</name></author>
-  <updated>2026-11-13T20:40:44Z</updated>
+  <updated>2026-11-27T16:57:22Z</updated>
+  <entry>
+    <title>Local Transcriber 0.16: less load while recording, echo cancellation works again</title>
+    <id>https://transcriber.teconomix.net/releases/0.16</id>
+    <link rel="alternate" type="text/html" href="https://transcriber.teconomix.net/en/?k=feed"/>
+    <updated>2026-11-27T16:57:22Z</updated>
+    <summary>Recording puts far less load on macOS (this prevents a display crash seen on macOS 27), echo cancellation with voice processing works again, and the menu bar shows the recording time in minutes. Release notes: https://github.com/teconomix/local-transcriber/releases/tag/v0.16</summary>
+  </entry>
   <entry>
     <title>Local Transcriber 0.15: memory leak fixed, short summaries fit the panel</title>
     <id>https://transcriber.teconomix.net/releases/0.15</id>

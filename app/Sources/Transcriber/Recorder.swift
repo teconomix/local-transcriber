@@ -2,6 +2,19 @@ import AVFoundation
 import CoreAudio
 import ScreenCaptureKit
 
+/// Pegel der laufenden Aufnahme, eigenes Objekt: ändert sich ~10× pro Sekunde. Hinge er am Recorder, bauten Menüleiste
+/// und Panel bei jeder Änderung neu auf – auch bei geschlossenem Panel (WindowServer-Absturz 2026-11-23).
+final class LevelMeter: ObservableObject {
+    @Published var value: Float = 0
+}
+
+/// Laufzeit der Aufnahme, eigenes Objekt wie LevelMeter: Hinge sie am Recorder, baute sich das Panel jede Sekunde neu
+/// auf, auch geschlossen – der WindowServer loggt das als 9× „_CGXPackagesSetWindowConstraints: Invalid window“ pro
+/// Sekunde (2026-11-27 gemessen: ohne diese Meldung keine Schübe). Nur die Zeitanzeigen beobachten es.
+final class RecordingClock: ObservableObject {
+    @Published var elapsed: TimeInterval = 0
+}
+
 /// Nimmt Mikrofon (Spur 1) und optional Systemton (Spur 2) in eine .m4a mit zwei AAC-Spuren auf.
 /// Beide Quellen liefern Zeitstempel auf der Host-Uhr, daher genügt eine gemeinsame Writer-Sitzung.
 /// Während der Aufnahme heißt die Datei „.<Name>.m4a“ (versteckt → der Ordnerwächter ignoriert sie).
@@ -10,8 +23,10 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
     /// Zwischen Klick und laufender Aufnahme (Freigaben, Systemton, Sprachverarbeitung: ~1–2 s). Knopf gesperrt –
     /// sonst stoppte ein ungeduldiger zweiter Klick die gerade gestartete Aufnahme (Test im frischen Konto, 2026-10-10).
     @Published var isStarting = false
-    @Published var level: Float = 0
-    @Published var elapsed: TimeInterval = 0
+    let meter = LevelMeter()
+    let clock = RecordingClock()
+    let minuteClock = RecordingClock()      // dieselbe Zeit, nur jede volle Minute gemeldet (Menüleiste, geschlossenes Panel)
+    var elapsed: TimeInterval { clock.elapsed }
     @Published var warning: String?
 
     private let queue = DispatchQueue(label: "recorder")
@@ -177,10 +192,13 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
         let micName = deviceID.flatMap(Self.audioDeviceID(uid:)) ?? Self.defaultInputDevice()
         appLog("Aufnahme gestartet: \(name).m4a (\(withSystem ? "mit" : "ohne") Systemton, Mikrofon \(micName.flatMap { Self.deviceString($0, kAudioObjectPropertyName) } ?? "?"))")
         await MainActor.run {
-            self.startDate = Date(); self.elapsed = 0; self.isRecording = true
+            self.startDate = Date(); self.clock.elapsed = 0; self.minuteClock.elapsed = 0; self.isRecording = true
             let t = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
                 guard let self else { return }
-                self.elapsed = Date().timeIntervalSince(self.startDate)
+                // Sekunden nur fürs offene Panel, Minuten für Menüleiste und geschlossenes Panel (RecordingClock)
+                let e = Date().timeIntervalSince(self.startDate)
+                if Int(e) != Int(self.clock.elapsed) { self.clock.elapsed = e }
+                if Int(e) / 60 != Int(self.minuteClock.elapsed) / 60 { self.minuteClock.elapsed = e }
                 self.checkMic()
             }
             RunLoop.main.add(t, forMode: .common)
@@ -223,6 +241,10 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
     /// Liefert die Abtastrate des Mikrofonsignals.
     private func startEngineMic() throws -> Double {
         let e = AVAudioEngine()
+        // Ausgangszweig (Mixer → Ausgang) VOR dem Einschalten anlegen, stumm: ohne ihn lief der Downlink der
+        // Sprachverarbeitung ins Leere – 94 Fehler/s „failed to run downlink DSP (I/O fault)“, '!i/o', und keine
+        // Echounterdrückung (2026-11-23, --record-test). Danach angelegt scheitert der Start mit -10875 (s. u.).
+        e.mainMixerNode.outputVolume = 0
         let inNode = e.inputNode
         // Nur das Standardmikrofon: ein anderes Gerät ignorierte Voice Processing stillschweigend (vor dem Einschalten
         // gesetzt) oder lieferte gar nichts mehr (danach gesetzt) – Core Audio im Mic-Switch-Test, 2026-10-14.
@@ -232,7 +254,7 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
         inNode.isVoiceProcessingAGCEnabled = true
         inNode.voiceProcessingOtherAudioDuckingConfiguration =
             AVAudioVoiceProcessingOtherAudioDuckingConfiguration(enableAdvancedDucking: false, duckingLevel: .min)
-        // Mixer/Ausgang NICHT anfassen: eine Mixer→Ausgang-Verbindung nach dem Einschalten scheitert mit -10875
+        // Mixer/Ausgang danach NICHT mehr anfassen: eine Mixer→Ausgang-Verbindung nach dem Einschalten scheitert mit -10875
         // beim Initialisieren des Ausgangs (VP-Selbsttest 2026-10-09, Variante D).
         let fmt = inNode.outputFormat(forBus: 0)
         guard fmt.sampleRate > 0 else { throw NSError(domain: "Recorder", code: 5, userInfo: [NSLocalizedDescriptionKey: String(localized: "kein Eingangsformat")]) }
@@ -349,7 +371,7 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
     func stop() async -> URL? {
         await stopCapture()
         await MainActor.run {
-            self.timer?.invalidate(); self.isRecording = false; self.level = 0
+            self.timer?.invalidate(); self.isRecording = false; self.meter.value = 0
             if self.warning == Self.micStallWarning { self.warning = nil }
         }
         let (w, mic, sys, started): (AVAssetWriter?, AVAssetWriterInput?, AVAssetWriterInput?, Bool) =
@@ -488,6 +510,7 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
             var s: Float = 0; for i in 0..<n { s += p[i] * p[i] }; return (s / Float(n)).squareRoot()
         }
         let db = 20 * log10(max(rms, 1e-6))                  // −60 dB … 0 dB → 0 … 1
-        DispatchQueue.main.async { self.level = max(0, min(1, (db + 60) / 60)) }
+        let v = max(0, min(1, (db + 60) / 60))
+        DispatchQueue.main.async { if abs(self.meter.value - v) >= 0.01 { self.meter.value = v } }
     }
 }

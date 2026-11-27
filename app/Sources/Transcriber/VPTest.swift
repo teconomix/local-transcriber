@@ -1,4 +1,5 @@
 import AVFoundation
+import Combine
 import ScreenCaptureKit
 import SwiftUI
 import CoreAudio
@@ -164,6 +165,51 @@ enum VPTest {
         appLog("Kalender-Test: \(CalendarContext.calendars().count) Kalender, davon abgewählt \(CalendarContext.excluded.count)")
         appLog("Kalender-Test: \(atF.string(from: now)) → \(CalendarContext.current(at: now)?.title ?? "kein Termin")")
         appLog("Kalender-Test: fertig")
+    }
+
+    /// Aufnahme mit dem Recorder der App (siehe `--record-test`): Start, warten, Stopp. Zeitmarken im app.log.
+    @MainActor
+    static func record(_ r: Recorder, seconds: Double, folder: URL, voiceProcessing: Bool) async {
+        // Zählt, wie oft Menüleiste und Panel neu aufgebaut werden müssen (jede Meldung = ein Neuaufbau der Beobachter)
+        var changes = 0, meterChanges = 0
+        let sub = r.objectWillChange.sink { _ in changes += 1 }
+        let meterSub = r.meter.objectWillChange.sink { _ in meterChanges += 1 }
+        do { try await r.start(deviceID: nil, systemAudio: true, voiceProcessing: voiceProcessing, folder: folder) }
+        catch { appLog("Record-Test: Start fehlgeschlagen: \(error.localizedDescription)"); return }
+        appLog("Record-Test: läuft (\(voiceProcessing ? "mit" : "ohne") Sprachverarbeitung, \(Int(seconds)) s)")
+        // --panel once: Panel nach 2 s öffnen, nach 4 s wieder schließen (Alltag: einmal reingeschaut);
+        // --panel open: Panel offen lassen. Ohne: Panel nie geöffnet.
+        let a = CommandLine.arguments
+        let panel = a.firstIndex(of: "--panel").flatMap { $0 + 1 < a.count ? a[$0 + 1] : nil }
+        var waited = 0.0
+        if panel != nil {
+            try? await Task.sleep(nanoseconds: 2_000_000_000); waited += 2
+            clickStatusItem(); appLog("Record-Test: Panel geöffnet")
+            if panel == "once" {
+                try? await Task.sleep(nanoseconds: 4_000_000_000); waited += 4
+                clickStatusItem(); appLog("Record-Test: Panel geschlossen")
+            }
+        }
+        try? await Task.sleep(nanoseconds: UInt64(max(0, seconds - waited) * 1e9))
+        let url = await r.stop()
+        appLog(String(format: "Record-Test: %d Änderungsmeldungen des Recorders (%.1f/s), %d der Pegelanzeige (%.1f/s)",
+                      changes, Double(changes) / seconds, meterChanges, Double(meterChanges) / seconds))
+        withExtendedLifetime(sub) {}; withExtendedLifetime(meterSub) {}
+        appLog("Record-Test: fertig → \(url?.path ?? "keine Datei")")
+    }
+
+    /// Knopf des eigenen Menüleisten-Eintrags anklicken (öffnet bzw. schließt das Panel), nur für Selbsttests.
+    @MainActor
+    static func clickStatusItem() {
+        func find(_ v: NSView) -> NSStatusBarButton? {
+            if let b = v as? NSStatusBarButton { return b }
+            for s in v.subviews { if let b = find(s) { return b } }
+            return nil
+        }
+        for w in NSApp.windows where String(describing: type(of: w)).contains("StatusBar") {
+            if let v = w.contentView, let b = find(v) { b.performClick(nil); return }
+        }
+        appLog("Record-Test: Menüleisten-Knopf nicht gefunden")
     }
 
     /// Spurversatz: `open -n ~/Applications/Transcriber.app --args --gap-test ORDNER [--vp] [--gap SEKUNDEN]` – Aufnahme
@@ -385,7 +431,7 @@ enum VPTest {
             catch { appLog("Diktat-parallel-Test: Start fehlgeschlagen: \(error)"); continue }
             func meter(_ s: Double) async -> String {
                 var v: [Float] = []
-                for _ in 0..<Int(s * 10) { await pause(0.1); v.append(r.level) }
+                for _ in 0..<Int(s * 10) { await pause(0.1); v.append(r.meter.value) }
                 let m = v.reduce(0, +) / Float(max(v.count, 1))
                 return String(format: "%.0f dB", m * 60 - 60)
             }

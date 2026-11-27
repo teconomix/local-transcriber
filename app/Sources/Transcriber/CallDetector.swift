@@ -58,11 +58,13 @@ final class CallDetector: NSObject, ObservableObject, UNUserNotificationCenterDe
     }
 
     private func poll() {
-        guard enabled else { current = nil; return }
+        guard enabled else { if current != nil { current = nil }; return }
         let now = Date()
         if let call = Self.activeCall() {
             let app = call.app
-            current = app; lastSeen = now
+            // nur bei Änderung zuweisen: jede Zuweisung meldet eine Änderung und baut das Panel neu auf (alle 2 s)
+            if current != app { current = app }
+            lastSeen = now
             // Jede Änderung der Geräteliste protokollieren (Teams meldete beim Start zwei Mikrofone, 2026-10-20 –
             // mit Zeitstempeln sieht man, ob das nur die Vorschau vor dem Beitreten ist).
             if asked {
@@ -70,7 +72,7 @@ final class CallDetector: NSObject, ObservableObject, UNUserNotificationCenterDe
                 if devs != lastDevices { lastDevices = devs; appLog("Call-Geräte: \(devs)") }
             }
             if isRecording() { leaveVoiceProcessing() }    // kein Mikrofon-Konflikt mit der Call-App
-            micName = call.micName
+            if call.micName != micName { micName = call.micName }
             if call.micUID != micUID { micUID = call.micUID }
             // Im Call umgestellt: erst nachziehen, wenn das neue Gerät zweimal hintereinander gemeldet wird; mehr als
             // drei Wechsel pro Minute → nicht mehr folgen (Schutz gegen Pendeln, jeder Wechsel kostet 1–3 s).
@@ -105,7 +107,10 @@ final class CallDetector: NSObject, ObservableObject, UNUserNotificationCenterDe
                 notify(String(localized: "Call beendet"), String(localized: "Aufnahme gestoppt, Transkription läuft."), category: nil)
                 appLog("Call beendet: Aufnahme gestoppt")
             }
-            current = nil; since = nil; lastSeen = nil; asked = false; startedByCall = false; micUID = nil; micName = nil
+            if current != nil { current = nil }
+            since = nil; lastSeen = nil; asked = false; startedByCall = false
+            if micUID != nil { micUID = nil }
+            if micName != nil { micName = nil }
             lastDevices = ""
             pendingMic = nil; switches = []; gaveUp = false
         }

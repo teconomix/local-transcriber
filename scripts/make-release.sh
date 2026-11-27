@@ -62,5 +62,24 @@ cp dist/install.sh "$OUT/install.sh"
 mkdir -p dist/homebrew
 sed -e "s#__VERSION__#$V#" -e "s#__BASE__#$BASE#" -e "s#__SHA256__#$(shasum -a 256 "$OUT/install.sh" | cut -d' ' -f1)#" \
     installer/local-transcriber.rb > dist/homebrew/local-transcriber.rb
+# Vorlage für die GitHub-Release-Notiz (englisch): Installer mit Kürzel gh-release, damit Installationen von der
+# Release-Seite von denen über die Website unterscheidbar bleiben. Erste Zeile und Änderungen von Hand ergänzen.
+cat > dist/release-notes.md <<NOTES
+**<One sentence: what this version brings.>**
+
+**Install or update** (Apple Silicon, macOS 14+): in the app, “Copy update command”, or
+
+\`\`\`bash
+curl -fsSL $BASE/k/gh-release/install.sh | bash
+\`\`\`
+
+Homebrew: \`brew upgrade --cask local-transcriber\`
+
+**<Topic>**
+- <Change>
+
+- All guides on the [website]($BASE/en/?k=gh-release); before installing: [FAQ](https://github.com/teconomix/local-transcriber/discussions/9).
+NOTES
 echo "$V" > dist/latest.txt
-echo "▸ fertig:"; ls -la "$OUT" dist/install.sh
+echo "▸ fertig:"; ls -la "$OUT" dist/install.sh dist/release-notes.md
+echo "  Release-Notiz: dist/release-notes.md ausfüllen · Feed: scripts/release-feed.py $V \"<Titel>\" \"<Satz>\""

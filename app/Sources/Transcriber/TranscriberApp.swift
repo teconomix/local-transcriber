@@ -12,6 +12,13 @@ struct TranscriberApp: App {
     @StateObject private var calls = CallDetector()
     @StateObject private var updates = UpdateCheck()
     private let uiTest = CommandLine.arguments.contains("--ui-test")
+    /// `--record-test SEKUNDEN ORDNER [--vp]`: Aufnahme mit dem Recorder der App selbst (Menüleiste und Panel hängen daran),
+    /// ohne Transkription – zum Messen, was eine laufende Aufnahme im WindowServer auslöst (Absturz 2026-11-23).
+    private let recordTest: (seconds: Double, folder: URL)? = {
+        let a = CommandLine.arguments
+        guard let i = a.firstIndex(of: "--record-test"), i + 2 < a.count, let s = Double(a[i + 1]) else { return nil }
+        return (s, URL(fileURLWithPath: a[i + 2]))
+    }()
 
     init() {
         if CommandLine.arguments.contains("--vp-test") { VPTest.run(); exit(0) }
@@ -111,6 +118,10 @@ struct TranscriberApp: App {
         .onChange(of: uiTest, initial: true) { _, on in
             guard on else { return }
             Task { await VPTest.ui(recorder: recorder, jobs: jobs, dictation: dictation, calls: calls, updates: updates); exit(0) }
+        }
+        .onChange(of: recordTest != nil, initial: true) { _, on in
+            guard on, let t = recordTest else { return }
+            Task { await VPTest.record(recorder, seconds: t.seconds, folder: t.folder, voiceProcessing: CommandLine.arguments.contains("--vp")); exit(0) }
         }
 
         Window("Alle Transkriptionen", id: "library") { LibraryView().environmentObject(jobs) }
@@ -224,8 +235,35 @@ enum Control {
     }
 }
 
+/// Laufzeit der Aufnahme. Eigene Ansicht, die als einzige die Zeit beobachtet (siehe RecordingClock).
+struct RecordingTime: View {
+    enum Style { case menu, panel, status }
+    @ObservedObject var clock: RecordingClock
+    let style: Style
+    var body: some View {
+        let t = clock.elapsed
+        switch style {
+        case .menu: Text("\(Int(t) / 60) min").monospacedDigit()
+        case .panel: Text(Self.long(t)).monospacedDigit()
+        case .status: Text(String(localized: "Aufnahme \(Self.long(t))"))
+        }
+    }
+    static func long(_ t: TimeInterval) -> String {
+        String(format: "%d:%02d:%02d", Int(t) / 3600, Int(t) / 60 % 60, Int(t) % 60)
+    }
+}
+
+/// Pegel der laufenden Aufnahme. Eigene Ansicht, die als einzige den Pegel beobachtet (siehe LevelMeter).
+struct LevelBar: View {
+    @ObservedObject var meter: LevelMeter
+    var body: some View { ProgressView(value: Double(meter.value)).tint(.red) }
+}
+
 /// Menüleiste: Aufnahme (rot + Zeit) hat Vorrang, dann Diktat, sonst Fortschritt laufender Transkriptionen in Prozent.
 struct MenuLabel: View {
+    /// „waveform.badge.ellipsis“ gibt es unter macOS 27 nicht mehr (SwiftUI-Fehler bei jedem Neuaufbau) → „waveform“.
+    static let progressSymbol = NSImage(systemSymbolName: "waveform.badge.ellipsis", accessibilityDescription: nil) != nil
+        ? "waveform.badge.ellipsis" : "waveform"
     @EnvironmentObject var recorder: Recorder
     @EnvironmentObject var jobs: JobManager
     @EnvironmentObject var dictation: Dictation
@@ -237,11 +275,11 @@ struct MenuLabel: View {
         } else if recorder.isRecording {
             HStack(spacing: 3) {
                 Image(systemName: "record.circle.fill")
-                Text(String(format: "%d:%02d", Int(recorder.elapsed) / 60, Int(recorder.elapsed) % 60)).monospacedDigit()
+                RecordingTime(clock: recorder.minuteClock, style: .menu)
             }
         } else if let p = jobs.overallProgress {
             HStack(spacing: 3) {
-                Image(systemName: "waveform.badge.ellipsis")
+                Image(systemName: Self.progressSymbol)
                 Text("\(Int(p * 100)) %").monospacedDigit()
             }
         } else {
@@ -284,7 +322,11 @@ struct PanelView: View {
                 Image(systemName: "waveform").foregroundStyle(.tint)
                 Text("Transcriber").font(.headline)
                 Spacer()
-                Text(status).font(.caption).foregroundStyle(recorder.isRecording ? .red : .secondary).monospacedDigit()
+                Group {
+                    if recorder.isRecording { RecordingTime(clock: panelTop != nil ? recorder.clock : recorder.minuteClock, style: .status) }
+                    else { Text(status) }
+                }
+                    .font(.caption).foregroundStyle(recorder.isRecording ? .red : .secondary).monospacedDigit()
             }
 
             GroupBox {
@@ -327,8 +369,8 @@ struct PanelView: View {
                     if recorder.isRecording {
                         HStack(spacing: 8) {
                             Image(systemName: "record.circle.fill").foregroundStyle(.red)
-                            Text(timeString(recorder.elapsed)).monospacedDigit()
-                            ProgressView(value: Double(recorder.level)).tint(.red)
+                            RecordingTime(clock: panelTop != nil ? recorder.clock : recorder.minuteClock, style: .panel)
+                            LevelBar(meter: recorder.meter)
                         }
                         .font(.callout)
                     }
@@ -475,7 +517,6 @@ struct PanelView: View {
     private var maxListHeight: CGFloat { max(200, screenHeight - 420) }
 
     private var status: String {
-        if recorder.isRecording { return String(localized: "Aufnahme \(timeString(recorder.elapsed))") }
         if let p = jobs.overallProgress { return String(localized: "Transkribiere \(Int(p * 100)) %") }
         return String(localized: "Bereit")
     }
@@ -568,9 +609,6 @@ struct PanelView: View {
         }
     }
 
-    private func timeString(_ t: TimeInterval) -> String {
-        String(format: "%d:%02d:%02d", Int(t) / 3600, Int(t) / 60 % 60, Int(t) % 60)
-    }
 }
 
 /// Auswahlknopf, der die vorgegebene Breite ausfüllt und beim Klick ein natives Menü öffnet. Picker und Menu behalten
