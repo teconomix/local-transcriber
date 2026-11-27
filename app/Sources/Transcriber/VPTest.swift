@@ -174,6 +174,8 @@ enum VPTest {
         var changes = 0, meterChanges = 0
         let sub = r.objectWillChange.sink { _ in changes += 1 }
         let meterSub = r.meter.objectWillChange.sink { _ in meterChanges += 1 }
+        var menuChanges = 0
+        let menuSub = r.minuteClock.objectWillChange.sink { _ in menuChanges += 1 }
         do { try await r.start(deviceID: nil, systemAudio: true, voiceProcessing: voiceProcessing, folder: folder) }
         catch { appLog("Record-Test: Start fehlgeschlagen: \(error.localizedDescription)"); return }
         appLog("Record-Test: läuft (\(voiceProcessing ? "mit" : "ohne") Sprachverarbeitung, \(Int(seconds)) s)")
@@ -194,7 +196,8 @@ enum VPTest {
         let url = await r.stop()
         appLog(String(format: "Record-Test: %d Änderungsmeldungen des Recorders (%.1f/s), %d der Pegelanzeige (%.1f/s)",
                       changes, Double(changes) / seconds, meterChanges, Double(meterChanges) / seconds))
-        withExtendedLifetime(sub) {}; withExtendedLifetime(meterSub) {}
+        appLog("Record-Test: \(menuChanges) Meldungen der Menüleisten-Zeit")
+        withExtendedLifetime(sub) {}; withExtendedLifetime(meterSub) {}; withExtendedLifetime(menuSub) {}
         appLog("Record-Test: fertig → \(url?.path ?? "keine Datei")")
     }
 

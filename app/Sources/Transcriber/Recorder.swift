@@ -25,7 +25,7 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
     @Published var isStarting = false
     let meter = LevelMeter()
     let clock = RecordingClock()
-    let minuteClock = RecordingClock()      // dieselbe Zeit, nur jede volle Minute gemeldet (Menüleiste, geschlossenes Panel)
+    let minuteClock = RecordingClock()      // dieselbe Zeit: erste Minute sekündlich, danach jede volle Minute (Menüleiste, geschlossenes Panel)
     var elapsed: TimeInterval { clock.elapsed }
     @Published var warning: String?
 
@@ -198,7 +198,9 @@ final class Recorder: NSObject, ObservableObject, AVCaptureAudioDataOutputSample
                 // Sekunden nur fürs offene Panel, Minuten für Menüleiste und geschlossenes Panel (RecordingClock)
                 let e = Date().timeIntervalSince(self.startDate)
                 if Int(e) != Int(self.clock.elapsed) { self.clock.elapsed = e }
-                if Int(e) / 60 != Int(self.minuteClock.elapsed) / 60 { self.minuteClock.elapsed = e }
+                // erste Minute sekündlich (Rückmeldung, dass die Aufnahme läuft), danach nur volle Minuten
+                let step = e < 60 ? 1 : 60
+                if Int(e) / step != Int(self.minuteClock.elapsed) / step { self.minuteClock.elapsed = e }
                 self.checkMic()
             }
             RunLoop.main.add(t, forMode: .common)

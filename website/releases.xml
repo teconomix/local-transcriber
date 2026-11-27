@@ -7,7 +7,14 @@
   <link rel="alternate" type="text/html" href="https://transcriber.teconomix.net/en/?k=feed"/>
   <icon>https://transcriber.teconomix.net/assets/icon.svg</icon>
   <author><name>Björn Rabethge</name></author>
-  <updated>2026-11-27T16:57:22Z</updated>
+  <updated>2026-11-27T18:16:41Z</updated>
+  <entry>
+    <title>Local Transcriber 0.16.1: the recording time counts seconds in the first minute</title>
+    <id>https://transcriber.teconomix.net/releases/0.16.1</id>
+    <link rel="alternate" type="text/html" href="https://transcriber.teconomix.net/en/?k=feed"/>
+    <updated>2026-11-27T18:16:41Z</updated>
+    <summary>The menu bar shows seconds for the first minute of a recording, so you can see right away that it is running; after that it switches to minutes as in 0.16. Release notes: https://github.com/teconomix/local-transcriber/releases/tag/v0.16.1</summary>
+  </entry>
   <entry>
     <title>Local Transcriber 0.16: less load while recording, echo cancellation works again</title>
     <id>https://transcriber.teconomix.net/releases/0.16</id>

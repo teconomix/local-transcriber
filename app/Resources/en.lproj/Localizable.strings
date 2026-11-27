@@ -344,6 +344,7 @@
 "Zuklappen – nur Titel und Anfang der Zusammenfassung" = "Collapse – title and start of the summary only";
 "%lld Transkripte · %lld mit Aufnahme (%@) · in ~/%@" = "%lld transcripts · %lld with recording (%@) · in ~/%@";
 "%lld min" = "%lld min";
+"%lld s" = "%lld s";
 "%lld offen" = "%lld open";
 "Alle Transkriptionen" = "All transcripts";
 "Alle Transkriptionen im Ordner ~/Transcriber" = "All transcripts in the folder ~/Transcriber";

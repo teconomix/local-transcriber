@@ -19,13 +19,13 @@
   <meta name="color-scheme" content="light dark">
   <meta name="referrer" content="no-referrer">
   <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=0.16">
+  <link rel="stylesheet" href="../style.css?v=0.16.1">
   <link rel="alternate" hreflang="de" href="https://transcriber.teconomix.net/de/">
   <link rel="alternate" hreflang="en" href="https://transcriber.teconomix.net/en/">
   <link rel="alternate" hreflang="x-default" href="https://transcriber.teconomix.net/">
   <link rel="alternate" type="application/atom+xml" title="Local Transcriber – releases" href="https://transcriber.teconomix.net/releases.xml">
-  <script src="../script.js?v=0.16" defer></script>
-  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Local Transcriber", "operatingSystem": "macOS 14 or newer (Apple Silicon)", "applicationCategory": "BusinessApplication", "description": "Free open-source macOS menu bar tool: meetings, calls and dictation are transcribed locally on your Mac, with speaker recognition – no cloud, no account, no subscription.", "url": "https://transcriber.teconomix.net/en/", "inLanguage": ["de", "en"], "license": "https://opensource.org/licenses/MIT", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}, "author": {"@type": "Person", "name": "Björn Rabethge"}, "softwareVersion": "0.16", "downloadUrl": "https://transcriber.teconomix.net/install.sh"}</script>
+  <script src="../script.js?v=0.16.1" defer></script>
+  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Local Transcriber", "operatingSystem": "macOS 14 or newer (Apple Silicon)", "applicationCategory": "BusinessApplication", "description": "Free open-source macOS menu bar tool: meetings, calls and dictation are transcribed locally on your Mac, with speaker recognition – no cloud, no account, no subscription.", "url": "https://transcriber.teconomix.net/en/", "inLanguage": ["de", "en"], "license": "https://opensource.org/licenses/MIT", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}, "author": {"@type": "Person", "name": "Björn Rabethge"}, "softwareVersion": "0.16.1", "downloadUrl": "https://transcriber.teconomix.net/install.sh"}</script>
 </head>
 <body>
 <a class="skip" href="#content">Skip to content</a>
@@ -61,7 +61,7 @@
               <span aria-live="polite">Copy</span>
             </button>
           </div>
-          <p class="install-version">Version <span data-version>0.16</span> · November 27, 2026 · macOS 14 or later</p>
+          <p class="install-version">Version <span data-version>0.16.1</span> · November 27, 2026 · macOS 14 or later</p>
           <button class="btn share-btn" type="button" data-share hidden>Not at your Mac? Send yourself the link</button>
         </div>
 
@@ -73,7 +73,7 @@
           </a>
         </div>
 
-        <a class="announce" href="#update">New in 0.16: less load while recording (prevents a display crash on macOS 27), echo cancellation works again, the menu bar shows the recording time in minutes →</a>
+        <a class="announce" href="#update">New in 0.16.1: less load while recording (prevents a display crash on macOS 27), echo cancellation works again, the menu bar shows the recording time (seconds for the first minute, then minutes) →</a>
 
         <ul class="facts">
           <li>Mac with Apple silicon</li>
@@ -242,8 +242,8 @@
         </li>
       </ol>
       <figure class="demo-video">
-        <video controls preload="none" playsinline width="1920" height="1080" poster="../assets/video/poster-en.jpg?v=0.16" aria-label="Local Transcriber demo video">
-          <source src="../assets/video/demo-en.mp4?v=0.16" type="video/mp4">
+        <video controls preload="none" playsinline width="1920" height="1080" poster="../assets/video/poster-en.jpg?v=0.16.1" aria-label="Local Transcriber demo video">
+          <source src="../assets/video/demo-en.mp4?v=0.16.1" type="video/mp4">
         </video>
         <figcaption>An 80-second tour: record a call, recognize speakers, summarize with AI, share by email, dictate. With soft music.</figcaption>
       </figure>
@@ -314,11 +314,11 @@
               At the end it asks whether to watch the folder <code>~/Transcriber</code>: <kbd>y</kbd> for yes, just <kbd>↩</kbd> for no.
               <figure class="term" aria-label="What the installation looks like in Terminal">
                 <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i></div>
-<pre><b>Transcriber <span data-version>0.16</span> – Installation</b>
+<pre><b>Transcriber <span data-version>0.16.1</span> – Installation</b>
 
 <b>▸ Checking requirements</b>
   <em>✓</em> macOS 15.6, Apple Silicon, 212 GB free
-<b>▸ Downloading Transcriber <span data-version>0.16</span></b>
+<b>▸ Downloading Transcriber <span data-version>0.16.1</span></b>
   <em>✓</em> Checksums verified
 <b>▸ Setting up Python environment (uv, Python 3.12, packages – takes a few minutes)</b>
   <em>✓</em> Python environment ready
@@ -332,7 +332,7 @@
   <em>✓</em> ~/Applications/Transcriber.app
   Watch the folder ~/Transcriber (automatically transcribe audio files dropped there)? [y/N]
 
-<em><b>Done.</b></em> Transcriber <span data-version>0.16</span> is installed.</pre>
+<em><b>Done.</b></em> Transcriber <span data-version>0.16.1</span> is installed.</pre>
               </figure>
             </li>
             <li><strong>Grant permissions:</strong> Transcriber starts in the menu bar. macOS asks once per feature the first time you use it – click “Allow”.
@@ -406,7 +406,7 @@
 
 <footer class="site-footer">
   <div class="wrap">
-    <span>Local Transcriber <span data-version>0.16</span> · Open source (MIT) · no warranty</span>
+    <span>Local Transcriber <span data-version>0.16.1</span> · Open source (MIT) · no warranty</span>
     <nav aria-label="Legal and links">
       <a href="legal-notice.html">Legal notice</a>
       <a href="privacy.html">Privacy</a>

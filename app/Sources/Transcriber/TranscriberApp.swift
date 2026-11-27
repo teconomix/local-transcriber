@@ -243,7 +243,7 @@ struct RecordingTime: View {
     var body: some View {
         let t = clock.elapsed
         switch style {
-        case .menu: Text("\(Int(t) / 60) min").monospacedDigit()
+        case .menu: Text(t < 60 ? "\(Int(t)) s" : "\(Int(t) / 60) min").monospacedDigit()
         case .panel: Text(Self.long(t)).monospacedDigit()
         case .status: Text(String(localized: "Aufnahme \(Self.long(t))"))
         }
